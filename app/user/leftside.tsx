@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client'
 import React from "react";
+import ReactDOM from "react-dom/client";
 import Image from "next/image";
 import { Menu, Home, QrCode, Film, Sparkles, Settings, X } from "lucide-react";
 import Link from "next/link";
@@ -7,18 +10,20 @@ export default function LeftSide({
   isOpen = true,
   onClose,
   onNavigate,
-  activeView
+  activeView,
+  onOpenScan, // added prop
 }: {
   isOpen?: boolean;
   onClose?: () => void;
   onNavigate?: (view: string) => void;
   activeView?: string;
+  onOpenScan?: () => void; // added prop type
 }) {
   return (
     <>
       {/* overlay */}
       <div
-        onClick={() => onClose?.()}
+        onClick={onClose}
         className={`fixed inset-0 bg-black/40 z-30 transition-opacity duration-300 ${isOpen ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
         aria-hidden={!isOpen}
       />
@@ -38,7 +43,7 @@ export default function LeftSide({
             </div>
 
             <button
-              onClick={() => onClose?.()}
+              onClick={(e) => { e.stopPropagation(); onClose?.(); }}
               aria-label="Close menu"
               className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
             >
@@ -50,6 +55,7 @@ export default function LeftSide({
             <ul className="space-y-2">
               <li>
                 {/* Home: toggle active state and notify parent */}
+                <Link href="/user" className="w-full">
                 <button
                   onClick={() => { onNavigate?.(activeView === 'home' ? '' : 'home'); onClose?.(); }}
                   className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${activeView === 'home' ? 'bg-[#f6e9e7] text-[#7b2030] font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
@@ -63,17 +69,65 @@ export default function LeftSide({
                   />
                   <span>Home</span>
                 </button>
+                </Link>
               </li>
 
               <li>
-                <button className="flex items-center gap-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 w-full text-left">
-                  <Image src="/icons/qr.svg" alt="Reels" width={20} height={20} className="w-5 h-5" />
+                {/* Scan QR - open modal (calls parent handler if provided). Fallback: dynamically mount modal into body so it appears on the current page */}
+                <button
+                  onClick={async () => {
+                    // call parent handler if present (keeps current behavior)
+                    onOpenScan?.();
+                    onClose?.();
+
+                    // Fallback: dynamically import and mount the modal so it appears regardless of route
+                    try {
+                      const { default: QRScanModal } = await import("../qr/qr_scan");
+                      const containerId = "qr-scan-modal-root";
+                      let container = document.getElementById(containerId);
+                      if (!container) {
+                        container = document.createElement("div");
+                        container.id = containerId;
+                        document.body.appendChild(container);
+                      }
+
+                      // reuse existing root if present
+                      let root = (container as any).__react_root as ReactDOM.Root | undefined;
+                      if (!root) {
+                        root = ReactDOM.createRoot(container);
+                        (container as any).__react_root = root;
+                      }
+
+                      const unmount = () => {
+                        try {
+                          root!.unmount();
+                        } catch (e) {
+                          // ignore
+                        }
+                        try {
+                          container?.remove();
+                        } catch (e) {
+                          // ignore
+                        }
+                      };
+
+                      root.render(<QRScanModal isOpen={true} onClose={unmount} />);
+                    } catch (err) {
+                      // fail silently but log for debugging
+                      // eslint-disable-next-line no-console
+                      console.error("Failed to open QR modal", err);
+                    }
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 w-full text-left"
+                >
+                  <Image src="/icons/qr.svg" alt="Scan QR" width={20} height={20} className="w-5 h-5" />
                   <span>Scan QR</span>
                 </button>
               </li>
 
               <li>
                 {/* Reels: toggle active state */}
+                <Link href="/reels" className="w-full">
                 <button
                   onClick={() => { onNavigate?.(activeView === 'reels' ? '' : 'reels'); onClose?.(); }}
                   className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${activeView === 'reels' ? 'bg-[#f6e9e7] text-[#7b2030] font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
@@ -81,23 +135,32 @@ export default function LeftSide({
                   <Image src="/icons/reel.svg" alt="Reels" width={20} height={20} className="w-5 h-5" />
                   <span>Reels</span>
                 </button>
+                </Link>
               </li>
 
               <li>
-                <button className="flex items-center gap-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 w-full text-left">
+                {/* Pray: toggle active state and notify parent to show Pray view */}
+                <Link href="/pray" className="w-full">
+                <button
+                  onClick={() => { onNavigate?.(activeView === 'pray' ? '' : 'pray'); onClose?.(); }}
+                  className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${activeView === 'pray' ? 'bg-[#f6e9e7] text-[#7b2030] font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
                     <Image src="/icons/salah.svg" alt="Salah" width={20} height={20} className="w-5 h-5" />
                     <span>Pray</span>
                 </button>
+                </Link>
               </li>
             </ul>
           </nav>
 
           <div className="mt-auto">
             <div className="border-t border-[#f0e6e5] pt-4">
+              <Link href="/settings" className="w-full">
               <button className="flex items-center gap-3 w-full p-3 rounded-md hover:bg-gray-100 text-gray-700">
                 <Settings className="w-4 h-4" />
                 <span className="text-sm">Settings</span>
               </button>
+              </Link>
 
               <div className="mt-6 flex items-center gap-3">
                 <div className="w-9 h-9 relative rounded-full overflow-hidden bg-gray-100">

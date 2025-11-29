@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import StartNewMessage from "./start_new_message";
 import ChatPanel from "./chat"; // inline-capable chat component
 
 type MessageItem = {
@@ -17,34 +16,22 @@ export default function MessagesModal({
   isOpen,
   onClose,
   onOpenChat, // kept for compatibility but not required
+  onOpenStart, // NEW: request parent to open StartNewMessage
 }: {
   isOpen: boolean;
   onClose: () => void;
   onOpenChat?: (item: MessageItem) => void;
+  onOpenStart?: () => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
-  // manage start-new modal and inline chat state
-  const [startOpen, setStartOpen] = useState(false);
+  // manage inline chat state
   const [showChat, setShowChat] = useState(false);
   const [selectedContact, setSelectedContact] = useState<MessageItem | null>(null);
-
-  const users = [
-    { id: "u1", name: "Aisha Noor", avatar: "https://i.pravatar.cc/80?img=21" },
-    { id: "u2", name: "Bilal Y", avatar: "https://i.pravatar.cc/80?img=17" },
-    { id: "u3", name: "Sara Ali", avatar: "https://i.pravatar.cc/80?img=11" },
-    { id: "u4", name: "Omar Faruk", avatar: "https://i.pravatar.cc/80?img=12" },
-    { id: "u5", name: "Layla Noor", avatar: "https://i.pravatar.cc/80?img=13" },
-  ];
 
   useEffect(() => {
     if (!isOpen) return;
     const onDocClick = (e: MouseEvent) => {
-      // if start-new modal is open and click happened inside it, do not close messages panel
-      if (startOpen) {
-        const startEl = document.getElementById("start-new-modal");
-        if (startEl && startEl.contains(e.target as Node)) return;
-      }
       if (!ref.current) return;
       if (!ref.current.contains(e.target as Node)) onClose();
     };
@@ -57,7 +44,7 @@ export default function MessagesModal({
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [isOpen, onClose, startOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -70,12 +57,9 @@ export default function MessagesModal({
     { id: "m6", name: "Katarina", avatar: "https://i.pravatar.cc/80?img=6", snippet: "Are you still Here?", time: "12:24pm" },
   ];
 
-  // open inline chat (inside this modal) for a selected item
   const openInlineChat = (it: MessageItem) => {
     setSelectedContact(it);
     setShowChat(true);
-    setStartOpen(false);
-    // do NOT call parent onOpenChat to avoid opening external floating chat
   };
 
   return (
@@ -84,7 +68,7 @@ export default function MessagesModal({
         ref={ref}
         className="w-[360px] h-[520px] max-w-[92vw] bg-[#fff6f3] border border-[#f0e6e5] rounded-2xl shadow-xl overflow-hidden flex flex-col"
       >
-        {/* Header: show back button + contact name when chatting inline */}
+        {/* Header */}
         <div className="px-4 py-3 flex items-center justify-between">
           {!showChat ? (
             <>
@@ -129,7 +113,7 @@ export default function MessagesModal({
 
         <div className="border-t border-[#7b2030]" />
 
-        {/* Body: either messages list or inline chat */}
+        {/* Body */}
         <div className="flex-1 relative">
           {!showChat ? (
             <div className="px-3 py-3 overflow-auto space-y-3">
@@ -176,12 +160,15 @@ export default function MessagesModal({
           )}
         </div>
 
-        {/* compose button opens start-new-message modal (hidden when inline chat is open) */}
+        {/* compose button: request parent to open StartNewMessage and close Messages */}
         {!showChat && (
           <div className="absolute right-4 bottom-4">
             <button
               aria-label="Compose"
-              onClick={() => { setStartOpen(true); }}
+              onClick={() => {
+                onClose();
+                onOpenStart?.();
+              }}
               className="inline-flex items-center"
             >
               <Image src="/icons/start_message.png" alt="Compose" width={50} height={24} style={{ objectFit: "contain" }} />
@@ -189,17 +176,6 @@ export default function MessagesModal({
           </div>
         )}
       </div>
-
-      {/* StartNewMessage component */}
-      <StartNewMessage
-        isOpen={startOpen}
-        onClose={() => setStartOpen(false)}
-        users={users}
-        onSelect={(u) => {
-          // open inline chat for selected user (do not close Messages modal)
-          openInlineChat({ id: u.id, name: u.name, avatar: u.avatar, snippet: "", time: "Now" });
-        }}
-      />
     </div>
   );
 }

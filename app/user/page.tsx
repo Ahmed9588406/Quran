@@ -2,90 +2,87 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import NavBar from "./navbar";
-import StoriesBar from "./storybar"; // default export (StoriesBarDemo) used as StoriesBar
+import StoriesBar from "./storybar";
 import PostView from "./postview";
-import Image from "next/image";
-import Link from "next/link";
 import RightSide from "./rightside";
-import LeftSide from "./leftside";
+import Leaderboard from "./leaderboard";
 import { Button } from "@/components/ui/button";
-import { ReelsComponent } from "../reels/page"; // <-- import the reusable reels component
-const MessagesModal = dynamic(() => import("./messages"), { ssr: false }); // new modal component
-const ChatPanel = dynamic(() => import("./chat"), { ssr: false }); // dynamic import to avoid SSR chunk errors
+import StartNewMessage from "./start_new_message";
+import LeftSide from "./leftside";
+import QRScanModal from "../qr/qr_scan"; // import modal
+
+const MessagesModal = dynamic(() => import("./messages"), { ssr: false });
+const ChatPanel = dynamic(() => import("./chat"), { ssr: false });
 
 export default function UserPage() {
   const [isLeftOpen, setIsLeftOpen] = useState(true);
-  const [isMessagesOpen, setIsMessagesOpen] = useState(false); // NEW: messages modal state
+  const [isMessagesOpen, setIsMessagesOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isStartOpen, setIsStartOpen] = useState(false);
+  const [isScanOpen, setIsScanOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
-
-  // NEW: activeView controls current main content: 'home' | 'reels' | ''
   const [activeView, setActiveView] = useState<string>('home');
 
-  const suggestions = [
-    { id: "1", name: "lucas", note: "Followed by mark + 2 more", avatar: "https://i.pravatar.cc/40?img=10" },
-    { id: "2", name: "laura", note: "Followed by brandon + 6 more", avatar: "https://i.pravatar.cc/40?img=20" },
-    { id: "3", name: "rikki", note: "Followed by mik + 1 more", avatar: "https://i.pravatar.cc/40?img=30" },
-    { id: "4", name: "elrani", note: "Followed by ednamanz + 1 more", avatar: "https://i.pravatar.cc/40?img=40" },
-    { id: "5", name: "tomascka", note: "Followed by katarina + 2 more", avatar: "https://i.pravatar.cc/40?img=50" },
+  const startUsers = [
+    { id: "u1", name: "Aisha Noor", avatar: "https://i.pravatar.cc/80?img=21" },
+    { id: "u2", name: "Bilal Y", avatar: "https://i.pravatar.cc/80?img=17" },
+    { id: "u3", name: "Sara Ali", avatar: "https://i.pravatar.cc/80?img=11" },
+    { id: "u4", name: "Omar Faruk", avatar: "https://i.pravatar.cc/80?img=12" },
+    { id: "u5", name: "Layla Noor", avatar: "https://i.pravatar.cc/80?img=13" },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* pass toggle handler to NavBar */}
-      <NavBar onToggleSidebar={() => setIsLeftOpen((s) => !s)} />
+    <div className="min-h-screen bg-[#fff6f3]">
+      <NavBar
+        onToggleSidebar={() => setIsLeftOpen((s) => !s)}
+        isSidebarOpen={isLeftOpen}
+      />
 
-      <main className="max-w-6xl mx-auto px-4 lg:px-8 mt-6">
-        {/* updated grid: left sidebar + feed + right sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Left sidebar: receive isOpen so it can animate/collapse.
-              Also pass onNavigate so clicking Reels can request this page to show reels. */}
-          <LeftSide
-            isOpen={isLeftOpen}
-            onClose={() => setIsLeftOpen(false)}
-            onNavigate={(view) => {
-              // parent receives view ('' to deselect)
-              setActiveView(view || '');
-            }}
-            activeView={activeView}
-          />
+      {/* LeftSide sidebar */}
+      <LeftSide
+        isOpen={isLeftOpen}
+        onClose={() => setIsLeftOpen(false)}
+        onNavigate={(view) => setActiveView(view || '')}
+        activeView={activeView}
+        onOpenScan={() => setIsScanOpen(true)} // pass handler
+      />
 
-          {/* Left / Center column: render reels or feed */}
-          <section className="lg:col-start-2 lg:col-span-2 flex flex-col items-center justify-center space-y-6 min-h-[60vh]">
-            {activeView === 'reels' ? (
-              <div className="w-full max-w-[500px] h-[90vh]">
-                <ReelsComponent />
-              </div>
-            ) : (
-              <>
-                {/* Home feed */}
-                <StoriesBar />
-                <div className="w-full max-w-2xl mx-auto flex flex-col items-center space-y-6">
-                  <PostView />
-                  <PostView />
-                </div>
-              </>
-            )}
-          </section>
+      {/* Leaderboard - fixed left, below navbar */}
+      <div className="hidden lg:block fixed left-4 top-20 z-30 pointer-events-auto">
+        <Leaderboard />
+      </div>
 
-          {/* Right column: place RightSide here so it displays fully and sticks on scroll */}
-          <aside className="hidden lg:block">
-            <div className="fixed right-4 top-20 w-80 space-y-4">
-              <RightSide />
-            </div>
-          </aside>
+      {/* RightSide - fixed right, below navbar */}
+      <aside className="hidden lg:block fixed right-4 top-20 z-30 pointer-events-auto">
+        <div className="w-[320px] max-h-[calc(100vh-100px)] rounded-lg overflow-auto shadow-sm bg-white">
+          <RightSide />
+        </div>
+      </aside>
+
+      {/* Main content - centered with margins to avoid overlapping fixed sidebars */}
+      <main className="pt-0 pb-24 mr-175">
+        <div className="mx-auto w-full max-w-2xl px-4 lg:ml-[320px] lg:mr-[360px] lg:max-w-none xl:ml-[380px] xl:mr-[400px]">
+          {/* Stories bar */}
+          <div className="w-full mb-6">
+            <StoriesBar />
+          </div>
+
+          {/* Feed / Posts */}
+          <div className="flex flex-col items-center space-y-6">
+            <PostView />
+            <PostView />
+          </div>
         </div>
       </main>
 
-      {/* Permanent floating action button (fixed) */}
+      {/* Floating Messages button */}
       <div className="fixed right-8 bottom-8 z-50">
         <Button
           aria-label="Quick action"
-          className="w-[143px] h-[56px] bg-[#7a1233] text-white rounded-[16px] inline-flex items-center justify-center gap-2 px-4 py-2 shadow-lg"
+          className="w-[143px] h-[56px] bg-[#7a1233] text-white rounded-[16px] inline-flex items-center justify-center gap-2 px-4 py-2 shadow-lg hover:bg-[#5e0e27]"
           type="button"
           onClick={() => setIsMessagesOpen(true)}
         >
-          {/* optional icon */}
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden className="opacity-90">
             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -93,7 +90,7 @@ export default function UserPage() {
         </Button>
       </div>
 
-      {/* Messages modal (toggles when Messages button clicked) */}
+      {/* Messages modal */}
       <MessagesModal
         isOpen={isMessagesOpen}
         onClose={() => setIsMessagesOpen(false)}
@@ -101,14 +98,33 @@ export default function UserPage() {
           setSelectedContact({ id: item.id, name: item.name, avatar: item.avatar });
           setIsChatOpen(true);
         }}
+        onOpenStart={() => {
+          setIsMessagesOpen(false);
+          setIsStartOpen(true);
+        }}
       />
 
-      {/* Chat panel: appears beside Messages modal for selected contact */}
+      {/* StartNewMessage modal */}
+      <StartNewMessage
+        isOpen={isStartOpen}
+        onClose={() => setIsStartOpen(false)}
+        users={startUsers}
+        onSelect={(u) => {
+          setSelectedContact({ id: u.id, name: u.name, avatar: u.avatar });
+          setIsChatOpen(true);
+          setIsStartOpen(false);
+        }}
+      />
+
+      {/* Chat panel */}
       <ChatPanel
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         contact={selectedContact}
       />
+
+      {/* QR Scan modal */}
+      <QRScanModal isOpen={isScanOpen} onClose={() => setIsScanOpen(false)} />
     </div>
   );
 }
