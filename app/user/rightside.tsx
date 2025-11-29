@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import Image from "next/image";
 import { MapPin } from "lucide-react";
 
@@ -32,6 +32,19 @@ export default function RightSide() {
   const [nextPrayerTime, setNextPrayerTime] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState<string>("--:--:--");
   const intervalRef = useRef<number | null>(null);
+
+  // compute Arabic Islamic (Hijri) date string on client
+  const islamicDate = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat("ar-SA-u-ca-islamic", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(new Date());
+    } catch (e) {
+      return "";
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,7 +220,7 @@ export default function RightSide() {
           <div className="flex items-center gap-4">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-white/10">
               {/* mosque svg */}
-             <Image
+              <Image
                 src="/icons/mosque-location.svg"
                 alt="Mosque"
                 width={32}
@@ -219,6 +232,8 @@ export default function RightSide() {
             <div>
               <div className="text-sm text-white/80">Mosque</div>
               <div className="text-2xl font-semibold">{mosque?.name ?? "Msheireb Mosque"}</div>
+              {/* Arabic Islamic date */}
+              {islamicDate && <div className="text-sm text-white/80">{islamicDate}</div>}
             </div>
           </div>
 
@@ -257,7 +272,6 @@ export default function RightSide() {
       </div>
 
       {/* additional sidebar content can be rendered here (profile, suggestions) */}
-     
     </div>
   );
 }
