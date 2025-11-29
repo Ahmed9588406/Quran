@@ -200,11 +200,11 @@ export default function RightSide() {
     return `https://www.google.com/maps/dir/?api=1&destination=${mosque.lat},${mosque.lon}`;
   };
 
-  // Render updated card matching provided design
+  // Render updated card matching provided design (smaller)
   return (
-    <div className="space-y-4">
-      {/* Main Mosque Card - replaced layout to match MosquePrayerCard design */}
-      <div className="relative w-full max-w-4xl mx-auto rounded-3xl overflow-hidden bg-slate-900 text-white shadow-sm border border-gray-800">
+    <div className="space-y-4 w-full">
+      {/* Main Mosque Card - reduced height and made width fluid */}
+      <div className="relative w-full rounded-3xl overflow-hidden bg-slate-900 text-white shadow-sm border border-gray-800">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -215,33 +215,33 @@ export default function RightSide() {
           <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/50 to-slate-900/70" />
         </div>
 
-        <div className="relative h-72 sm:h-80 lg:h-96 flex flex-col justify-between p-6">
+        {/* smaller heights so card fits in right column without scrolling */}
+        <div className="relative h-44 sm:h-48 lg:h-56 flex flex-col justify-between p-4">
           {/* Header */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-white/10">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/10">
               {/* mosque svg */}
               <Image
                 src="/icons/mosque-location.svg"
                 alt="Mosque"
-                width={32}
-                height={32}
+                width={28}
+                height={28}
                 draggable="false"
               />
             </div>
 
             <div>
               <div className="text-sm text-white/80">Mosque</div>
-              <div className="text-2xl font-semibold">{mosque?.name ?? "Msheireb Mosque"}</div>
-              {/* Arabic Islamic date */}
-              {islamicDate && <div className="text-sm text-white/80">{islamicDate}</div>}
+              <div className="text-lg font-semibold">{mosque?.name ?? "Msheireb Mosque"}</div>
+              {islamicDate && <div className="text-xs text-white/80">{islamicDate}</div>}
             </div>
           </div>
 
           {/* Bottom Section */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-normal">Salat {nextPrayerName ?? "—"} After</h2>
-              <p className="text-sm text-white/80">
+              <h2 className="text-lg font-normal">Salat {nextPrayerName ?? "—"} After</h2>
+              <p className="text-xs text-white/80">
                 {nextPrayerTime
                   ? nextPrayerTime.toLocaleDateString(undefined, {
                       day: "2-digit",
@@ -252,17 +252,17 @@ export default function RightSide() {
               </p>
             </div>
 
-            <div className="text-5xl font-light tracking-wider">{countdown}</div>
+            <div className="text-3xl font-light tracking-wider">{countdown}</div>
 
-            <div className="flex items-center justify-between mt-2">
-              <div className="text-sm text-white/80">
+            <div className="flex items-center justify-between mt-1">
+              <div className="text-xs text-white/80">
                 {mosque?.distanceMeters ? `${Math.round(mosque.distanceMeters)} m` : ""}
               </div>
               <a
                 href={getMapsLink()}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm bg-white text-[#7b2030] px-3 py-1 rounded-md font-medium hover:bg-white/90"
+                className="text-xs bg-white text-[#7b2030] px-2 py-0.5 rounded-md font-medium hover:bg-white/90"
               >
                 Get directions
               </a>

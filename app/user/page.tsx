@@ -22,6 +22,7 @@ export default function UserPage() {
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [activeView, setActiveView] = useState<string>('home');
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   const startUsers = [
     { id: "u1", name: "Aisha Noor", avatar: "https://i.pravatar.cc/80?img=21" },
@@ -32,35 +33,44 @@ export default function UserPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#fff6f3]">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        backgroundImage: "url('/icons/settings/background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* Navbar */}
       <NavBar
-        onToggleSidebar={() => setIsLeftOpen((s) => !s)}
-        isSidebarOpen={isLeftOpen}
+        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        isSidebarOpen={isSidebarOpen}
       />
 
-      {/* LeftSide sidebar */}
+      {/* Left Sidebar */}
       <LeftSide
-        isOpen={isLeftOpen}
-        onClose={() => setIsLeftOpen(false)}
+        isOpen={isSidebarOpen}
+        onClose={() => setSidebarOpen(false)}
         onNavigate={(view) => setActiveView(view || '')}
         activeView={activeView}
         onOpenScan={() => setIsScanOpen(true)} // pass handler
       />
 
       {/* Leaderboard - fixed left, below navbar */}
-      <div className="hidden lg:block fixed left-4 top-20 z-30 pointer-events-auto">
+      <div className="hidden lg:block fixed left-4 top-20 z-30 pointer-events-auto ">
         <Leaderboard />
       </div>
 
       {/* RightSide - fixed right, below navbar */}
       <aside className="hidden lg:block fixed right-4 top-20 z-30 pointer-events-auto">
-        <div className="w-[320px] max-h-[calc(100vh-100px)] rounded-lg overflow-auto shadow-sm bg-white">
+        <div className="w-[320px] max-h-[calc(100vh-100px)] rounded-lg overflow-auto shadow-sm">
           <RightSide />
         </div>
       </aside>
 
       {/* Main content - centered with margins to avoid overlapping fixed sidebars */}
-      <main className="pt-0 pb-24 mr-175">
+      <main className="flex-1 p-4 mr-175">
         <div className="mx-auto w-full max-w-2xl px-4 lg:ml-[320px] lg:mr-[360px] lg:max-w-none xl:ml-[380px] xl:mr-[400px]">
           {/* Stories bar */}
           <div className="w-full mb-6">
