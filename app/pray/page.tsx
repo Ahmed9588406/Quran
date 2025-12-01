@@ -4,6 +4,7 @@ import RightSide from '../user/rightside'
 import Image from 'next/image'
 import NavBar from '../user/navbar' // add navbar import
 import LeftSide from '../user/leftside' // NEW: import LeftSide so NavBar can toggle it
+import Link from 'next/link'
 
 export default function PrayPage() {
   const [isLeftOpen, setIsLeftOpen] = useState(true); // NEW: local sidebar state for this page
@@ -43,10 +44,12 @@ export default function PrayPage() {
           {/* vertical pill list (matches provided screenshot style) */}
           <ul className="mt-4 w-full max-w-[min(920px,96vw)] space-y-3">
             <li>
-              <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
-                <span className="text-sm font-medium text-[#2b2b2b] text-left">Quraan Kareem</span>
-                <Image src="/icons/pray/quran%201.svg" alt="Quran Icon" width={30} height={30} className="object-contain" />
-              </button>
+              <Link href="/pray/quran">
+                <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
+                  <span className="text-sm font-medium text-[#2b2b2b] text-left">Quraan Kareem</span>
+                  <Image src="/icons/pray/quran%201.svg" alt="Quran Icon" width={30} height={30} className="object-contain" />
+                </button>
+              </Link>
             </li>
 
             <li>

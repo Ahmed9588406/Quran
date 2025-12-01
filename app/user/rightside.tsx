@@ -97,7 +97,6 @@ export default function RightSide() {
         const timestamp = Math.floor(Date.now() / 1000);
         const url = `https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lon}&method=2`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Aladhan API failed");
         const json = await res.json();
         const timings = json.data.timings;
         // order to check for "next"

@@ -3,174 +3,163 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import Image from "next/image";
-import { Menu, Home, QrCode, Film, Sparkles, Settings, X } from "lucide-react";
+import { Home, QrCode, Film, Settings, X } from "lucide-react";
 import Link from "next/link";
 
 export default function LeftSide({
-  isOpen = true,
+  isOpen = false,
   onClose,
   onNavigate,
   activeView,
-  onOpenScan, // added prop
+  onOpenScan,
 }: {
   isOpen?: boolean;
   onClose?: () => void;
   onNavigate?: (view: string) => void;
   activeView?: string;
-  onOpenScan?: () => void; // added prop type
+  onOpenScan?: () => void;
 }) {
+  // QR modal handler
+  const openQrModal = async () => {
+    onOpenScan?.();
+    onClose?.();
+    try {
+      const { default: QRScanModal } = await import("../qr/qr_scan");
+      const containerId = "qr-scan-modal-root";
+      let container = document.getElementById(containerId);
+      if (!container) {
+        container = document.createElement("div");
+        container.id = containerId;
+        document.body.appendChild(container);
+      }
+      let root = (container as any).__react_root as ReactDOM.Root | undefined;
+      if (!root) {
+        root = ReactDOM.createRoot(container);
+        (container as any).__react_root = root;
+      }
+      const unmount = () => {
+        try { root!.unmount(); } catch (e) { /* ignore */ }
+        try { container?.remove(); } catch (e) { /* ignore */ }
+      };
+      root.render(<QRScanModal isOpen={true} onClose={unmount} />);
+    } catch (err) {
+      console.error("Failed to open QR modal", err);
+    }
+  };
+
+  const iconBtnBase = "flex items-center gap-3 rounded-lg transition-colors";
+
+  const IconBtn = ({
+    href,
+    onClick,
+    active,
+    children,
+    label,
+  }: {
+    href?: string;
+    onClick?: () => void;
+    active?: boolean;
+    children: React.ReactNode;
+    label: string;
+  }) => {
+    const cls = `${iconBtnBase} ${isOpen ? "w-full p-3" : "w-10 h-10 justify-center"} ${active ? "bg-[#f6e9e7] text-[#7b2030]" : "text-gray-600 hover:bg-gray-100"}`;
+    const btn = (
+      <button onClick={onClick} aria-label={label} title={label} className={cls}>
+        {children}
+        {isOpen && <span className="text-sm">{label}</span>}
+      </button>
+    );
+    return href ? <Link href={href} className={isOpen ? "w-full" : ""}>{btn}</Link> : btn;
+  };
+
   return (
     <>
-      {/* overlay */}
-      <div
-        onClick={onClose}
-        className={`fixed inset-0 bg-black/40 z-30 transition-opacity duration-300 ${isOpen ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
-        aria-hidden={!isOpen}
-      />
+      {/* Overlay when expanded */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed left-0 right-0 top-14 bottom-0 bg-black/40 z-30"
+          aria-hidden
+        />
+      )}
 
-      {/* sliding panel */}
+      {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full w-64 max-w-[80vw] bg-[#fff6f3] border-r border-[#f0e6e5]
-                    transform transition-transform duration-300 ease-out
-                    ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-                    sm:w-56 md:w-48 lg:w-56`}
-        aria-hidden={!isOpen}
+        className={`fixed top-14 left-0 bottom-0 z-40 bg-[#fff6f3] border-r border-[#f0e6e5] flex flex-col items-center py-4 transition-all duration-300 ${
+          isOpen ? "w-56" : "w-14"
+        }`}
       >
-        <div className="flex flex-col h-full px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              
+        {/* Header with close button (only when expanded) */}
+        {isOpen && (
+          <div className="w-full flex items-center justify-between px-4 mb-4">
+            <div className="w-8 h-8 relative">
+              <Image src="/figma-assets/logo_wesal.png" alt="logo" fill style={{ objectFit: "contain" }} />
             </div>
-
             <button
-              onClick={(e) => { e.stopPropagation(); onClose?.(); }}
+              onClick={onClose}
               aria-label="Close menu"
               className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
+        )}
 
-          <nav className="flex-1 overflow-y-auto">
-            <ul className="space-y-2">
-              <li>
-                {/* Home: toggle active state and notify parent */}
-                <Link href="/user" className="w-full">
-                <button
-                  onClick={() => { onNavigate?.(activeView === 'home' ? '' : 'home'); onClose?.(); }}
-                  className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${activeView === 'home' ? 'bg-[#f6e9e7] text-[#7b2030] font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                  <Image
-                    src={activeView === 'home' ? "/icons/home-11_selectable.svg" : "/icons/home_not_selectable.svg"}
-                    alt="Home"
-                    width={20}
-                    height={20}
-                    className="w-5 h-5"
-                  />
-                  <span>Home</span>
-                </button>
-                </Link>
-              </li>
+        {/* Logo (only when collapsed) */}
+        {!isOpen && (
+          <div className="w-8 h-8 relative mb-4">
+            <Image src="/figma-assets/logo_wesal.png" alt="logo" fill style={{ objectFit: "contain" }} />
+          </div>
+        )}
 
-              <li>
-                {/* Scan QR - open modal (calls parent handler if provided). Fallback: dynamically mount modal into body so it appears on the current page */}
-                <button
-                  onClick={async () => {
-                    // call parent handler if present (keeps current behavior)
-                    onOpenScan?.();
-                    onClose?.();
+        {/* Nav icons */}
+        <nav className={`flex flex-col gap-2 ${isOpen ? "w-full px-3" : "items-center"}`}>
+          <IconBtn
+            href="/user"
+            label="Home"
+            active={activeView === "home"}
+            onClick={() => { onNavigate?.("home"); onClose?.(); }}
+          >
+            <Home className="w-5 h-5" />
+          </IconBtn>
 
-                    // Fallback: dynamically import and mount the modal so it appears regardless of route
-                    try {
-                      const { default: QRScanModal } = await import("../qr/qr_scan");
-                      const containerId = "qr-scan-modal-root";
-                      let container = document.getElementById(containerId);
-                      if (!container) {
-                        container = document.createElement("div");
-                        container.id = containerId;
-                        document.body.appendChild(container);
-                      }
+          <IconBtn label="Scan QR" onClick={openQrModal}>
+            <QrCode className="w-5 h-5" />
+          </IconBtn>
 
-                      // reuse existing root if present
-                      let root = (container as any).__react_root as ReactDOM.Root | undefined;
-                      if (!root) {
-                        root = ReactDOM.createRoot(container);
-                        (container as any).__react_root = root;
-                      }
+          <IconBtn
+            href="/reels"
+            label="Reels"
+            active={activeView === "reels"}
+            onClick={() => { onNavigate?.("reels"); onClose?.(); }}
+          >
+            <Film className="w-5 h-5" />
+          </IconBtn>
 
-                      const unmount = () => {
-                        try {
-                          root!.unmount();
-                        } catch (e) {
-                          // ignore
-                        }
-                        try {
-                          container?.remove();
-                        } catch (e) {
-                          // ignore
-                        }
-                      };
+          <IconBtn
+            href="/pray"
+            label="Pray"
+            active={activeView === "pray"}
+            onClick={() => { onNavigate?.("pray"); onClose?.(); }}
+          >
+            <Image src="/icons/salah.svg" alt="Salah" width={20} height={20} className="w-5 h-5" />
+          </IconBtn>
+        </nav>
 
-                      root.render(<QRScanModal isOpen={true} onClose={unmount} />);
-                    } catch (err) {
-                      // fail silently but log for debugging
-                      // eslint-disable-next-line no-console
-                      console.error("Failed to open QR modal", err);
-                    }
-                  }}
-                  className="flex items-center gap-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 w-full text-left"
-                >
-                  <Image src="/icons/qr.svg" alt="Scan QR" width={20} height={20} className="w-5 h-5" />
-                  <span>Scan QR</span>
-                </button>
-              </li>
+        {/* Spacer */}
+        <div className="flex-1" />
 
-              <li>
-                {/* Reels: toggle active state */}
-                <Link href="/reels" className="w-full">
-                <button
-                  onClick={() => { onNavigate?.(activeView === 'reels' ? '' : 'reels'); onClose?.(); }}
-                  className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${activeView === 'reels' ? 'bg-[#f6e9e7] text-[#7b2030] font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                  <Image src="/icons/reel.svg" alt="Reels" width={20} height={20} className="w-5 h-5" />
-                  <span>Reels</span>
-                </button>
-                </Link>
-              </li>
+        {/* Bottom: settings + avatar */}
+        <div className={`flex flex-col gap-2 mb-2 ${isOpen ? "w-full px-3" : "items-center"}`}>
+          <IconBtn href="/settings" label="Settings">
+            <Settings className="w-5 h-5" />
+          </IconBtn>
 
-              <li>
-                {/* Pray: toggle active state and notify parent to show Pray view */}
-                <Link href="/pray" className="w-full">
-                <button
-                  onClick={() => { onNavigate?.(activeView === 'pray' ? '' : 'pray'); onClose?.(); }}
-                  className={`flex items-center gap-3 p-3 rounded-lg w-full text-left ${activeView === 'pray' ? 'bg-[#f6e9e7] text-[#7b2030] font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                    <Image src="/icons/salah.svg" alt="Salah" width={20} height={20} className="w-5 h-5" />
-                    <span>Pray</span>
-                </button>
-                </Link>
-              </li>
-            </ul>
-          </nav>
-
-          <div className="mt-auto">
-            <div className="border-t border-[#f0e6e5] pt-4">
-              <Link href="/settings" className="w-full">
-              <button className="flex items-center gap-3 w-full p-3 rounded-md hover:bg-gray-100 text-gray-700">
-                <Settings className="w-4 h-4" />
-                <span className="text-sm">Settings</span>
-              </button>
-              </Link>
-
-              <div className="mt-6 flex items-center gap-3">
-                <div className="w-9 h-9 relative rounded-full overflow-hidden bg-gray-100">
-                  <Image src="/figma-assets/avatar.png" alt="Mazen" fill style={{ objectFit: "cover" }} />
-                </div>
-                <div>
-                  <div className="text-sm font-medium">Mazen Mohamed</div>
-                </div>
-              </div>
+          <div className={`flex items-center gap-3 ${isOpen ? "px-3 py-2" : ""}`}>
+            <div className="w-8 h-8 relative rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+              <Image src="/figma-assets/avatar.png" alt="avatar" fill style={{ objectFit: "cover" }} />
             </div>
+            {isOpen && <span className="text-sm font-medium">Mazen Mohamed</span>}
           </div>
         </div>
       </aside>

@@ -28,7 +28,7 @@ export default function NavBar({
   };
 
   return (
-    <header className="w-full bg-[#fff6f3] border-b border-[#f0e6e5]">
+    <header className="fixed top-0 left-0 right-0 w-full z-50 bg-[#fff6f3] border-b border-[#f0e6e5]">
       <div className="w-full px-4 lg:px-6">
         <div className="flex items-center justify-between h-14">
           {/* Left: menu button + logo - pushed to extreme left */}

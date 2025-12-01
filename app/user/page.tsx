@@ -36,7 +36,6 @@ export default function UserPage() {
     <div
       className="min-h-screen flex flex-col"
       style={{
-        backgroundImage: "url('/icons/settings/background.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -48,7 +47,7 @@ export default function UserPage() {
         isSidebarOpen={isSidebarOpen}
       />
 
-      {/* Left Sidebar */}
+      {/* Left Sidebar */} 
       <LeftSide
         isOpen={isSidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -58,7 +57,7 @@ export default function UserPage() {
       />
 
       {/* Leaderboard - fixed left, below navbar */}
-      <div className="hidden lg:block fixed left-4 top-20 z-30 pointer-events-auto ">
+      <div className="hidden lg:block fixed left-15 top-20 z-30 pointer-events-auto ">
         <Leaderboard />
       </div>
 
@@ -70,15 +69,15 @@ export default function UserPage() {
       </aside>
 
       {/* Main content - centered with margins to avoid overlapping fixed sidebars */}
-      <main className="flex-1 p-4 mr-175">
+      <main className="flex-1 p-15 mr-175">
         <div className="mx-auto w-full max-w-2xl px-4 lg:ml-[320px] lg:mr-[360px] lg:max-w-none xl:ml-[380px] xl:mr-[400px]">
           {/* Stories bar */}
-          <div className="w-full mb-6">
+          <div className="w-full mb-0">
             <StoriesBar />
           </div>
 
           {/* Feed / Posts */}
-          <div className="flex flex-col items-center space-y-6">
+          <div className="flex flex-col items-center space-y-6 mt-0">
             <PostView />
             <PostView />
           </div>
