@@ -85,6 +85,8 @@ export default function SurahPage() {
   const [currentAyah, setCurrentAyah] = useState(1);
   const [showBismillahHeader, setShowBismillahHeader] = useState(false);
 
+  const ayahsPerPage = 10; // Number of ayahs per custom page
+
   const toggleSidebar = () => setSidebarOpen((s) => !s);
 
   useEffect(() => {
@@ -104,31 +106,21 @@ export default function SurahPage() {
         const shouldShowBismillah = parseInt(surahNumber) !== 9 && parseInt(surahNumber) !== 1;
         setShowBismillahHeader(shouldShowBismillah);
         
-        setSurahData(data.data);
-        
         // Fetch ayahs from the new API
         const ayahPromises = Array.from({ length: data.data.numberOfAyahs }, (_, i) =>
           fetch(`https://quranapi.pages.dev/api/${surahNumber}/${i + 1}.json`).then(res => res.json())
         );
         const ayahDatas = await Promise.all(ayahPromises);
         
-        // Map to Ayah interface
-        const ayahs: Ayah[] = ayahDatas.map((a, idx) => ({
-          number: idx + 1,
-          text: a.arabic1,
-          numberInSurah: a.ayahNo,
-          juz: 1, // dummy
-          manzil: 1,
-          page: 1,
-          ruku: 1,
-          hizbQuarter: 1,
-          sajda: false,
-          surah: data.data,
+        // Map to Ayah interface, keeping original metadata but replacing text
+        const ayahs: Ayah[] = data.data.ayahs.map((ayah, idx) => ({
+          ...ayah,
+          text: ayahDatas[idx].arabic1,
         }));
         
         setSurahData({ ...data.data, ayahs });
         
-        // Set initial page to 1 (all ayahs on one page)
+        // Set initial page to 1
         setCurrentPage(1);
         setCurrentAyah(1);
         
@@ -151,18 +143,27 @@ export default function SurahPage() {
     }
   }, [surahNumber]);
 
-  // Get unique pages for this surah (now only 1 page)
-  const uniquePages = [1];
+  // Calculate custom pages
+  const totalPages = surahData ? Math.ceil(surahData.numberOfAyahs / ayahsPerPage) : 0;
+  const startAyah = (currentPage - 1) * ayahsPerPage + 1;
+  const endAyah = Math.min(currentPage * ayahsPerPage, surahData?.numberOfAyahs || 0);
+  const currentPageAyahs = surahData ? surahData.ayahs.slice(startAyah - 1, endAyah) : [];
 
-  // Get ayahs for current page (all ayahs)
-  const currentPageAyahs = surahData ? surahData.ayahs : [];
+  // Get unique pages for this surah
+  const uniquePages = surahData
+    ? [...new Set(surahData.ayahs.map((ayah) => ayah.page))].sort((a, b) => a - b)
+    : [];
 
   const goToPreviousPage = () => {
-    // No previous page
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   const goToNextPage = () => {
-    // No next page
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
   };
 
   const goToPreviousSurah = () => {
@@ -182,7 +183,9 @@ export default function SurahPage() {
   // Navigate to a specific ayah
   const goToAyah = (ayahNumber: number) => {
     if (surahData) {
+      const page = Math.ceil(ayahNumber / ayahsPerPage);
       setCurrentAyah(ayahNumber);
+      setCurrentPage(page);
     }
   };
 
@@ -270,6 +273,8 @@ export default function SurahPage() {
                     <span>{surahData.revelationType}</span>
                     <span>•</span>
                     <span>{surahMeta?.totalAyah ?? surahData.numberOfAyahs} Ayahs</span>
+                    <span>•</span>
+                    <span>Page {currentPage} of {totalPages}</span>
                   </div>
                 </div>
                 <div className="text-right">
@@ -358,7 +363,7 @@ export default function SurahPage() {
             </div>
 
             {/* Bismillah Header - Show for all surahs except At-Tawbah (9) and Al-Fatihah (1) */}
-            {showBismillahHeader && (
+            {showBismillahHeader && currentPage === 1 && (
               <div className="bg-[#fdfaf5] rounded-xl p-6 mb-6 text-center shadow-md">
                 <p className="text-3xl font-arabic text-[#333333] leading-loose">
                   بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
@@ -392,11 +397,51 @@ export default function SurahPage() {
               </div>
             </div>
 
-            {/* Remove Fixed Page Navigation */}
+            {/* Fixed Page Navigation - Always visible with two buttons */}
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <button
+                onClick={goToPreviousPage}
+                disabled={loading || currentPage === 1}
+                className="px-6 py-3 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-lg font-medium"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous Page
+              </button>
+
+              <div className="flex items-center gap-2 bg-white/90 px-4 py-2 rounded-lg">
+                <span className="text-gray-600">Page:</span>
+                <select
+                  value={currentPage}
+                  onChange={(e) => setCurrentPage(parseInt(e.target.value))}
+                  className="px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8A1538]"
+                >
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <option key={page} value={page}>
+                      {page}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-gray-600">of {totalPages}</span>
+              </div>
+
+              <button
+                onClick={goToNextPage}
+                disabled={loading || currentPage === totalPages}
+                className="px-6 py-3 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-lg font-medium"
+              >
+                Next Page
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
             {/* Ayah Info */}
             <div className="bg-white/80 rounded-xl p-4 text-center text-sm text-gray-600">
               <p>
-                Showing all Ayahs | Current Ayah: {currentAyah}
+                Showing Ayahs {startAyah} - {endAyah} of {surahData.numberOfAyahs} | Page {currentPage} of {totalPages} | Current Ayah: {currentAyah}
               </p>
             </div>
           </>

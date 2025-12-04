@@ -12,12 +12,14 @@ export default function LeftSide({
   onNavigate,
   activeView,
   onOpenScan,
+  permanent = false,
 }: {
   isOpen?: boolean;
   onClose?: () => void;
   onNavigate?: (view: string) => void;
   activeView?: string;
   onOpenScan?: () => void;
+  permanent?: boolean;
 }) {
   // QR modal handler
   const openQrModal = async () => {
@@ -75,7 +77,7 @@ export default function LeftSide({
   return (
     <>
       {/* Overlay when expanded */}
-      {isOpen && (
+      {isOpen && !permanent && (
         <div
           onClick={onClose}
           className="fixed left-0 right-0 top-14 bottom-0 bg-black/40 z-30"
@@ -91,17 +93,10 @@ export default function LeftSide({
       >
         {/* Header with close button (only when expanded) */}
         {isOpen && (
-          <div className="w-full flex items-center justify-between px-4 mb-4">
+          <div className="w-full flex items-center justify-start px-4 mb-4">
             <div className="w-8 h-8 relative">
               <Image src="/figma-assets/logo_wesal.png" alt="logo" fill style={{ objectFit: "contain" }} />
             </div>
-            <button
-              onClick={onClose}
-              aria-label="Close menu"
-              className="p-2 rounded-md text-gray-600 hover:bg-gray-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
         )}
 

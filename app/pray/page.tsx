@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import RightSide from '../user/rightside'
 import Image from 'next/image'
 import NavBar from '../user/navbar' // add navbar import
@@ -18,14 +18,14 @@ export default function PrayPage() {
       <LeftSide
         isOpen={isLeftOpen}
         onClose={() => setIsLeftOpen(false)}
-        onNavigate={(view) => {
+        onNavigate={() => {
           // If you want navigation from LeftSide to affect this page, handle here.
           // e.g. set a local state or use router.push(...)
         }}
         activeView={''}
       />
 
-      <main className="max-w-6xl mx-auto px-4 lg:px-8 mt-6">
+      <main className="max-w-6xl mx-auto px-4 lg:px-8 mt-15">
         <div className="w-full flex flex-col items-center px-4">
           <div
             className="relative rounded-lg shadow-sm w-full"
@@ -53,17 +53,22 @@ export default function PrayPage() {
             </li>
 
             <li>
+              <Link href="/pray/Ahades">
               <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
                 <span className="text-sm font-medium text-[#2b2b2b] text-left">Ahades</span>
                 <Image src="/icons/pray/ahades.svg" alt="Ahades Icon" width={30} height={30} className="object-contain" />
               </button>
+              </Link>
+
             </li>
 
             <li>
+              
               <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
                 <span className="text-sm font-medium text-[#2b2b2b] text-left">Azkar</span>
                 <Image src="/icons/pray/azkar.svg" alt="Azkar Icon" width={30} height={30} className="object-contain" />
               </button>
+
             </li>
 
             <li>
@@ -74,10 +79,12 @@ export default function PrayPage() {
             </li>
 
             <li>
+              <Link href="/pray/fatwa">
               <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
                 <span className="text-sm font-medium text-[#2b2b2b] text-left">Fatwa</span>
                 <Image src="/icons/pray/fatwa.svg" alt="Fatwa Icon" width={40} height={40} className="object-contain" />
               </button>
+              </Link>
             </li>
 
             <li>
