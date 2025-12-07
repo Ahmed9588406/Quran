@@ -13,7 +13,7 @@ export default function EmptyState({
   note = 'Your personal messages are end-to-end encrypted',
 }: Props) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-8 bg-white">
+    <div className="flex-1 flex flex-col items-center justify-center px-8 bg-white mt-50">
       <div className="text-center text-gray-400">
         <div className="mb-6">
           <div className="w-28 h-28 rounded-full flex items-center justify-center mx-auto bg-gray-100">

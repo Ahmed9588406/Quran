@@ -78,16 +78,18 @@ export default function LeftSide({
     <>
       {/* Overlay when expanded */}
       {isOpen && !permanent && (
+        // start overlay from very top to remove gap under navbar
         <div
           onClick={onClose}
-          className="fixed left-0 right-0 top-14 bottom-0 bg-black/40 z-30"
+          className="fixed left-0 right-0 top-0 bottom-0 bg-black/40 z-30"
           aria-hidden
         />
       )}
 
       {/* Sidebar */}
+      {/* position sidebar at the very top to remove white gap */}
       <aside
-        className={`fixed top-14 left-0 bottom-0 z-40 bg-[#fff6f3] border-r border-[#f0e6e5] flex flex-col items-center py-4 transition-all duration-300 ${
+        className={`fixed top-0 left-0 bottom-0 z-40 bg-[#fff6f3] border-r border-[#f0e6e5] flex flex-col items-center py-4 transition-all duration-300 ${
           isOpen ? "w-56" : "w-14"
         }`}
       >

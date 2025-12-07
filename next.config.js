@@ -6,7 +6,8 @@ module.exports = {
       "www.svgrepo.com",
       "cdn.builder.io",
       "cdn.jsdelivr.net",
-      "images.unsplash.com"
+      "images.unsplash.com",
+      "picsum.photos"
     ],
   },
 

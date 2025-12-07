@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
@@ -5,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import LeftSide from '../user/leftside';
 import EmptyState from './EmptyState';
 import ChatContent from './ChatContent';
-
+import { Menu, Search } from "lucide-react";
+import MeneModal from './mene_Modal';
 const chats = [
 	{ id: 1, name: "Groupe", time: "19:48", lastText: "Chatgram Web was updated.", unread: 1, avatar: "https://i.pravatar.cc/48?img=32" },
 	{ id: 2, name: "Jessica Drew", time: "18:30", lastText: "Ok, see you later", unread: 2, avatar: "https://i.pravatar.cc/48?img=12" },
@@ -37,6 +39,9 @@ const initialMessages: Record<number, Message[]> = {
 
 export default function ChatsPage() {
 	const [selectedId, setSelectedId] = useState<number | null>(null);
+	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [search, setSearch] = useState('');
+	const [activeTab, setActiveTab] = useState<'All'|'Chats'|'Fatwa'|'Groups'>('All');
 	const router = useRouter();
 	const [messages, setMessages] = useState<Record<number, Message[]>>(initialMessages);
 	const [input, setInput] = useState('');
@@ -74,8 +79,15 @@ export default function ChatsPage() {
 		}, 50);
 	};
 
+	// filtered list based on search
+	const filteredChats = chats.filter(c => {
+		if (!search.trim()) return true;
+		const q = search.toLowerCase();
+		return c.name.toLowerCase().includes(q) || c.lastText.toLowerCase().includes(q);
+	});
+
 	return (
-		<div className="min-h-screen">
+		<div className="min-h-screen mb">
 			{/* collapsed navigation */}
 			<LeftSide isOpen={false} permanent onNavigate={() => { }} activeView="chats" />
 
@@ -83,11 +95,48 @@ export default function ChatsPage() {
 			{/* start at the top of the viewport */}
 			<aside className="fixed top-0 left-14 bottom-0 w-[364px] bg-white border-r" style={{ borderColor: '#E5E7EB' }}>
 				<div className="h-full overflow-auto">
-					<div className="px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
-						<div className="text-lg font-semibold text-black">Chats</div>
-					</div>
+								<div className="px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
+									<div className="flex items-center gap-3">
+										<div className="flex items-center text-lg font-semibold text-black gap-2 relative">
+											<button onClick={() => setIsModalOpen(prev => !prev)} aria-label="Open menu" className="flex items-center gap-2">
+												<Menu className="w-6 h-6 text-[#D7BA83]" />
+												<span>Chats</span>
+											</button>
+											<MeneModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+										</div>
+
+										{/* search input */}
+                                        <div className="flex-1">
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 " />
+                                                <input
+                                                    value={search}
+                                                    onChange={(e) => setSearch(e.target.value)}
+                                                    placeholder="Search"
+                                                    className="w-full rounded-full py-2 pl-10 pr-3 text-sm shadow-sm text-black"
+                                                    style={{ background: '#FFF9F3', border: '1px solid var(--Tinted-Muted-Gold-5, #F7E9CF)' }}
+                                                />
+                                            </div>
+                                        </div>
+									</div>
+
+									{/* Tabs like WhatsApp */}
+									<div className="mt-3">
+										<nav className="flex items-center gap-6 text-sm font-medium text-gray-600">
+											{(['All','Chats','Fatwa','Groups'] as const).map(tab => (
+												<button
+													key={tab}
+													onClick={() => setActiveTab(tab as any)}
+													className={`pb-2 ${activeTab === tab ? 'text-[#8A1538] border-b-2 border-[#8A1538]' : 'hover:text-gray-800'}`}
+												>
+													{tab}
+												</button>
+											))}
+										</nav>
+									</div>
+								</div>
 					<div className="p-2">
-						{chats.map(c => (
+						{filteredChats.map(c => (
 							<button key={c.id} onClick={() => openChat(c.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 ${selectedId === c.id ? 'bg-gray-50' : ''}`}>
 								<div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
 									<Image src={c.avatar} alt={c.name} width={40} height={40} />
