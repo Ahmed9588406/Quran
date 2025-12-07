@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,45 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Added state + router
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Replaced handleLogin to call local API proxy (/api/auth)
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log({ email, password, remember });
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setError(json?.message || json?.error || "Login failed");
+        setLoading(false);
+        return;
+      }
+
+      // Expecting the backend shape described earlier: { success: true, data: { access_token, refresh_token, user } }
+      const tokens = json?.data;
+      if (tokens?.access_token) localStorage.setItem("access_token", tokens.access_token);
+      if (tokens?.refresh_token) localStorage.setItem("refresh_token", tokens.refresh_token);
+      if (tokens?.user) localStorage.setItem("user", JSON.stringify(tokens.user));
+
+      setLoading(false);
+      // Redirect after successful login — adjust path as needed
+      router.push("/");
+    } catch (err) {
+      setError("Network error. Please try again.");
+      setLoading(false);
+    }
   };
 
   const colors = {
@@ -150,6 +187,13 @@ export default function Login() {
               </Link>
             </div>
 
+            {/* display error */}
+            {error && (
+              <div className="text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full rounded-md"
@@ -159,8 +203,9 @@ export default function Login() {
                 height: 44,
                 fontWeight: 700,
               }}
+              disabled={loading}
             >
-              Login
+              {loading ? "Loading..." : "Login"}
             </Button>
           </form>
 
