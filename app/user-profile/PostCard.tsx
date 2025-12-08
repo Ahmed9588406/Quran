@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
-import { likeComment } from "@/src/api/postsApi";
+import { likeComment, unlikeComment } from "@/src/api/postsApi";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -731,6 +731,10 @@ export default function PostCard({
   };
 
   const handleLikeComment = async (commentId: string) => {
+    // Find the comment to check current like state
+    const comment = comments.find((c) => c.id === commentId);
+    const isCurrentlyLiked = comment?.liked_by_current_user ?? false;
+
     // Optimistic UI update
     setComments((prev) =>
       prev.map((c) =>
@@ -744,10 +748,12 @@ export default function PostCard({
       )
     );
 
-    // Call API to persist the like
+    // Call appropriate API based on current state
     try {
       const token = localStorage.getItem("access_token") || undefined;
-      const result = await likeComment(commentId, token);
+      const result = isCurrentlyLiked
+        ? await unlikeComment(commentId, token)
+        : await likeComment(commentId, token);
       
       // Update with actual like count from server if available
       if (result.likesCount !== undefined) {
@@ -760,15 +766,15 @@ export default function PostCard({
         );
       }
     } catch (error) {
-      console.error("Failed to like comment:", error);
+      console.error("Failed to like/unlike comment:", error);
       // Revert optimistic update on error
       setComments((prev) =>
         prev.map((c) =>
           c.id === commentId
             ? {
                 ...c,
-                liked_by_current_user: !c.liked_by_current_user,
-                likes_count: c.liked_by_current_user ? c.likes_count + 1 : c.likes_count - 1,
+                liked_by_current_user: isCurrentlyLiked,
+                likes_count: isCurrentlyLiked ? c.likes_count + 1 : c.likes_count - 1,
               }
             : c
         )

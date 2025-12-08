@@ -92,3 +92,29 @@ export async function likeComment(
 		likesCount: data.likesCount ?? data.likes_count ?? data.likes,
 	};
 }
+
+export async function unlikeComment(
+	commentId: string | number,
+	token?: string
+): Promise<LikeCommentResponse> {
+	// Use local API route to avoid CORS issues
+	const url = `/api/comments/${encodeURIComponent(String(commentId))}/like`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const res = await fetch(url, { method: 'DELETE', headers });
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to unlike comment: ${res.status} ${res.statusText} ${text}`);
+	}
+
+	const data = await res.json();
+	return {
+		success: true,
+		message: data.message,
+		likesCount: data.likesCount ?? data.likes_count ?? data.likes,
+	};
+}
