@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
-import { likeComment, unlikeComment, addComment } from "@/src/api/postsApi";
+import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -131,13 +131,14 @@ const normalizeMediaUrl = (url?: string): string => {
  */
 interface CommentItemProps {
   comment: Comment;
+  postId: string;
   currentUserAvatar: string;
   currentUserName: string;
   onLikeComment: (commentId: string) => void;
   onReplyToComment: (commentId: string, content: string) => void;
 }
 
-function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeComment, onReplyToComment }: CommentItemProps) {
+function CommentItem({ comment, postId, currentUserAvatar, currentUserName, onLikeComment, onReplyToComment }: CommentItemProps) {
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [showReplies, setShowReplies] = useState(false);
@@ -147,9 +148,10 @@ function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeCommen
 
   const handleSubmitReply = async () => {
     if (replyContent.trim()) {
+      const tempId = `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       // Add optimistic reply
       const newReply: CommentReply = {
-        id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: tempId,
         author: {
           name: currentUserName,
           avatar: currentUserAvatar,
@@ -161,10 +163,38 @@ function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeCommen
         liked_by_current_user: false,
       };
       setReplies((prev) => [...prev, newReply]);
-      onReplyToComment(comment.id, replyContent.trim());
+      
+      const replyText = replyContent.trim();
       setReplyContent("");
       setShowReplyInput(false);
       setShowReplies(true);
+
+      // Call API to add reply
+      try {
+        const token = localStorage.getItem("access_token") || undefined;
+        const result = await addReply(postId, comment.id, replyText, token);
+        
+        // Update the temp reply with the real ID from server
+        if (result.success && result.reply) {
+          setReplies((prev) =>
+            prev.map((r) =>
+              r.id === tempId
+                ? {
+                    ...r,
+                    id: result.reply!.id,
+                    created_at: result.reply!.created_at || r.created_at,
+                  }
+                : r
+            )
+          );
+        }
+      } catch (err) {
+        console.error("Error posting reply:", err);
+        // Remove the optimistic reply on error
+        setReplies((prev) => prev.filter((r) => r.id !== tempId));
+      }
+
+      onReplyToComment(comment.id, replyText);
     }
   };
 
@@ -935,6 +965,7 @@ export default function PostCard({
                   <CommentItem
                     key={comment.id || `comment-${index}`}
                     comment={comment}
+                    postId={id}
                     currentUserAvatar={currentUserAvatar}
                     currentUserName={currentUserName}
                     onLikeComment={handleLikeComment}

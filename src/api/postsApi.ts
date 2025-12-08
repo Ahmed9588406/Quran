@@ -173,3 +173,58 @@ export async function addComment(
 		message: data.message,
 	};
 }
+
+export type AddReplyResponse = {
+	success: boolean;
+	reply?: {
+		id: string;
+		content: string;
+		created_at: string;
+		parent_comment_id: string;
+		author?: {
+			id: string;
+			username: string;
+			display_name?: string;
+			avatar_url?: string;
+		};
+	};
+	message?: string;
+};
+
+export async function addReply(
+	postId: string | number,
+	parentCommentId: string,
+	content: string,
+	token?: string
+): Promise<AddReplyResponse> {
+	// Use local API route to avoid CORS issues
+	const url = `/api/posts/${encodeURIComponent(String(postId))}/comments`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const body = {
+		content,
+		parent_comment_id: parentCommentId,
+	};
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify(body),
+	});
+
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to add reply: ${res.status} ${res.statusText} ${text}`);
+	}
+
+	const data = await res.json();
+	return {
+		success: true,
+		reply: data.reply ?? data.comment ?? data,
+		message: data.message,
+	};
+}

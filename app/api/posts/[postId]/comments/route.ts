@@ -31,7 +31,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { content, image_url } = body;
+    const { content, image_url, parent_comment_id } = body;
 
     if (!content || typeof content !== "string" || content.trim() === "") {
       return NextResponse.json(
@@ -40,13 +40,18 @@ export async function POST(
       );
     }
 
-    // Build request body - image_url is optional
-    const requestBody: { content: string; image_url?: string } = {
+    // Build request body - image_url and parent_comment_id are optional
+    const requestBody: { content: string; image_url?: string; parent_comment_id?: string } = {
       content: content.trim(),
     };
 
     if (image_url && typeof image_url === "string" && image_url.trim() !== "") {
       requestBody.image_url = image_url.trim();
+    }
+
+    // If parent_comment_id is provided, this is a reply to a comment
+    if (parent_comment_id && typeof parent_comment_id === "string" && parent_comment_id.trim() !== "") {
+      requestBody.parent_comment_id = parent_comment_id.trim();
     }
 
     const headers: Record<string, string> = {
