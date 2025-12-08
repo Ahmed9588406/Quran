@@ -1,5 +1,6 @@
+/** @type {import('next').NextConfig} */
 /** Next.js image configuration: add remote hostnames used by next/image */
-module.exports = {
+const nextConfig = {
   images: {
     domains: [
       "i.pravatar.cc",
@@ -7,7 +8,8 @@ module.exports = {
       "cdn.builder.io",
       "cdn.jsdelivr.net",
       "images.unsplash.com",
-      "picsum.photos"
+      "picsum.photos",
+      "192.168.1.18",
     ],
   },
 
@@ -26,3 +28,5 @@ module.exports = {
   //   ],
   // },
 };
+
+module.exports = nextConfig;
