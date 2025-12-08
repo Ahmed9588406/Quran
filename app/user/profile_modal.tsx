@@ -1,8 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Globe, LogOut, X } from "lucide-react";
+import { getProfileRoute } from "@/lib/auth-helpers";
 
 type Props = {
   isOpen: boolean;
@@ -12,12 +14,19 @@ type Props = {
 
 export default function ProfileModal({ isOpen, onClose, user }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const [profileHref, setProfileHref] = useState("/user-profile");
 
   const u = user ?? {
     name: "Omar Al-Fakhroo",
     handle: "@Al-Fakhroo-22",
     avatar: "/figma-assets/avatar.png",
   };
+
+  // Get dynamic profile route on mount (client-side only)
+  // Requirements: 2.1, 2.2, 2.3
+  useEffect(() => {
+    setProfileHref(getProfileRoute());
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -75,7 +84,7 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
 
         <div className="mt-3">
           <Link
-            href="/profile"
+            href={profileHref}
             onClick={() => onClose()}
             className="block w-full text-center text-[#7b2030] text-sm font-medium py-2 rounded-md hover:bg-gray-50"
           >

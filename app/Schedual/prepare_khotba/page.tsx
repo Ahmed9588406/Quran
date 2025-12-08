@@ -131,11 +131,13 @@ function NavBar({
               className="ml-2 w-10 h-10 rounded-full overflow-hidden relative shadow-sm ring-1 ring-[#f0e6e5]"
               aria-label="Open profile"
             >
-              <Image
+              {/* Use native <img> as a reliable fallback for the header avatar */}
+              <img
                 src="/icons/settings/profile.png"
                 alt="Profile"
-                fill
-                style={{ objectFit: "cover" }}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                draggable={false}
               />
             </button>
 

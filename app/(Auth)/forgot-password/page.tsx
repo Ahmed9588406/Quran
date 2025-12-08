@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -5,15 +6,49 @@ import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function ForgetPassword() {
   const [email, setEmail] = useState("");
   const router = useRouter();
 
-  const handleSendCode = (e: React.FormEvent) => {
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    // send reset code logic here (omitted) then navigate to the login page
-    router.push("/login");
+    if (!email.trim()) {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    try {
+      const sendingToastId = toast.info("Sending reset code...", { autoClose: false });
+
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const text = await res.text().catch(() => "");
+      let json: any = null;
+      try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+
+      toast.dismiss(sendingToastId);
+
+      if (!res.ok) {
+        const msg = json?.error ?? json?.message ?? text ?? "Failed to send reset code";
+        toast.error(String(msg));
+        return;
+      }
+
+      toast.success("Reset code sent. Check your email.");
+      setTimeout(() => {
+        router.push("/verify");
+      }, 700);
+    } catch (err) {
+      console.error("Forgot password error:", err);
+      toast.error("Network error. Please try again.");
+    }
   };
 
   const colors = {
@@ -90,7 +125,7 @@ export default function ForgetPassword() {
                 Email
               </label>
               <Input
-                type="email"  
+                type="email"
                 placeholder="Enter Your Email Address"
                 value={email}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -107,10 +142,9 @@ export default function ForgetPassword() {
                 }}
               />
             </div>
-                  
+
             <Button
-              type="button"
-              onClick={() => router.push("/verify")}
+              type="submit"
               className="w-full rounded-md"
               style={{
                 backgroundColor: colors.buttonBg,
@@ -138,6 +172,9 @@ export default function ForgetPassword() {
           </p>
         </div>
       </div>
+
+      {/* Toast container */}
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover draggable />
     </div>
   );
 }

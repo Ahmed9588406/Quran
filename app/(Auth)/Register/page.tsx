@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -5,17 +6,105 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://192.168.1.18:9001";
 
 export default function Index() {
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log({ fullName, email, password });
-  };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const handleRegister = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setError(null);
+
+		if (!username.trim() || !email.trim() || !password || !fullName.trim()) {
+			setError("Please fill in all fields.");
+			toast.error("Please fill in all fields.");
+			return;
+		}
+
+		setLoading(true);
+		try {
+			const res = await fetch("/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					username: username.trim(),
+					email: email.trim(),
+					password,
+					full_name: fullName.trim(),
+				}),
+			});
+
+			const text = await res.text().catch(() => "");
+			let json: any = null;
+			try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+
+			if (!res.ok) {
+				const backendError = json?.error ?? json?.message ?? text ?? "Registration failed";
+				if (backendError === "user_exists") {
+					setError("User already exists. Try logging in.");
+					toast.error("User already exists. Try logging in.");
+				} else {
+					setError(String(backendError));
+					toast.error(String(backendError));
+				}
+				setLoading(false);
+				return;
+			}
+
+			// Support shapes: { success, user_id, tokens: { access_token, refresh_token, user } }
+			// or { data: { access_token, refresh_token, user } } etc.
+			const root = json ?? {};
+			const tokens = root.tokens ?? root.data ?? root;
+			const access =
+				tokens?.access_token ?? tokens?.token ?? tokens?.accessToken ?? root?.access_token ?? null;
+			const refresh = tokens?.refresh_token ?? tokens?.refreshToken ?? root?.refresh_token ?? null;
+			const user = tokens?.user ?? root?.user ?? null;
+			const userId = root?.user_id ?? user?.id ?? null;
+
+			// Normalize avatar if needed (existing BASE_URL variable available)
+			if (user && typeof user.avatar_url === "string" && user.avatar_url.startsWith("/")) {
+				user.avatar_url = `${BASE_URL}${user.avatar_url}`;
+			}
+
+			if (access) localStorage.setItem("access_token", access);
+			if (refresh) localStorage.setItem("refresh_token", refresh);
+			if (user) {
+				// Ensure user object has ID for routing
+				const userWithId = { ...user, id: userId || user.id };
+				localStorage.setItem("user", JSON.stringify(userWithId));
+			}
+
+			toast.success("Registration successful");
+			setLoading(false);
+
+			// navigate to user's page (dynamic route)
+			setTimeout(() => {
+				const destId = userId ?? (user && (user as any).id) ?? null;
+				if (destId) {
+					router.push(`/user/${destId}`);
+				} else {
+					router.push("/user");
+				}
+			}, 700);
+		} catch (err) {
+			console.error("Register error:", err);
+			setError("Network error. Please try again.");
+			toast.error("Network error. Please try again.");
+			setLoading(false);
+		}
+	};
 
   // color tokens matching the provided design
   const colors = {
@@ -87,13 +176,34 @@ export default function Index() {
           <form onSubmit={handleRegister} className="space-y-5">
             <div>
               <label className="block text-sm mb-2 font-bold" style={{ color: colors.muted }}>
+                Username
+              </label>
+              <Input
+                type="text"
+                placeholder="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full rounded-md"
+                style={{
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.inputBorder,
+                  color: "#222",
+                  height: 44,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm mb-2 font-bold" style={{ color: colors.muted }}>
                 Full Name
               </label>
               <Input
                 type="text"
                 placeholder="Enter Your Name"
                 value={fullName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
+                onChange={(e) => setFullName(e.target.value)}
                 className="w-full rounded-md"
                 style={{
                   backgroundColor: colors.inputBg,
@@ -112,9 +222,9 @@ export default function Index() {
               </label>
               <Input
                 type="email"
-                placeholder="Email or phone number"
+                placeholder="Email"
                 value={email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-md"
                 style={{
                   backgroundColor: colors.inputBg,
@@ -136,7 +246,7 @@ export default function Index() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter password"
                   value={password}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-md"
                   style={{
                     backgroundColor: colors.inputBg,
@@ -159,6 +269,9 @@ export default function Index() {
               </div>
             </div>
 
+            {/* error */}
+            {error && <div className="text-sm text-red-600">{error}</div>}
+
             <Button
               type="submit"
               className="w-full rounded-md"
@@ -168,8 +281,9 @@ export default function Index() {
                 height: 44,
                 fontWeight: 700,
               }}
+              disabled={loading}
             >
-              Register
+              {loading ? "Registering..." : "Register"}
             </Button>
           </form>
 
@@ -230,6 +344,9 @@ export default function Index() {
           </p>
         </div>
       </div>
+
+      {/* Toast container */}
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
     </div>
   );
 }

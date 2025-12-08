@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import Image from "next/image";
-import { Home, QrCode, Film, Settings, X } from "lucide-react";
+import { Home, QrCode, Film, Settings } from "lucide-react";
 import Link from "next/link";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export default function LeftSide({
   isOpen = false,
@@ -21,6 +22,31 @@ export default function LeftSide({
   onOpenScan?: () => void;
   permanent?: boolean;
 }) {
+  // State for dynamic home route
+  const [homeHref, setHomeHref] = useState("/user");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Get user ID for dynamic home route
+  useEffect(() => {
+    const userId = getCurrentUserId();
+    if (userId) {
+      setHomeHref(`/user/${userId}`);
+    } else {
+      setHomeHref("/user");
+    }
+
+    // Also get user data from localStorage for avatar
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCurrentUser(user);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // QR modal handler
   const openQrModal = async () => {
     onOpenScan?.();
@@ -40,8 +66,8 @@ export default function LeftSide({
         (container as any).__react_root = root;
       }
       const unmount = () => {
-        try { root!.unmount(); } catch (e) { /* ignore */ }
-        try { container?.remove(); } catch (e) { /* ignore */ }
+        try { root!.unmount(); } catch { /* ignore */ }
+        try { container?.remove(); } catch { /* ignore */ }
       };
       root.render(<QRScanModal isOpen={true} onClose={unmount} />);
     } catch (err) {
@@ -74,11 +100,14 @@ export default function LeftSide({
     return href ? <Link href={href} className={isOpen ? "w-full" : ""}>{btn}</Link> : btn;
   };
 
+  // Get avatar URL
+  const avatarUrl = currentUser?.avatar_url || "/figma-assets/avatar.png";
+  const userName = currentUser?.display_name || currentUser?.name || currentUser?.username || "User";
+
   return (
     <>
       {/* Overlay when expanded */}
       {isOpen && !permanent && (
-        // start overlay from very top to remove gap under navbar
         <div
           onClick={onClose}
           className="fixed left-0 right-0 top-0 bottom-0 bg-black/40 z-30"
@@ -87,13 +116,12 @@ export default function LeftSide({
       )}
 
       {/* Sidebar */}
-      {/* position sidebar at the very top to remove white gap */}
       <aside
         className={`fixed top-0 left-0 bottom-0 z-40 bg-[#fff6f3] border-r border-[#f0e6e5] flex flex-col items-center py-4 transition-all duration-300 ${
           isOpen ? "w-56" : "w-14"
         }`}
       >
-        {/* Header with close button (only when expanded) */}
+        {/* Header with logo (only when expanded) */}
         {isOpen && (
           <div className="w-full flex items-center justify-start px-4 mb-4">
             <div className="w-8 h-8 relative">
@@ -111,8 +139,9 @@ export default function LeftSide({
 
         {/* Nav icons */}
         <nav className={`flex flex-col gap-2 ${isOpen ? "w-full px-3" : "items-center"}`}>
+          {/* Home - navigates to user's dynamic route */}
           <IconBtn
-            href="/user"
+            href={homeHref}
             label="Home"
             active={activeView === "home"}
             onClick={() => { onNavigate?.("home"); onClose?.(); }}
@@ -152,12 +181,12 @@ export default function LeftSide({
             <Settings className="w-5 h-5" />
           </IconBtn>
 
-          <div className={`flex items-center gap-3 ${isOpen ? "px-3 py-2" : ""}`}>
+          <Link href={homeHref} className={`flex items-center gap-3 ${isOpen ? "px-3 py-2 hover:bg-gray-100 rounded-lg" : ""}`}>
             <div className="w-8 h-8 relative rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
-              <Image src="/figma-assets/avatar.png" alt="avatar" fill style={{ objectFit: "cover" }} />
+              <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
             </div>
-            {isOpen && <span className="text-sm font-medium">Mazen Mohamed</span>}
-          </div>
+            {isOpen && <span className="text-sm font-medium">{userName}</span>}
+          </Link>
         </div>
       </aside>
     </>

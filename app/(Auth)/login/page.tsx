@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import Image from "next/image";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { extractUserId, getPostLoginRoute } from "@/lib/auth-helpers";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -20,39 +24,84 @@ export default function Login() {
 
   // Replaced handleLogin to call local API proxy (/api/auth)
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+		e.preventDefault();
+		setError(null);
+		setLoading(true);
 
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+		try {
+			const res = await fetch("/api/auth", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email, password }),
+			});
 
-      const json = await res.json().catch(() => null);
+			// attempt to read text then parse JSON (robust)
+			const text = await res.text().catch(() => "");
+			let json: any = null;
+			try { json = text ? JSON.parse(text) : null; } catch { json = null; }
 
-      if (!res.ok) {
-        setError(json?.message || json?.error || "Login failed");
-        setLoading(false);
-        return;
-      }
+			if (!res.ok) {
+				const msg = json?.message || json?.error || text || "Login failed";
+				setError(msg);
+				toast.error(String(msg));
+				setLoading(false);
+				return;
+			}
 
-      // Expecting the backend shape described earlier: { success: true, data: { access_token, refresh_token, user } }
-      const tokens = json?.data;
-      if (tokens?.access_token) localStorage.setItem("access_token", tokens.access_token);
-      if (tokens?.refresh_token) localStorage.setItem("refresh_token", tokens.refresh_token);
-      if (tokens?.user) localStorage.setItem("user", JSON.stringify(tokens.user));
+			// Response may be { success:true, user_id: "...", tokens: { access_token, refresh_token, user } }
+			// or { data: { access_token, refresh_token, user } } or { data: {...} } or { access_token: ... }
+			const root = json ?? {};
+			const data = root.data ?? root.tokens ?? root;
 
-      setLoading(false);
-      // Redirect after successful login — adjust path as needed
-      router.push("/");
-    } catch (err) {
-      setError("Network error. Please try again.");
-      setLoading(false);
-    }
-  };
+			const access =
+				data?.access_token ??
+				data?.token ??
+				data?.accessToken ??
+				root?.access_token ??
+				null;
+
+			const refresh =
+				data?.refresh_token ??
+				data?.refreshToken ??
+				root?.refresh_token ??
+				null;
+
+			const user =
+				data?.user ??
+				root?.user ??
+				(data && data.data && data.data.user) ??
+				null;
+
+			// Extract user ID using helper function (handles various response shapes)
+			// Requirements: 1.1, 1.2
+			const userId = extractUserId(root);
+
+			// persist tokens and user
+			if (access) localStorage.setItem("access_token", access);
+			if (refresh) localStorage.setItem("refresh_token", refresh);
+			if (user) {
+				// Store user object with ID for subsequent navigation
+				// Requirements: 1.2
+				const userWithId = { ...user, id: userId || user.id };
+				localStorage.setItem("user", JSON.stringify(userWithId));
+			}
+
+			toast.success("Logged in successfully");
+			setLoading(false);
+
+			// Navigate to dynamic route using helper function
+			// Requirements: 1.1, 1.3
+			const targetRoute = getPostLoginRoute(userId);
+			setTimeout(() => {
+				router.push(targetRoute);
+			}, 700);
+		} catch (err) {
+			console.error("Login error:", err);
+			setError("Network error. Please try again.");
+			toast.error("Network error. Please try again.");
+			setLoading(false);
+		}
+	};
 
   const colors = {
     rightBg: "#eef3f9",
@@ -264,6 +313,9 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* ensure ToastContainer is rendered */}
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
     </div>
   );
 }
