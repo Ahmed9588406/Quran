@@ -118,3 +118,58 @@ export async function unlikeComment(
 		likesCount: data.likesCount ?? data.likes_count ?? data.likes,
 	};
 }
+
+export type AddCommentResponse = {
+	success: boolean;
+	comment?: {
+		id: string;
+		content: string;
+		image_url?: string;
+		created_at: string;
+		author?: {
+			id: string;
+			username: string;
+			display_name?: string;
+			avatar_url?: string;
+		};
+	};
+	message?: string;
+};
+
+export async function addComment(
+	postId: string | number,
+	content: string,
+	imageUrl?: string,
+	token?: string
+): Promise<AddCommentResponse> {
+	// Use local API route to avoid CORS issues
+	const url = `/api/posts/${encodeURIComponent(String(postId))}/comments`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const body: { content: string; image_url?: string } = { content };
+	if (imageUrl && imageUrl.trim() !== '') {
+		body.image_url = imageUrl.trim();
+	}
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify(body),
+	});
+
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to add comment: ${res.status} ${res.statusText} ${text}`);
+	}
+
+	const data = await res.json();
+	return {
+		success: true,
+		comment: data.comment ?? data,
+		message: data.message,
+	};
+}
