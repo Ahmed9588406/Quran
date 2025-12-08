@@ -60,3 +60,35 @@ export async function fetchUserPosts(
 	// fallback
 	return { posts: [], page, limit };
 }
+
+export type LikeCommentResponse = {
+	success: boolean;
+	message?: string;
+	likesCount?: number;
+};
+
+export async function likeComment(
+	commentId: string | number,
+	token?: string
+): Promise<LikeCommentResponse> {
+	// Use local API route to avoid CORS issues
+	const url = `/api/comments/${encodeURIComponent(String(commentId))}/like`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const res = await fetch(url, { method: 'POST', headers });
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to like comment: ${res.status} ${res.statusText} ${text}`);
+	}
+
+	const data = await res.json();
+	return {
+		success: true,
+		message: data.message,
+		likesCount: data.likesCount ?? data.likes_count ?? data.likes,
+	};
+}

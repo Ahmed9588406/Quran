@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
+import { likeComment } from "@/src/api/postsApi";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -729,7 +730,8 @@ export default function PostCard({
     }
   };
 
-  const handleLikeComment = (commentId: string) => {
+  const handleLikeComment = async (commentId: string) => {
+    // Optimistic UI update
     setComments((prev) =>
       prev.map((c) =>
         c.id === commentId
@@ -741,6 +743,37 @@ export default function PostCard({
           : c
       )
     );
+
+    // Call API to persist the like
+    try {
+      const token = localStorage.getItem("access_token") || undefined;
+      const result = await likeComment(commentId, token);
+      
+      // Update with actual like count from server if available
+      if (result.likesCount !== undefined) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? { ...c, likes_count: result.likesCount! }
+              : c
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Failed to like comment:", error);
+      // Revert optimistic update on error
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? {
+                ...c,
+                liked_by_current_user: !c.liked_by_current_user,
+                likes_count: c.liked_by_current_user ? c.likes_count + 1 : c.likes_count - 1,
+              }
+            : c
+        )
+      );
+    }
   };
 
   const handleReplyToComment = (commentId: string, replyContent: string) => {
