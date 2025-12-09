@@ -2,228 +2,394 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import NavBar from "../user/navbar";
 import LeftSide from "../user/leftside";
 import ProfileHeader from "./ProfileHeader";
-import ProfileTabs from "./ProfileTabs";
-import PhotosGrid from "./PhotosGrid";
-import PostCard from "./PostCard";
-import Leaderboard from "./Leaderboard";
-import AboutSection from "./AboutSection";
 import { Button } from "@/components/ui/button";
-import { getCurrentUserId } from "@/lib/auth-helpers";
+import PostCard from "../user-profile/PostCard";
 
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
+const ChatPanel = dynamic(() => import("../user/chat"), { ssr: false });
+
+const DEFAULT_AVATAR = "/icons/settings/profile.png";
+const BASE_URL = "http://192.168.1.18:9001";
+
+interface UserProfile {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  cover_url: string | null;
+  followers_count: number;
+  following_count: number;
+  posts_count: number;
+  is_following: boolean;
+  country?: string | null;
+  location?: string | null;
+  education?: string | null;
+  work?: string | null;
+  interests?: string | null;
+  reels_count?: number;
+}
+
+interface Post {
+  id: string;
+  content: string;
+  created_at: string;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  media: { url: string; media_type: string }[];
+  likes_count: number;
+  comments_count: number;
+  shares_count: number;
+  liked_by_me: boolean;
+}
 
 interface OtherUserClientProps {
   userId: string;
 }
 
-interface UserData {
-  id: string;
-  username: string;
-  display_name: string;
-  bio: string;
-  avatar_url: string;
-  cover_url: string | null;
-  country: string | null;
-  location: string | null;
-  education: string | null;
-  work: string | null;
-  interests: string | null;
-  followers_count: number;
-  following_count: number;
-  is_following: boolean;
-  posts_count: number;
-  reels_count: number;
+function normalizeUrl(url?: string | null): string {
+  if (!url) return DEFAULT_AVATAR;
+  if (url.startsWith("http")) return url;
+  return `${BASE_URL}${url}`;
 }
 
-// Sample data for tabs
-const leaderboardData = [
-  { rank: 1, name: "Mazen Mohamed", avatar: "/icons/settings/profile.png", points: 265, isCurrentUser: false },
-  { rank: 2, name: "Ali Mohamed", avatar: "/icons/settings/profile.png", points: 263 },
-  { rank: 3, name: "Mahmoud Mohamed", avatar: "/icons/settings/profile.png", points: 262 },
-];
-
-const photosData = [
-  { id: "p1", src: "/figma-assets/mosque1.jpg", alt: "Photo 1" },
-  { id: "p2", src: "/figma-assets/mosque2.jpg", alt: "Photo 2" },
-  { id: "p3", src: "/figma-assets/mosque3.jpg", alt: "Photo 3" },
-];
-
-
 export default function OtherUserClient({ userId }: OtherUserClientProps) {
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("posts");
-  const [isMessagesOpen, setMessagesOpen] = useState(false);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const router = useRouter();
+  const [isLeftOpen, setIsLeftOpen] = useState(false);
+  const [isMessagesOpen, setIsMessagesOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
+  const [activeView, setActiveView] = useState("home");
 
-  // Check if viewing own profile
-  useEffect(() => {
-    const storedUserId = getCurrentUserId();
-    setIsOwnProfile(storedUserId !== null && storedUserId === userId);
-  }, [userId]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Fetch user data
+  // Load current user from localStorage
   useEffect(() => {
-    const fetchUserData = async () => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        setCurrentUser(JSON.parse(userStr));
+      }
+    } catch (err) {
+      console.error("Error reading user:", err);
+    }
+  }, []);
+
+  // Fetch user profile - using same endpoint as UserProfileClient
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchProfile() {
+      setLoadingProfile(true);
+      setError(null);
       try {
         const token = localStorage.getItem("access_token");
         if (!token) {
-          setIsLoading(false);
+          setError("Not authenticated");
+          setLoadingProfile(false);
           return;
         }
 
+        // Use the same API endpoint as UserProfileClient
         const res = await fetch(`/api/user_profile?userId=${encodeURIComponent(userId)}`, {
           method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         if (!res.ok) {
-          console.error("Failed to fetch user:", res.status);
-          setIsLoading(false);
+          console.error(`Profile fetch failed: ${res.status}`);
+          throw new Error("Failed to load profile");
+        }
+
+        const data = await res.json();
+        const user = data.user || data.data?.user || data;
+
+        setProfile({
+          id: user.id,
+          username: user.username || "",
+          display_name: user.display_name || user.username || "",
+          avatar_url: normalizeUrl(user.avatar_url),
+          bio: user.bio || null,
+          cover_url: user.cover_url ? normalizeUrl(user.cover_url) : null,
+          followers_count: user.followers_count || 0,
+          following_count: user.following_count || 0,
+          posts_count: user.posts_count || 0,
+          is_following: user.is_following || false,
+          country: user.country || null,
+          location: user.location || null,
+          education: user.education || null,
+          work: user.work || null,
+          interests: user.interests || null,
+          reels_count: user.reels_count || 0,
+        });
+        setIsFollowing(user.is_following || false);
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+        setError("Failed to load user profile");
+      } finally {
+        setLoadingProfile(false);
+      }
+    }
+
+    fetchProfile();
+  }, [userId]);
+
+  // Fetch user posts - using same endpoint pattern as UserProfileClient
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchPosts() {
+      setLoadingPosts(true);
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          setLoadingPosts(false);
+          return;
+        }
+
+        // Use the same API endpoint as UserProfileClient for posts
+        const res = await fetch(`/api/user_profile?userId=${encodeURIComponent(userId)}&type=posts&limit=20&page=1`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          console.error(`Posts fetch failed: ${res.status}`);
+          setPosts([]);
           return;
         }
 
         const data = await res.json();
-        if (data?.user) {
-          setUserData(data.user);
+        let postsArray: any[] = [];
+        
+        // Handle various response shapes
+        if (data.success && Array.isArray(data.posts)) {
+          postsArray = data.posts;
+        } else if (Array.isArray(data.posts)) {
+          postsArray = data.posts;
+        } else if (Array.isArray(data.data)) {
+          postsArray = data.data;
+        } else if (Array.isArray(data)) {
+          postsArray = data;
         }
+
+        const normalizedPosts: Post[] = postsArray.map((p: any) => ({
+          id: p.id,
+          content: p.content || "",
+          created_at: p.created_at,
+          username: p.username || profile?.username || "",
+          display_name: p.display_name || profile?.display_name || "",
+          avatar_url: normalizeUrl(p.avatar_url || profile?.avatar_url),
+          media: (p.media || []).map((m: any) => ({
+            url: normalizeUrl(m.url),
+            media_type: m.media_type || "image",
+          })),
+          likes_count: p.likes_count || 0,
+          comments_count: p.comments_count || 0,
+          shares_count: p.shares_count || 0,
+          liked_by_me: p.liked_by_me || p.liked_by_current_user || false,
+        }));
+
+        setPosts(normalizedPosts);
       } catch (err) {
-        console.error("Error fetching user:", err);
+        console.error("Error fetching posts:", err);
+        setPosts([]);
       } finally {
-        setIsLoading(false);
+        setLoadingPosts(false);
       }
-    };
+    }
 
-    fetchUserData();
-  }, [userId]);
+    fetchPosts();
+  }, [userId, profile?.username, profile?.display_name, profile?.avatar_url]);
 
-  const handleFollow = async () => {
-    // TODO: Implement follow/unfollow API call
-    console.log("Follow/unfollow user:", userId);
-  };
+  const handleToggleFollow = async () => {
+    if (!userId) return;
 
-  const handleMessage = () => {
-    setMessagesOpen(true);
-  };
+    const prev = isFollowing;
+    setIsFollowing(!prev);
+    setIsTogglingFollow(true);
 
-  // Render content based on active tab
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "posts":
-        return (
-          <div className="flex gap-6">
-            <div className="w-72 flex-shrink-0 hidden md:block">
-              <div className="sticky top-6">
-                <PhotosGrid photos={photosData} onViewAll={() => setActiveTab("photos")} />
-              </div>
-            </div>
-            <div className="flex-1 space-y-4">
-              <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
-                {userData?.posts_count === 0 ? "No posts yet" : "Loading posts..."}
-              </div>
-            </div>
-          </div>
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch("/api/follow", {
+        method: prev ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!res.ok) {
+        setIsFollowing(prev);
+      } else {
+        setProfile((p) =>
+          p
+            ? {
+                ...p,
+                followers_count: prev ? p.followers_count - 1 : p.followers_count + 1,
+              }
+            : p
         );
-      case "photos":
-        return (
-          <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
-            <h2 className="text-lg font-semibold mb-4">All Photos</h2>
-            <div className="grid grid-cols-3 gap-2">
-              {photosData.map((photo) => (
-                <div key={photo.id} className="relative aspect-square rounded-lg overflow-hidden">
-                  <img src={photo.src} alt={photo.alt} className="w-full h-full object-cover" />
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      case "reels":
-        return (
-          <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
-            {userData?.reels_count === 0 ? "No reels yet" : `${userData?.reels_count} reels`}
-          </div>
-        );
-      case "leaderboard":
-        return <Leaderboard entries={leaderboardData} currentUserRank={0} />;
-      case "about":
-        return (
-          <AboutSection
-            workExperiences={userData?.work ? [{ id: "w1", icon: "/icons/profile/work.svg", title: userData.work }] : []}
-            placesLived={userData?.location || userData?.country ? [{ id: "pl1", icon: "/icons/profile/location.svg", title: userData.location || userData.country || "" }] : []}
-            contactInfo={[]}
-            isOwnProfile={isOwnProfile}
-          />
-        );
-      default:
-        return null;
+      }
+    } catch (err) {
+      console.error("Follow toggle failed:", err);
+      setIsFollowing(prev);
+    } finally {
+      setIsTogglingFollow(false);
     }
   };
 
-  if (isLoading) {
+  const handleMessage = () => {
+    if (profile) {
+      setSelectedContact({
+        id: profile.id,
+        name: profile.display_name || profile.username,
+        avatar: profile.avatar_url || DEFAULT_AVATAR,
+      });
+      setIsChatOpen(true);
+    }
+  };
+
+  if (loadingProfile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen bg-[#faf8f6] flex items-center justify-center">
+        <div className="text-gray-500">Loading profile...</div>
       </div>
     );
   }
 
-  if (!userData) {
+  if (error || !profile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">User not found</div>
+      <div className="min-h-screen bg-[#faf8f6] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error || "User not found"}</p>
+          <Button onClick={() => router.back()}>Go Back</Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar onToggleSidebar={() => setSidebarOpen((s) => !s)} isSidebarOpen={isSidebarOpen} />
-      <LeftSide isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} activeView="profile" />
-
-      <ProfileHeader
-        name={userData.display_name || userData.username}
-        username={userData.username}
-        avatar={userData.avatar_url || "/icons/settings/profile.png"}
-        coverUrl={userData.cover_url}
-        posts={userData.posts_count}
-        followers={userData.followers_count}
-        following={userData.following_count}
-        bio={userData.bio || ""}
-        tags={[]}
-        isOwnProfile={isOwnProfile}
-        isFollowing={userData.is_following}
-        country={userData.country}
-        location={userData.location}
-        education={userData.education}
-        work={userData.work}
-        interests={userData.interests}
-        reelsCount={userData.reels_count}
-        onFollow={handleFollow}
-        onMessage={handleMessage}
+    <div className="min-h-screen bg-[#faf8f6] text-gray-900">
+      <NavBar
+        onToggleSidebar={() => setIsLeftOpen((s) => !s)}
+        isSidebarOpen={isLeftOpen}
+        currentUser={currentUser}
+        onOpenMessages={() => setIsMessagesOpen(true)}
       />
 
-      <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <LeftSide
+        isOpen={isLeftOpen}
+        onClose={() => setIsLeftOpen(false)}
+        onNavigate={(view) => {
+          setActiveView(view || "");
+          setIsLeftOpen(false);
+        }}
+        activeView={activeView}
+        permanent={false}
+      />
 
-      <main className="max-w-4xl mx-auto px-6 py-6">{renderTabContent()}</main>
+      <main className="pt-16 w-full">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8">
+          {/* Profile Header */}
+          <ProfileHeader
+            name={profile.display_name}
+            username={profile.username}
+            avatar={profile.avatar_url || DEFAULT_AVATAR}
+            coverUrl={profile.cover_url}
+            posts={profile.posts_count}
+            followers={profile.followers_count}
+            following={profile.following_count}
+            bio={profile.bio || ""}
+            tags={[]}
+            isOwnProfile={false}
+            isFollowing={isFollowing}
+            isTogglingFollow={isTogglingFollow}
+            location={profile.location}
+            work={profile.work}
+            education={profile.education}
+            onFollow={handleToggleFollow}
+            onMessage={handleMessage}
+          />
 
-      <div className="fixed right-8 bottom-8 z-50">
+          {/* Posts */}
+          <div className="space-y-6 mt-6">
+            {loadingPosts ? (
+              <div className="text-center text-gray-500 py-8">Loading posts...</div>
+            ) : posts.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">No posts yet</div>
+            ) : (
+              posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  id={post.id}
+                  content={post.content}
+                  created_at={post.created_at}
+                  username={post.username}
+                  display_name={post.display_name}
+                  avatar_url={post.avatar_url}
+                  media={post.media}
+                  likes_count={post.likes_count}
+                  liked_by_current_user={post.liked_by_me}
+                  isOwnProfile={false}
+                  currentUserAvatar={currentUser?.avatar_url || DEFAULT_AVATAR}
+                  currentUserName={currentUser?.display_name || currentUser?.username || "You"}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Floating Messages button */}
+      <div className="fixed right-4 bottom-4 sm:right-6 sm:bottom-6 z-50">
         <Button
-          aria-label="Open messages"
-          className="h-[48px] bg-[#7b2030] text-white rounded-2xl inline-flex items-center justify-center gap-2 px-5 py-2 shadow-lg hover:bg-[#5e0e27]"
+          aria-label="Messages"
+          className="flex items-center justify-center gap-2 shadow-lg bg-[#7a1233] text-white rounded-full sm:rounded-2xl h-12 px-3 sm:px-4"
+          onClick={() => setIsMessagesOpen(true)}
           type="button"
-          onClick={() => setMessagesOpen(true)}
         >
-          <span className="text-sm font-medium">Messages</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="opacity-90">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="text-sm font-medium hidden sm:inline">Messages</span>
         </Button>
       </div>
 
-      {isMessagesOpen && (
-        <MessagesModal isOpen={true} onClose={() => setMessagesOpen(false)} onOpenStart={() => setMessagesOpen(false)} />
-      )}
+      <MessagesModal
+        isOpen={isMessagesOpen}
+        onClose={() => setIsMessagesOpen(false)}
+        onOpenChat={(item) => {
+          setSelectedContact({ id: item.id, name: item.name, avatar: item.avatar });
+          setIsChatOpen(true);
+        }}
+        onOpenStart={() => setIsMessagesOpen(false)}
+      />
+
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        contact={selectedContact}
+      />
     </div>
   );
 }

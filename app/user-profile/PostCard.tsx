@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
+import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -130,13 +132,14 @@ const normalizeMediaUrl = (url?: string): string => {
  */
 interface CommentItemProps {
   comment: Comment;
+  postId: string;
   currentUserAvatar: string;
   currentUserName: string;
   onLikeComment: (commentId: string) => void;
   onReplyToComment: (commentId: string, content: string) => void;
 }
 
-function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeComment, onReplyToComment }: CommentItemProps) {
+function CommentItem({ comment, postId, currentUserAvatar, currentUserName, onLikeComment, onReplyToComment }: CommentItemProps) {
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [showReplies, setShowReplies] = useState(false);
@@ -146,9 +149,10 @@ function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeCommen
 
   const handleSubmitReply = async () => {
     if (replyContent.trim()) {
+      const tempId = `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       // Add optimistic reply
       const newReply: CommentReply = {
-        id: `reply-${Date.now()}`,
+        id: tempId,
         author: {
           name: currentUserName,
           avatar: currentUserAvatar,
@@ -160,10 +164,38 @@ function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeCommen
         liked_by_current_user: false,
       };
       setReplies((prev) => [...prev, newReply]);
-      onReplyToComment(comment.id, replyContent.trim());
+      
+      const replyText = replyContent.trim();
       setReplyContent("");
       setShowReplyInput(false);
       setShowReplies(true);
+
+      // Call API to add reply
+      try {
+        const token = localStorage.getItem("access_token") || undefined;
+        const result = await addReply(postId, comment.id, replyText, token);
+        
+        // Update the temp reply with the real ID from server
+        if (result.success && result.reply) {
+          setReplies((prev) =>
+            prev.map((r) =>
+              r.id === tempId
+                ? {
+                    ...r,
+                    id: result.reply!.id,
+                    created_at: result.reply!.created_at || r.created_at,
+                  }
+                : r
+            )
+          );
+        }
+      } catch (err) {
+        console.error("Error posting reply:", err);
+        // Remove the optimistic reply on error
+        setReplies((prev) => prev.filter((r) => r.id !== tempId));
+      }
+
+      onReplyToComment(comment.id, replyText);
     }
   };
 
@@ -285,8 +317,8 @@ function CommentItem({ comment, currentUserAvatar, currentUserName, onLikeCommen
                   <div className="text-xs text-gray-500">Loading replies...</div>
                 ) : (
                   <>
-                    {replies.map((reply) => (
-                      <div key={reply.id} className="flex gap-2">
+                    {replies.map((reply, index) => (
+                      <div key={reply.id || `reply-${index}`} className="flex gap-2">
                         <Avatar src={reply.author.avatar} alt={reply.author.name} size={24} />
                         <div className="flex-1">
                           <div className="bg-gray-100 rounded-xl px-3 py-1.5">
@@ -688,10 +720,11 @@ export default function PostCard({
     }
   };
 
-  const handleSubmitComment = async () => {
+  const handleSubmitComment = async (imageUrl?: string) => {
     if (commentText.trim()) {
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const newComment: Comment = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         author: {
           name: currentUserName,
           avatar: currentUserAvatar,
@@ -710,26 +743,39 @@ export default function PostCard({
       setCommentText("");
       
       try {
-        const token = localStorage.getItem("access_token");
-        if (token) {
-          await fetch(`/api/posts/${id}/comments`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ content: commentContent }),
-          });
+        const token = localStorage.getItem("access_token") || undefined;
+        const result = await addComment(id, commentContent, imageUrl, token);
+        
+        // Update the temp comment with the real ID from server
+        if (result.success && result.comment) {
+          setComments((prev) =>
+            prev.map((c) =>
+              c.id === tempId
+                ? {
+                    ...c,
+                    id: result.comment!.id,
+                    created_at: result.comment!.created_at || c.created_at,
+                  }
+                : c
+            )
+          );
         }
       } catch (err) {
         console.error("Error posting comment:", err);
+        // Remove the optimistic comment on error
+        setComments((prev) => prev.filter((c) => c.id !== tempId));
       }
       
       onComment?.(id, commentContent);
     }
   };
 
-  const handleLikeComment = (commentId: string) => {
+  const handleLikeComment = async (commentId: string) => {
+    // Find the comment to check current like state
+    const comment = comments.find((c) => c.id === commentId);
+    const isCurrentlyLiked = comment?.liked_by_current_user ?? false;
+
+    // Optimistic UI update
     setComments((prev) =>
       prev.map((c) =>
         c.id === commentId
@@ -741,11 +787,44 @@ export default function PostCard({
           : c
       )
     );
+
+    // Call appropriate API based on current state
+    try {
+      const token = localStorage.getItem("access_token") || undefined;
+      const result = isCurrentlyLiked
+        ? await unlikeComment(commentId, token)
+        : await likeComment(commentId, token);
+      
+      // Update with actual like count from server if available
+      if (result.likesCount !== undefined) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? { ...c, likes_count: result.likesCount! }
+              : c
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Failed to like/unlike comment:", error);
+      // Revert optimistic update on error
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? {
+                ...c,
+                liked_by_current_user: isCurrentlyLiked,
+                likes_count: isCurrentlyLiked ? c.likes_count + 1 : c.likes_count - 1,
+              }
+            : c
+        )
+      );
+    }
   };
 
   const handleReplyToComment = (commentId: string, replyContent: string) => {
     const newReply: CommentReply = {
-      id: `reply-${Date.now()}`,
+      id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       author: {
         name: currentUserName,
         avatar: currentUserAvatar,
@@ -864,10 +943,10 @@ export default function PostCard({
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Write a comment..."
                   className="flex-1 text-sm border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:border-[#7b2030]"
-                  onKeyDown={(e) => e.key === "Enter" && handleSubmitComment()}
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmitComment(undefined)}
                 />
                 <button
-                  onClick={handleSubmitComment}
+                  onClick={() => handleSubmitComment(undefined)}
                   disabled={!commentText.trim()}
                   className="p-2 text-[#7b2030] hover:bg-gray-100 rounded-full disabled:opacity-50"
                 >
@@ -883,10 +962,11 @@ export default function PostCard({
               <div className="text-center text-gray-500 text-sm py-4">No comments yet. Be the first to comment!</div>
             ) : (
               <div className="space-y-4">
-                {comments.map((comment) => (
+                {comments.map((comment, index) => (
                   <CommentItem
-                    key={comment.id}
+                    key={comment.id || `comment-${index}`}
                     comment={comment}
+                    postId={id}
                     currentUserAvatar={currentUserAvatar}
                     currentUserName={currentUserName}
                     onLikeComment={handleLikeComment}

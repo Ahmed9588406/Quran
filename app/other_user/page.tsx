@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import NavBar from "../user/navbar";
 import LeftSide from "../user/leftside";
 import ProfileHeader from "./ProfileHeader";
@@ -197,6 +198,12 @@ export default function UserProfilePage() {
 	const [isSidebarOpen, setSidebarOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState("posts");
 	const [isMessagesOpen, setMessagesOpen] = useState(false);
+	const router = useRouter();
+
+	useEffect(() => {
+		// Redirect to home if no user ID provided
+		router.replace("/user");
+	}, [router]);
 
 	// Render content based on active tab
 	const renderTabContent = () => {
