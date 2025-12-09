@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import NavBar from "./navbar";
 import StoriesBar from "./storybar";
-import PostView from "./postview";
+import Feed from "@/components/ui/Feed";
 import RightSide from "./rightside";
 import Leaderboard from "./leaderboard";
 import { Button } from "@/components/ui/button";
@@ -181,8 +181,7 @@ export default function UserPageClient({ userId, initialUserData }: UserPageClie
               <StoriesBar />
             </div>
             <div className="flex flex-col items-center space-y-6 mt-0 w-full">
-              <PostView />
-              <PostView />
+              <Feed perPage={10} />
             </div>
           </>
         );

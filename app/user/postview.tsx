@@ -1,32 +1,49 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { Heart, MessageCircle, Repeat, Share2, MoreHorizontal } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
+
+type Media = {
+  url: string;
+  media_type: string;
+};
 
 type Post = {
   id: string;
-  title?: string;
-  body?: string;
-  image?: string;
-  createdAt?: string;
-  // add other fields from your backend as needed
+  author_id?: string;
+  content?: string;
+  visibility?: string;
+  created_at?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  likes_count?: number;
+  comments_count?: number;
+  shares_count?: number;
+  is_following?: number;
+  liked_by_me?: boolean;
+  media?: Media[];
 };
 
-function readSavedAuth() {
+function formatDate(d?: string) {
+  if (!d) return "";
   try {
-    const raw =
-      localStorage.getItem("currentUser") ??
-      localStorage.getItem("auth") ??
-      localStorage.getItem("user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const id = parsed.id ?? parsed.user?.id ?? parsed.userId;
-    const token = parsed.token ?? parsed.accessToken ?? parsed.authToken;
-    if (!id && !token) return null;
-    return { id, token };
+    const date = new Date(d);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    return date.toLocaleDateString();
   } catch {
-    return null;
+    return d;
   }
 }
 
@@ -35,6 +52,8 @@ export default function PostView() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   const toggleLike = (id: string) => {
     setLikedIds((s) => ({ ...s, [id]: !s[id] }));
@@ -46,30 +65,33 @@ export default function PostView() {
       setLoading(true);
       setError(null);
       try {
-        const auth = readSavedAuth();
-        if (!auth || !auth.id) {
-          throw new Error("No logged-in user found in localStorage.");
-        }
-        const userId = encodeURIComponent(String(auth.id));
-        const limit = 20;
-        const page = 1;
-        const url = `http://192.168.1.18:9001/users/${userId}/posts?limit=${limit}&page=${page}`;
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (auth.token) headers["Authorization"] = `Bearer ${auth.token}`;
+        const token = localStorage.getItem("access_token") ?? undefined;
+        const res = await fetch(`/api/feed?page=${page}&per_page=10`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
 
-        const res = await fetch(url, { method: "GET", headers });
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          throw new Error(`Failed to load posts: ${res.status} ${res.statusText} ${text}`);
+          throw new Error(`Failed to load feed: ${res.status} ${res.statusText} ${text}`);
         }
+
         const data = await res.json();
-        // normalize common shapes
-        let items: Post[] = [];
-        if (Array.isArray(data)) items = data;
-        else if (Array.isArray(data.posts)) items = data.posts;
-        else if (Array.isArray(data.data)) items = data.data;
-        // fallback empty
-        if (!cancelled) setPosts(items);
+        const items: Post[] = Array.isArray(data.posts) ? data.posts : [];
+
+        if (!cancelled) {
+          setPosts(items);
+          setHasMore(items.length >= 10);
+          // Initialize liked state
+          const likedState: Record<string, boolean> = {};
+          items.forEach((p) => {
+            likedState[p.id] = p.liked_by_me ?? false;
+          });
+          setLikedIds(likedState);
+        }
       } catch (err: any) {
         if (!cancelled) setError(err.message ?? String(err));
       } finally {
@@ -80,20 +102,15 @@ export default function PostView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page]);
 
   return (
     <div className="w-full flex justify-center py-8 px-4">
       <div className="w-full max-w-3xl mx-auto">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">Posts</h2>
-          <p className="text-sm text-gray-500">Your recent posts</p>
-        </div>
-
-        {loading && <div className="text-sm text-gray-600">Loading posts...</div>}
-        {error && <div className="text-sm text-red-500">Error: {error}</div>}
+        {loading && <div className="text-sm text-gray-600 text-center">Loading posts...</div>}
+        {error && <div className="text-sm text-red-500 text-center">Error: {error}</div>}
         {!loading && !error && posts.length === 0 && (
-          <div className="text-sm text-gray-600">No posts found.</div>
+          <div className="text-sm text-gray-600 text-center">No posts found.</div>
         )}
 
         <div className="flex flex-col gap-6">
@@ -104,87 +121,128 @@ export default function PostView() {
             >
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="w-11 h-11 relative rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
-                  <Image src="/figma-assets/avatar.png" alt="avatar" fill style={{ objectFit: "cover" }} />
+                  {post.avatar_url ? (
+                    <Image
+                      src={post.avatar_url}
+                      alt={post.display_name ?? post.username ?? "avatar"}
+                      fill
+                      style={{ objectFit: "cover" }}
+                      unoptimized
+                    />
+                  ) : (
+                    <Image src="/figma-assets/avatar.png" alt="avatar" fill style={{ objectFit: "cover" }} />
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <Link href="#" className="font-semibold text-sm text-gray-900 truncate">
-                      Mazen Mohamed
+                      {post.display_name ?? post.username}
                     </Link>
-                    <span className="text-xs text-gray-400">· {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "2d"}</span>
+                    <span className="text-xs text-gray-400">· {formatDate(post.created_at)}</span>
                   </div>
                 </div>
 
-                <button className="bg-[#7b2030] text-white text-sm px-3 py-1 rounded-md font-medium hover:opacity-95">
-                  Follow
-                </button>
+                {post.is_following === 0 && (
+                  <button className="bg-[#7b2030] text-white text-sm px-3 py-1 rounded-md font-medium hover:opacity-95">
+                    Follow
+                  </button>
+                )}
 
                 <button aria-label="more" className="ml-2 text-gray-400 hover:text-gray-600">
                   <MoreHorizontal className="w-5 h-5" />
                 </button>
               </div>
 
-              {post.title && (
-                <div className="px-4 pb-2 flex-shrink-0">
-                  <p className="text-sm text-gray-800 font-medium">{post.title}</p>
-                </div>
-              )}
-
-              {post.body && (
+              {post.content && (
                 <div className="px-4 pb-3 flex-shrink-0">
-                  <p className="text-sm text-gray-800 leading-relaxed">{post.body}</p>
+                  <p className="text-sm text-gray-800 leading-relaxed">{post.content}</p>
                 </div>
               )}
 
-              <div className="px-4 pb-4">
-                <div className="w-full rounded-lg overflow-hidden bg-gray-50 shadow-sm h-64">
-                  <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                    <Image
-                      src={post.image ?? "/moshaf.svg"}
-                      alt="post"
-                      fill
-                      className="object-cover"
-                      priority={false}
-                    />
+              {post.media && post.media.length > 0 && (
+                <div className="px-4 pb-4">
+                  <div className="grid gap-2">
+                    {post.media.map((m, idx) =>
+                      (m.media_type || "").includes("video") ? (
+                        <video
+                          key={idx}
+                          src={m.url}
+                          controls
+                          className="w-full max-h-[480px] rounded-lg bg-black"
+                        />
+                      ) : (
+                        <div key={idx} className="relative w-full h-64 rounded-lg overflow-hidden">
+                          <Image
+                            src={m.url}
+                            alt={`media-${idx}`}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="px-4 pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex gap-6">
-                    <button onClick={() => toggleLike(post.id)} className="flex flex-col items-center text-center focus:outline-none">
-                      <Heart className={`w-5 h-5 ${likedIds[post.id] ? "text-red-500" : "text-gray-500"}`} />
-                      <span className="text-xs mt-1 text-gray-600">Like</span>
+                    <button
+                      onClick={() => toggleLike(post.id)}
+                      className="flex flex-col items-center text-center focus:outline-none"
+                    >
+                      <Heart
+                        className={`w-5 h-5 ${likedIds[post.id] ? "text-red-500 fill-red-500" : "text-gray-500"}`}
+                      />
+                      <span className="text-xs mt-1 text-gray-600">
+                        {(post.likes_count ?? 0) + (likedIds[post.id] && !post.liked_by_me ? 1 : 0) - (!likedIds[post.id] && post.liked_by_me ? 1 : 0)}
+                      </span>
                     </button>
 
                     <button className="flex flex-col items-center text-center text-gray-600 focus:outline-none">
                       <MessageCircle className="w-5 h-5 text-gray-500" />
-                      <span className="text-xs mt-1 text-gray-600">Comment</span>
+                      <span className="text-xs mt-1">{post.comments_count ?? 0}</span>
                     </button>
 
                     <button className="flex flex-col items-center text-center text-gray-600 focus:outline-none">
-                      <Repeat className="w-5 h-5 text-gray-500" />
-                      <span className="text-xs mt-1 text-gray-600">Repost</span>
+                      <Repeat2 className="w-5 h-5 text-gray-500" />
+                      <span className="text-xs mt-1">{post.shares_count ?? 0}</span>
                     </button>
 
                     <button className="flex flex-col items-center text-center text-gray-600 focus:outline-none">
                       <Share2 className="w-5 h-5 text-gray-500" />
-                      <span className="text-xs mt-1 text-gray-600">Share</span>
+                      <span className="text-xs mt-1">Share</span>
                     </button>
                   </div>
-
-                  <div className="text-sm text-gray-400"> </div>
                 </div>
-              </div>
-
-              <div className="px-4 pb-4 text-xs text-gray-400">
-                {/* meta / time */}
               </div>
             </div>
           ))}
         </div>
+
+        {/* Pagination */}
+        {posts.length > 0 && (
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setPage((s) => Math.max(1, s - 1))}
+              disabled={page <= 1 || loading}
+              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">Page {page}</span>
+            <button
+              onClick={() => setPage((s) => s + 1)}
+              disabled={!hasMore || loading}
+              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
