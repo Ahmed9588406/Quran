@@ -6,27 +6,87 @@ import Link from "next/link";
 import { Globe, LogOut, X } from "lucide-react";
 import { getProfileRoute } from "@/lib/auth-helpers";
 
+type UserData = {
+  id: string;
+  username: string;
+  display_name: string;
+  bio?: string;
+  avatar_url?: string;
+  followers_count?: number;
+  following_count?: number;
+  posts_count?: number;
+  tags?: string[];
+};
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  user?: { name?: string; handle?: string; avatar?: string };
+  user?: UserData;
 };
 
 export default function ProfileModal({ isOpen, onClose, user }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [profileHref, setProfileHref] = useState("/user-profile");
-
-  const u = user ?? {
-    name: "Omar Al-Fakhroo",
-    handle: "@Al-Fakhroo-22",
-    avatar: "/figma-assets/avatar.png",
-  };
+  const [userData, setUserData] = useState<UserData | null>(user || null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Get dynamic profile route on mount (client-side only)
-  // Requirements: 2.1, 2.2, 2.3
   useEffect(() => {
     setProfileHref(getProfileRoute());
   }, []);
+
+  // Fetch user profile data when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchUserProfile = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          setError("Not authenticated");
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch("/api/auth/profile", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch profile");
+        }
+
+        const data = await res.json();
+        const profile = data?.user || data?.data?.user || data;
+        setUserData({
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name || profile.username,
+          bio: profile.bio,
+          avatar_url: profile.avatar_url?.startsWith("http") ? profile.avatar_url : profile.avatar_url ? `http://192.168.1.18:9001${profile.avatar_url}` : "/icons/settings/profile.png",
+          followers_count: profile.followers_count || 0,
+          following_count: profile.following_count || 0,
+          posts_count: profile.posts_count || 0,
+          tags: profile.tags || [],
+        });
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+        setError("Failed to load profile");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!user) {
+      fetchUserProfile();
+    } else {
+      setUserData(user);
+    }
+  }, [isOpen, user]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -47,10 +107,21 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
 
   if (!isOpen) return null;
 
+  const u = userData || {
+    display_name: "Loading...",
+    username: "",
+    avatar_url: "/icons/settings/profile.png",
+    bio: "",
+    followers_count: 0,
+    following_count: 0,
+    posts_count: 0,
+    tags: [],
+  };
+
   return (
     <div
       ref={ref}
-      className="w-[320px] max-w-[92vw] bg-[#fff6f3] border border-[#f0e6e5] rounded-2xl shadow-xl text-gray-900 overflow-hidden"
+      className="w-[360px] max-w-[92vw] bg-[#fff6f3] border border-[#f0e6e5] rounded-2xl shadow-xl text-gray-900 overflow-hidden"
       role="dialog"
       aria-modal="true"
     >
@@ -58,8 +129,8 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full overflow-hidden relative flex-shrink-0">
-              <Image
-                src="/icons/settings/profile.png"
+              <img
+                src={u.avatar_url}
                 alt="User profile"
                 width={48}
                 height={48}
@@ -68,8 +139,8 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
               />
             </div>
             <div>
-              <div className="text-sm font-semibold truncate">{u.name}</div>
-              <div className="text-xs text-gray-600 mt-0.5">{u.handle}</div>
+              <div className="text-sm font-semibold truncate">{u.display_name}</div>
+              <div className="text-xs text-gray-600 mt-0.5">@{u.username}</div>
             </div>
           </div>
 
@@ -81,6 +152,24 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        
+
+        {/* Bio */}
+        {u.bio && (
+          <p className="mt-3 text-sm text-gray-700 leading-relaxed">{u.bio}</p>
+        )}
+
+        {/* Tags */}
+        {u.tags && u.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {u.tags.map((tag, idx) => (
+              <span key={idx} className="px-2 py-1 bg-gray-100 text-xs text-gray-600 rounded-full">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="mt-3">
           <Link
@@ -116,6 +205,14 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
           <span className="text-sm text-gray-800">Sign out</span>
         </button>
       </div>
+
+      {loading && (
+        <div className="p-4 text-center text-sm text-gray-500">Loading profile...</div>
+      )}
+
+      {error && (
+        <div className="p-4 text-center text-sm text-red-500">{error}</div>
+      )}
     </div>
   );
 }

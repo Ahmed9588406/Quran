@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
 import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
+import Image from "next/image";
+import Link from "next/link";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -92,6 +94,7 @@ interface PostCardProps {
   onComment?: (postId: string, content: string) => void;
   onShare?: (postId: string) => void;
   onRepost?: (postId: string) => void;
+  user_id?: string;
 }
 
 /**
@@ -633,6 +636,7 @@ export default function PostCard({
   onComment,
   onShare,
   onRepost,
+  user_id,
 }: PostCardProps) {
   const [liked, setLiked] = useState(liked_by_current_user);
   const [likeCount, setLikeCount] = useState(likes_count);
@@ -861,10 +865,17 @@ export default function PostCard({
         {/* Header */}
         <div className="flex items-start justify-between p-4 pb-0">
           <div className="flex items-center gap-3">
-            <Avatar src={authorAvatar} alt={authorName} size={40} />
+            <Link href={user_id ? `/user-profile/${user_id}` : '#'} className="flex-shrink-0">
+              <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                <Image src={avatar_url || "/icons/settings/profile.png"} alt={display_name || username || "User"} fill style={{ objectFit: "cover" }} />
+              </div>
+            </Link>
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">{authorName}</h3>
-              <p className="text-xs text-gray-500">{timeAgo}</p>
+              <Link href={user_id ? `/user-profile/${user_id}` : '#'} className="font-semibold text-sm text-gray-900 hover:underline">
+                {display_name || username}
+              </Link>
+              {username && <p className="text-xs text-gray-500">@{username}</p>}
+              {created_at && <p className="text-xs text-gray-400">{formatRelativeTime(created_at)}</p>}
             </div>
           </div>
 

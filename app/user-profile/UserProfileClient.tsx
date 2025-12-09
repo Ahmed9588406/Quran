@@ -74,6 +74,7 @@ interface Media {
  */
 interface Post {
   id: string;
+  user_id?: string;
   content?: string;
   created_at?: string;
   username?: string;
@@ -87,6 +88,7 @@ interface Post {
   share_comment?: string;
   original_post?: {
     id: string;
+    user_id?: string;
     content?: string;
     created_at?: string;
     username?: string;
@@ -353,6 +355,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                     <ProfilePostCard
                       key={post.id}
                       id={post.id}
+                      user_id={post.user_id || userData?.id}
                       content={post.content}
                       created_at={post.created_at}
                       username={post.username || userData?.username}

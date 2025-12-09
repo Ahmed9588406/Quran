@@ -14,6 +14,7 @@ import LeftSide from "./leftside";
 import QRScanModal from "../qr/qr_scan";
 import { useRouter } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth-helpers";
+import SuggestedUsersRow from "@/components/ui/SuggestedUsersRow";
 
 const MessagesModal = dynamic(() => import("./messages"), { ssr: false });
 const ChatPanel = dynamic(() => import("./chat"), { ssr: false });
@@ -181,6 +182,10 @@ export default function UserPageClient({ userId, initialUserData }: UserPageClie
               <StoriesBar />
             </div>
             <div className="flex flex-col items-center space-y-6 mt-0 w-full">
+              {/* Suggested Users Row - appears at the top of feed */}
+              <div className="w-full">
+                <SuggestedUsersRow />
+              </div>
               <Feed perPage={10} />
             </div>
           </>

@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-import Image from "next/image";
 
 interface LeaderboardEntry {
   rank: number;
@@ -15,55 +14,59 @@ interface LeaderboardProps {
   currentUserRank?: number;
 }
 
-export default function Leaderboard({ entries, currentUserRank = 1 }: LeaderboardProps) {
+export default function Leaderboard({ entries, currentUserRank }: LeaderboardProps) {
   return (
-    <div className="w-full">
-      {/* Table Header */}
-      <div className="bg-[#7b2030] text-white rounded-t-lg">
-        <div className="grid grid-cols-[80px_1fr_120px] px-4 py-3">
-          <div className="text-sm font-semibold">Rank</div>
-          <div className="text-sm font-semibold text-center">Name</div>
-          <div className="text-sm font-semibold text-right">Points</div>
-        </div>
-      </div>
+    <div className="bg-white rounded-lg border border-[#f0e6e5] p-6">
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Leaderboard</h2>
 
-      {/* Table Body */}
-      <div className="bg-white border border-t-0 border-[#f0e6e5] rounded-b-lg divide-y divide-[#f0e6e5]">
+      <div className="space-y-4">
         {entries.map((entry) => (
           <div
             key={entry.rank}
-            className={`grid grid-cols-[80px_1fr_120px] px-4 py-3 items-center ${
-              entry.isCurrentUser ? "bg-[#fff0ed]" : "hover:bg-gray-50"
+            className={`flex items-center gap-4 p-3 rounded-lg ${
+              entry.isCurrentUser ? "bg-[#fff5f6]" : "hover:bg-gray-50"
             }`}
           >
-            {/* Rank */}
-            <div className={`text-sm font-medium ${entry.isCurrentUser ? "text-[#7b2030]" : "text-[#7b2030]"}`}>
-              #{entry.rank}
+            <span
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                entry.rank === 1
+                  ? "bg-yellow-400 text-yellow-900"
+                  : entry.rank === 2
+                  ? "bg-gray-300 text-gray-700"
+                  : entry.rank === 3
+                  ? "bg-amber-600 text-white"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {entry.rank}
+            </span>
+
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
+              <img
+                src={entry.avatar}
+                alt={entry.name}
+                className="w-full h-full object-cover"
+              />
             </div>
 
-            {/* Name with Avatar */}
-            <div className="flex items-center justify-center gap-3">
-              <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                <Image
-                  src={entry.avatar}
-                  alt={entry.name}
-                  fill
-                  style={{ objectFit: "cover" }}
-                />
-              </div>
-              <span className={`text-sm ${entry.isCurrentUser ? "font-semibold text-[#7b2030]" : "text-gray-700"}`}>
-                {entry.name}
-                {entry.isCurrentUser && " (You)"}
-              </span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">{entry.name}</p>
             </div>
 
-            {/* Points */}
-            <div className={`text-sm text-right ${entry.isCurrentUser ? "font-semibold text-[#7b2030]" : "text-[#c9a227]"}`}>
-              {entry.points} Points
-            </div>
+            <span className="text-sm font-semibold text-[#7b2030]">
+              {entry.points} pts
+            </span>
           </div>
         ))}
       </div>
+
+      {currentUserRank && currentUserRank > entries.length && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-500 text-center">
+            Your rank: #{currentUserRank}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

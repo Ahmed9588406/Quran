@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 
 const BASE_URL = 'http://192.168.1.18:9001';
@@ -73,6 +74,19 @@ export async function GET(request: Request) {
           status: backendRes.status,
           headers: corsHeaders(),
         });
+      }
+
+      // Normalize URLs in posts and ensure user_id is present
+      if (data?.posts && Array.isArray(data.posts)) {
+        data.posts = data.posts.map((post: any) => ({
+          ...post,
+          user_id: post.user_id || userId,
+          avatar_url: post.avatar_url?.startsWith('/') ? `${BASE_URL}${post.avatar_url}` : post.avatar_url,
+          media: Array.isArray(post.media) ? post.media.map((m: any) => ({
+            ...m,
+            url: m.url?.startsWith('/') ? `${BASE_URL}${m.url}` : m.url,
+          })) : [],
+        }));
       }
 
       return NextResponse.json(data, { status: 200, headers: corsHeaders() });
