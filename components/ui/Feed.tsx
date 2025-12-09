@@ -592,6 +592,9 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 	const [comments, setComments] = useState<Comment[]>([]);
 	const [isLoadingComments, setIsLoadingComments] = useState(false);
 	const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+	// follow state (post.is_following can be 0/1 or boolean)
+	const [isFollowing, setIsFollowing] = useState<boolean>(Boolean(post.is_following));
+	const [isTogglingFollow, setIsTogglingFollow] = useState(false);
 
 	const authorName = post.display_name || post.username || "User";
 	const authorAvatar = post.avatar_url || DEFAULT_AVATAR;
@@ -783,6 +786,37 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 		setLightboxIndex(index);
 	};
 
+	async function toggleFollow() {
+		// author id is expected on post.author_id; guard if missing
+		const authorId = (post as any).author_id || (post as any).authorId || undefined;
+		if (!authorId) return;
+		const prev = isFollowing;
+		setIsFollowing(!prev);
+		setIsTogglingFollow(true);
+		try {
+			const token = localStorage.getItem("access_token") ?? undefined;
+			// attempt to call a local proxy endpoint that handles follow/unfollow.
+			// POST -> follow, DELETE -> unfollow. If your API differs, adjust the path/method.
+			const res = await fetch("/api/follow", {
+				method: prev ? "DELETE" : "POST",
+				headers: {
+					"Content-Type": "application/json",
+					...(token ? { Authorization: `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify({ userId: String(authorId) }),
+			});
+			if (!res.ok) {
+				// revert on failure
+				setIsFollowing(prev);
+			}
+		} catch (err) {
+			console.error("Follow toggle failed", err);
+			setIsFollowing(prev);
+		} finally {
+			setIsTogglingFollow(false);
+		}
+	}
+
 	// Suppress unused variable warnings
 	void likeCount;
 
@@ -800,11 +834,18 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 					</div>
 
 					<div className="flex items-center gap-2">
-						{post.is_following === 0 && (
-							<button className="px-4 py-1 bg-[#7b2030] text-white text-xs font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
-								Follow
-							</button>
-						)}
+						{/* Follow / Following button */}
+						<button
+							onClick={toggleFollow}
+							disabled={isTogglingFollow}
+							className={`px-4 py-1 text-xs font-medium rounded-full transition-colors ${
+								isFollowing
+									? "bg-white text-[#7b2030] border border-[#7b2030] hover:bg-[#fffaf9]"
+									: "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
+							}`}
+						>
+							{isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
+						</button>
 						<button aria-label="More options" className="p-1 text-gray-400 hover:text-gray-600">
 							<MoreHorizontal className="w-5 h-5" />
 						</button>

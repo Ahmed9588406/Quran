@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import Image from "next/image";
 import { MapPin } from "lucide-react";
+import SuggestedUsers from "@/components/ui/SuggestedUsers";
 
 type Mosque = {
   name: string;
@@ -270,7 +271,29 @@ export default function RightSide() {
         </div>
       </div>
 
-      {/* additional sidebar content can be rendered here (profile, suggestions) */}
+      {/* Suggested Users */}
+      <SuggestedUsers />
+
+      {/* Trending Topics or other widgets can go here */}
+      <div className="bg-white rounded-xl border border-[#f0e6e5] p-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Trending</h3>
+        <div className="space-y-2">
+          <div className="text-sm text-gray-600">#Ramadan2024</div>
+          <div className="text-sm text-gray-600">#QuranReflections</div>
+          <div className="text-sm text-gray-600">#IslamicReminders</div>
+        </div>
+      </div>
+
+      {/* Footer links */}
+      <div className="text-xs text-gray-400 px-2">
+        <p>© 2024 Quran App</p>
+        <div className="flex flex-wrap gap-2 mt-1">
+          <a href="#" className="hover:underline">About</a>
+          <a href="#" className="hover:underline">Privacy</a>
+          <a href="#" className="hover:underline">Terms</a>
+          <a href="#" className="hover:underline">Help</a>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,12 +1,11 @@
 "use client";
 import React from "react";
-import Image from "next/image";
-import { Settings, MapPin, Briefcase, GraduationCap } from "lucide-react";
+import { MapPin, Briefcase, GraduationCap } from "lucide-react";
 
 interface ProfileHeaderProps {
   name: string;
   username?: string;
-  avatar: string;
+  avatar?: string | null;
   coverUrl?: string | null;
   posts: number;
   followers: number;
@@ -15,6 +14,7 @@ interface ProfileHeaderProps {
   tags: string[];
   isOwnProfile?: boolean;
   isFollowing?: boolean;
+  isTogglingFollow?: boolean;
   country?: string | null;
   location?: string | null;
   education?: string | null;
@@ -37,6 +37,7 @@ export default function ProfileHeader({
   tags,
   isOwnProfile = false,
   isFollowing = false,
+  isTogglingFollow = false,
   country,
   location,
   education,
@@ -47,153 +48,100 @@ export default function ProfileHeader({
   onMessage,
 }: ProfileHeaderProps) {
   return (
-    <div className="border-b border-[#f0e6e5]">
+    <div className="border-b border-[#f0e6e5] bg-white rounded-xl">
       {/* Cover Image */}
       {coverUrl && (
-        <div className="relative w-full h-32 bg-gradient-to-r from-[#7b2030] to-[#d4a574]">
-          <Image
-            src={coverUrl}
-            alt="Cover"
-            fill
-            style={{ objectFit: "cover" }}
-          />
+        <div className="h-48 bg-gradient-to-r from-[#7b2030] to-[#5e0e27] relative">
+          <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
         </div>
       )}
-      
-      <div className="px-6 py-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-start gap-6">
-            {/* Avatar */}
-            <div className={`relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg flex-shrink-0 ${coverUrl ? '-mt-12' : ''}`}>
-              <Image
-                src={avatar}
-                alt={name}
-                fill
-                style={{ objectFit: "cover" }}
-                priority
-              />
-            </div>
 
-            {/* Info */}
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <h1 className="text-xl font-semibold text-gray-900">{name}</h1>
-                    {username && (
-                      <p className="text-sm text-gray-500">@{username}</p>
-                    )}
-                  </div>
+      <div className="px-6 py-8">
+        <div className="flex items-start gap-6">
+          {/* Avatar */}
+          <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-200 flex-shrink-0">
+            <img src={avatar || "/icons/settings/profile.png"} alt={name} className="w-full h-full object-cover" />
+          </div>
 
-                  {!isOwnProfile && (
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={onFollow}
-                        className={`px-5 py-1.5 text-sm font-medium rounded-full transition-colors ${
-                          isFollowing 
-                            ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-                            : 'bg-[#7b2030] text-white hover:bg-[#5e0e27]'
-                        }`}
-                      >
-                        {isFollowing ? 'Following' : 'Follow'}
-                      </button>
-                      <button
-                        onClick={onMessage}
-                        className="px-5 py-1.5 text-[#D7BA83] rounded-full hover:bg-gray-50 transition-colors"
-                        style={{
-                          border: "1.5px solid var(--Tinted-Muted-Gold-1, #D7BA83)",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                        }}
-                      >
-                        Message
-                      </button>
-                    </div>
-                  )}
-
-                  {isOwnProfile && (
-                    <button className="px-5 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-200 transition-colors">
-                      Edit Profile
-                    </button>
-                  )}
-                </div>
-
-                <button
-                  aria-label="Settings"
-                  className="p-2 text-[#7b2030] hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">{name}</h1>
+                {username && <p className="text-sm text-gray-500">@{username}</p>}
               </div>
 
-              {/* Stats */}
-              <div className="flex items-center gap-6 mt-3 text-sm">
-                <div>
-                  <span className="font-semibold text-gray-900">{posts}</span>
-                  <span className="text-gray-500 ml-1">posts</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-gray-900">{followers}</span>
-                  <span className="text-gray-500 ml-1">followers</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-gray-900">{following}</span>
-                  <span className="text-gray-500 ml-1">following</span>
-                </div>
-                {reelsCount > 0 && (
-                  <div>
-                    <span className="font-semibold text-gray-900">{reelsCount}</span>
-                    <span className="text-gray-500 ml-1">reels</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Location & Work Info */}
-              <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-600">
-                {(country || location) && (
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    <span>{location || country}</span>
-                  </div>
-                )}
-                {work && (
-                  <div className="flex items-center gap-1">
-                    <Briefcase className="w-4 h-4" />
-                    <span>{work}</span>
-                  </div>
-                )}
-                {education && (
-                  <div className="flex items-center gap-1">
-                    <GraduationCap className="w-4 h-4" />
-                    <span>{education}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Tags / Interests */}
-              {(tags.length > 0 || interests) && (
-                <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  {tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
-                    >
-                      • {tag}
-                    </span>
-                  ))}
-                  {interests && !tags.length && (
-                    <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
-                      • {interests}
-                    </span>
-                  )}
+              {!isOwnProfile && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={onFollow}
+                    disabled={isTogglingFollow}
+                    className={`px-5 py-2 text-sm font-medium rounded-full transition-colors ${
+                      isFollowing
+                        ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        : "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
+                    }`}
+                  >
+                    {isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
+                  </button>
+                  <button
+                    onClick={onMessage}
+                    className="px-5 py-2 text-sm font-medium rounded-full border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    Message
+                  </button>
                 </div>
               )}
+            </div>
 
-              {/* Bio */}
-              {bio && (
-                <p className="mt-3 text-sm text-gray-600 leading-relaxed">
-                  <span className="font-medium text-gray-800">Bio:</span> {bio}
-                </p>
+            {/* Bio */}
+            {bio && <p className="mt-3 text-sm text-gray-700">{bio}</p>}
+
+            {/* Tags */}
+            {tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {tags.map((tag, idx) => (
+                  <span key={idx} className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="mt-4 flex items-center gap-6">
+              <div>
+                <p className="text-lg font-semibold text-gray-900">{posts}</p>
+                <p className="text-xs text-gray-500">Posts</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-gray-900">{followers}</p>
+                <p className="text-xs text-gray-500">Followers</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-gray-900">{following}</p>
+                <p className="text-xs text-gray-500">Following</p>
+              </div>
+            </div>
+
+            {/* Location, Work, Education */}
+            <div className="mt-4 flex flex-col gap-2">
+              {location && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <MapPin className="w-5 h-5 mr-2" />
+                  {location}
+                </div>
+              )}
+              {work && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <Briefcase className="w-5 h-5 mr-2" />
+                  {work}
+                </div>
+              )}
+              {education && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <GraduationCap className="w-5 h-5 mr-2" />
+                  {education}
+                </div>
               )}
             </div>
           </div>
