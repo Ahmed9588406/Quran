@@ -88,6 +88,7 @@ interface PostCardProps {
   likes_count?: number;
   shares_count?: number;
   liked_by_current_user?: boolean;
+  saved_by_current_user?: boolean;
   isOwnProfile?: boolean;
   currentUserAvatar?: string;
   currentUserName?: string;
@@ -95,6 +96,7 @@ interface PostCardProps {
   onComment?: (postId: string, content: string) => void;
   onShare?: (postId: string) => void;
   onRepost?: (postId: string) => void;
+  onUnsave?: (postId: string) => void;
   user_id?: string;
 }
 
@@ -630,6 +632,7 @@ export default function PostCard({
   media,
   likes_count = 0,
   liked_by_current_user = false,
+  saved_by_current_user = false,
   isOwnProfile = false,
   currentUserAvatar = DEFAULT_AVATAR,
   currentUserName = "You",
@@ -637,12 +640,13 @@ export default function PostCard({
   onComment,
   onShare,
   onRepost,
+  onUnsave,
   user_id,
 }: PostCardProps) {
   // All state hooks must be declared at the top level
   const [liked, setLiked] = useState(liked_by_current_user);
   const [likeCount, setLikeCount] = useState(likes_count);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(saved_by_current_user);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [isSavingPost, setIsSavingPost] = useState(false);
@@ -900,6 +904,7 @@ export default function PostCard({
       const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
       await unsavePost(id, token);
       setSaved(false);
+      onUnsave?.(id);
       setTimeout(() => setShowSaveModal(false), 500);
     } catch (err) {
       console.error("Failed to unsave post:", err);
@@ -1093,15 +1098,22 @@ export default function PostCard({
             <span>Share</span>
           </button>
 
-          {/* New Save button that calls backend debug endpoint */}
+          {/* Save button with filled state when saved */}
           <button
-            onClick={() => {
-              // call local save helper for debugging and toggle saved state on success
-              handleBackendSave(id, setSaved);
+            onClick={async () => {
+              if (saved) {
+                await handleUnsavePost();
+              } else {
+                await handleSavePost();
+              }
             }}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#7b2030]"
+            className={`flex items-center gap-2 text-sm ${
+              saved 
+                ? "text-[#7b2030]" 
+                : "text-gray-500 hover:text-[#7b2030]"
+            }`}
           >
-            <Bookmark className="w-5 h-5" />
+            <Bookmark className={`w-5 h-5 ${saved ? "fill-[#7b2030]" : ""}`} />
             <span>{saved ? "Saved" : "Save"}</span>
           </button>
         </div>

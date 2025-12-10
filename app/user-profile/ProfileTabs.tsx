@@ -1,30 +1,23 @@
 "use client";
 import React from "react";
-import { MoreHorizontal } from "lucide-react";
+import { Bookmark } from "lucide-react";
 
 interface ProfileTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  isSavedView?: boolean;
+  isOwnProfile?: boolean;
 }
 
 export default function ProfileTabs({
   activeTab,
   onTabChange,
-  isSavedView = false,
+  isOwnProfile = false,
 }: ProfileTabsProps) {
   const tabs = [
     { id: "posts", label: "Posts", icon: "📝" },
     { id: "photos", label: "Photos", icon: "🖼️" },
     { id: "reels", label: "Reels", icon: "🎬" },
-    ...(isSavedView ? [{ id: "saved", label: "Saved", icon: "🔖" }] : []),
   ];
-
-  console.log("ProfileTabs: Rendering with tabs", {
-    activeTab,
-    tabs: tabs.map((t) => t.id),
-    isSavedView,
-  });
 
   return (
     <div className="border-b border-gray-200 sticky top-0 bg-white z-40">
@@ -32,10 +25,7 @@ export default function ProfileTabs({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => {
-              console.log("ProfileTabs: Tab clicked", { tabId: tab.id });
-              onTabChange(tab.id);
-            }}
+            onClick={() => onTabChange(tab.id)}
             className={`py-4 px-2 font-medium text-sm border-b-2 transition-colors ${
               activeTab === tab.id
                 ? "border-[#7b2030] text-[#7b2030]"
@@ -45,6 +35,21 @@ export default function ProfileTabs({
             {tab.icon} {tab.label}
           </button>
         ))}
+        
+        {/* Saved tab - only visible on own profile */}
+        {isOwnProfile && (
+          <button
+            onClick={() => onTabChange("saved")}
+            className={`py-4 px-2 font-medium text-sm border-b-2 transition-colors flex items-center gap-1 ${
+              activeTab === "saved"
+                ? "border-[#7b2030] text-[#7b2030]"
+                : "border-transparent text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Bookmark className={`w-4 h-4 ${activeTab === "saved" ? "fill-[#7b2030]" : ""}`} />
+            Saved
+          </button>
+        )}
       </div>
     </div>
   );
