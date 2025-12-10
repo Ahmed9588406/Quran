@@ -1,10 +1,10 @@
 /**
- * Chat List and Create API Routes
+ * Group Members API Routes
  * 
- * GET - List all chats for the current user
- * POST - Create a new direct chat
+ * POST - Add a member to a group
+ * DELETE - Remove a member from a group
  * 
- * Requirements: 1.1, 2.2
+ * Requirements: 8.4, 8.5
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,7 +14,7 @@ const BASE_URL = 'http://192.168.1.18:9001';
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 }
@@ -24,50 +24,18 @@ export async function OPTIONS() {
 }
 
 /**
- * GET /api/chats - List all chats
+ * POST /api/chats/[chatId]/members - Add a member
  */
-export async function GET(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+) {
   try {
-    const auth = req.headers.get('authorization') ?? '';
-
-    const response = await fetch(`${BASE_URL}/chat/list`, {
-      method: 'GET',
-      headers: {
-        ...(auth ? { Authorization: auth } : {}),
-      },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      return new NextResponse(text, {
-        status: response.status,
-        headers: corsHeaders(),
-      });
-    }
-
-    const data = await response.json();
-    return NextResponse.json(data.chats || data, {
-      status: 200,
-      headers: corsHeaders(),
-    });
-  } catch (error) {
-    console.error('Error fetching chats:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch chats' },
-      { status: 500, headers: corsHeaders() }
-    );
-  }
-}
-
-/**
- * POST /api/chats - Create a new direct chat
- */
-export async function POST(req: NextRequest) {
-  try {
+    const { chatId } = await params;
     const auth = req.headers.get('authorization') ?? '';
     const body = await req.json();
 
-    const response = await fetch(`${BASE_URL}/chat/create`, {
+    const response = await fetch(`${BASE_URL}/chat/group/${chatId}/add`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -86,13 +54,56 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
     return NextResponse.json(data, {
-      status: 201,
+      status: 200,
       headers: corsHeaders(),
     });
   } catch (error) {
-    console.error('Error creating chat:', error);
+    console.error('Error adding member:', error);
     return NextResponse.json(
-      { error: 'Failed to create chat' },
+      { error: 'Failed to add member' },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
+}
+
+/**
+ * DELETE /api/chats/[chatId]/members - Remove a member
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+) {
+  try {
+    const { chatId } = await params;
+    const auth = req.headers.get('authorization') ?? '';
+    const body = await req.json();
+
+    const response = await fetch(`${BASE_URL}/chat/group/${chatId}/remove`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth ? { Authorization: auth } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return new NextResponse(text, {
+        status: response.status,
+        headers: corsHeaders(),
+      });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data, {
+      status: 200,
+      headers: corsHeaders(),
+    });
+  } catch (error) {
+    console.error('Error removing member:', error);
+    return NextResponse.json(
+      { error: 'Failed to remove member' },
       { status: 500, headers: corsHeaders() }
     );
   }

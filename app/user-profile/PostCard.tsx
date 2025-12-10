@@ -2,7 +2,7 @@
 "use client";
 import { useState } from "react";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
-import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
+import { likeComment, unlikeComment, addComment, addReply, likePost, unlikePost } from "@/src/api/postsApi";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -647,15 +647,39 @@ export default function PostCard({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const authorName = display_name || username || "User";
-  const authorAvatar = avatar_url || DEFAULT_AVATAR;
+  const authorAvatar = normalizeAvatarUrl(avatar_url);
   const timeAgo = formatRelativeTime(created_at);
 
   // Filter only image media for lightbox
   const imageMedia = media?.filter(m => m.media_type !== "video") || [];
+  
+  // Determine if we have a valid user_id for profile links
+  const hasValidUserId = user_id && user_id !== '';
+  const profileHref = hasValidUserId ? `/user-profile/${user_id}` : '#';
 
   const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+    // Optimistic update + call API
+    const prev = liked;
+    const prevCount = likeCount;
+    setLiked(!prev);
+    setLikeCount(prev ? Math.max(0, prevCount - 1) : prevCount + 1);
+
+    (async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+        const result = prev ? await unlikePost(id, token) : await likePost(id, token);
+        if (result && result.likesCount !== undefined) {
+          setLikeCount(result.likesCount);
+        }
+      } catch (err) {
+        console.error("Failed to toggle like on post:", err);
+        // revert optimistic update
+        setLiked(prev);
+        setLikeCount(prevCount);
+      }
+    })();
+
+    // preserve external callback
     onLike?.(id);
   };
 
@@ -865,22 +889,56 @@ export default function PostCard({
         {/* Header */}
         <div className="flex items-start justify-between p-4 pb-0">
           <div className="flex items-center gap-3">
-            <Link href={user_id ? `/user-profile/${user_id}` : '#'} className="flex-shrink-0">
-              <div className="relative w-10 h-10 rounded-full overflow-hidden">
-                <Image src={avatar_url || "/icons/settings/profile.png"} alt={display_name || username || "User"} fill style={{ objectFit: "cover" }} />
-              </div>
-            </Link>
-            <div>
-              <Link href={user_id ? `/user-profile/${user_id}` : '#'} className="font-semibold text-sm text-gray-900 hover:underline">
-                {display_name || username}
+            {hasValidUserId ? (
+              <Link href={profileHref} className="flex-shrink-0">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 cursor-pointer hover:opacity-80 transition-opacity">
+                  <img
+                    src={authorAvatar}
+                    alt={authorName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = DEFAULT_AVATAR;
+                    }}
+                  />
+                </div>
               </Link>
-              {username && <p className="text-xs text-gray-500">@{username}</p>}
-              {created_at && <p className="text-xs text-gray-400">{formatRelativeTime(created_at)}</p>}
+            ) : (
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                <img
+                  src={authorAvatar}
+                  alt={authorName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = DEFAULT_AVATAR;
+                  }}
+                />
+              </div>
+            )}
+            <div>
+              {hasValidUserId ? (
+                <Link href={profileHref} className="font-semibold text-sm text-gray-900 hover:underline cursor-pointer">
+                  {authorName}
+                </Link>
+              ) : (
+                <span className="font-semibold text-sm text-gray-900">{authorName}</span>
+              )}
+              {username && (
+                hasValidUserId ? (
+                  <Link href={profileHref}>
+                    <p className="text-xs text-gray-500 hover:underline cursor-pointer">@{username}</p>
+                  </Link>
+                ) : (
+                  <p className="text-xs text-gray-500">@{username}</p>
+                )
+              )}
+              {created_at && <p className="text-xs text-gray-400">{timeAgo}</p>}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {!isOwnProfile && (
+            {!isOwnProfile && hasValidUserId && (
               <button className="px-4 py-1 bg-[#7b2030] text-white text-xs font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
                 Follow
               </button>

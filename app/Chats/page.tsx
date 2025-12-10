@@ -1,176 +1,327 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
-import React, { useState, useRef, useEffect } from "react";
-import Image from "next/image";
-import { useRouter } from 'next/navigation';
+'use client';
+
+/**
+ * Main Chats Page
+ * 
+ * Integrates all chat components with real-time functionality.
+ * Requirements: 1.1, 2.1, 3.1, 11.1
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Chat, Message, User } from '@/lib/chat/types';
+import { chatAPI } from '@/lib/chat/api';
+import { wsManager } from '@/lib/chat/websocket';
+import { sortChatsByRecent } from '@/lib/chat/utils';
 import LeftSide from '../user/leftside';
+import ChatSidebar from './ChatSidebar';
+import ChatHeader from './ChatHeader';
+import MessageList from './MessageList';
+import MessageInput from './MessageInput';
+import ConnectionStatus from './ConnectionStatus';
+import CreateGroupModal from './CreateGroupModal';
 import EmptyState from './EmptyState';
-import ChatContent from './ChatContent';
-import { Menu, Search } from "lucide-react";
-import MeneModal from './mene_Modal';
-const chats = [
-	{ id: 1, name: "Groupe", time: "19:48", lastText: "Chatgram Web was updated.", unread: 1, avatar: "https://i.pravatar.cc/48?img=32" },
-	{ id: 2, name: "Jessica Drew", time: "18:30", lastText: "Ok, see you later", unread: 2, avatar: "https://i.pravatar.cc/48?img=12" },
-	{ id: 3, name: "David Moore", time: "18:16", lastText: "You: i don't remember anything 😄", unread: 0, avatar: "https://i.pravatar.cc/48?img=5" },
-	{ id: 4, name: "Emily Dorson", time: "17:42", lastText: "Table for four, 5PM. Be there.", unread: 0, avatar: "https://i.pravatar.cc/48?img=7" },
-	{ id: 5, name: "Art Class", time: "Tue", lastText: "Emily: Editorial", unread: 0, avatar: "https://i.pravatar.cc/48?img=15" },
-];
-
-type Message = { id: string; from: "me" | "them"; text: string; time?: string };
-
-const initialMessages: Record<number, Message[]> = {
-	1: [
-		{ id: 'm1', from: 'them', text: 'Chatgram Web was updated.', time: '19:48' },
-		{ id: 'm2', from: 'me', text: 'Nice!', time: '19:49' },
-	],
-	2: [
-		{ id: 'm1', from: 'them', text: 'Ok, see you later', time: '18:30' },
-	],
-	3: [
-		{ id: 'm1', from: 'them', text: "You: i don't remember anything 😄", time: '18:16' },
-	],
-	4: [
-		{ id: 'm1', from: 'them', text: 'Table for four, 5PM. Be there.', time: '17:42' },
-	],
-	5: [
-		{ id: 'm1', from: 'them', text: 'Emily: Editorial', time: 'Tue' },
-	],
-};
 
 export default function ChatsPage() {
-	const [selectedId, setSelectedId] = useState<number | null>(null);
-	const [isModalOpen, setIsModalOpen] = useState(false);
-	const [search, setSearch] = useState('');
-	const [activeTab, setActiveTab] = useState<'All'|'Chats'|'Fatwa'|'Groups'>('All');
-	const router = useRouter();
-	const [messages, setMessages] = useState<Record<number, Message[]>>(initialMessages);
-	const [input, setInput] = useState('');
-	const scrollRef = useRef<HTMLDivElement | null>(null);
+  // State
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [currentChat, setCurrentChat] = useState<Chat | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'reconnecting'>('disconnected');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // UI State
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isMediaFilterActive, setIsMediaFilterActive] = useState(false);
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
 
-	useEffect(() => {
-		// scroll to bottom so newest messages are visible (WhatsApp-style)
-		const el = scrollRef.current;
-		if (el) {
-			el.scrollTop = el.scrollHeight;
-		}
-	}, [selectedId, messages]);
+  // Initialize - get current user and connect WebSocket
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    const userStr = localStorage.getItem('user');
+    
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setCurrentUserId(user.id || '');
+        
+        // Connect WebSocket
+        wsManager.connect(token);
+        
+        // Load initial data
+        loadChats();
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+    
+    setIsLoading(false);
 
-	const openChat = (id: number) => {
-		// set local selection only — render chat content in the right pane (no navigation)
-		setSelectedId(id);
-		// optionally focus the input after selecting
-		setTimeout(() => {
-			const inputEl = document.querySelector('.chat-input') as HTMLInputElement | null;
-			if (inputEl) inputEl.focus();
-		}, 50);
-	};
+    return () => {
+      // Cleanup is handled by wsManager
+    };
+  }, []);
+
+  // WebSocket status listener
+  useEffect(() => {
+    const unsubscribe = wsManager.onStatusChange((status) => {
+      setConnectionStatus(status);
+    });
+    return unsubscribe;
+  }, []);
+
+  // WebSocket message listener
+  useEffect(() => {
+    const unsubscribe = wsManager.onMessage((message) => {
+      switch (message.type) {
+        case 'chat/receive':
+          if (message.data && message.chat_id) {
+            const newMessage = message.data as Message;
+            // Add message if it's for the current chat
+            if (currentChat && message.chat_id === currentChat.id) {
+              setMessages(prev => [...prev, newMessage]);
+            }
+            // Refresh chat list
+            loadChats();
+          }
+          break;
+        
+        case 'chat/typing':
+          if (message.chat_id === currentChat?.id && message.user_id) {
+            setTypingUsers(prev => [...new Set([...prev, message.user_id!])]);
+          }
+          break;
+        
+        case 'chat/stop_typing':
+          if (message.chat_id === currentChat?.id && message.user_id) {
+            setTypingUsers(prev => prev.filter(id => id !== message.user_id));
+          }
+          break;
+        
+        case 'chat/message_deleted':
+          if (message.chat_id === currentChat?.id && message.data) {
+            const data = message.data as { message_id: string };
+            setMessages(prev => prev.filter(m => m.id !== data.message_id));
+          }
+          loadChats();
+          break;
+        
+        case 'presence':
+          // Update user status in chats
+          if (message.user_id && message.data) {
+            const data = message.data as { status: 'online' | 'offline' };
+            setChats(prev => prev.map(chat => ({
+              ...chat,
+              participants: chat.participants.map(p =>
+                p.id === message.user_id ? { ...p, status: data.status } : p
+              ),
+            })));
+          }
+          break;
+      }
+    });
+    return unsubscribe;
+  }, [currentChat]);
 
 
+  // Load chats
+  const loadChats = useCallback(async () => {
+    try {
+      const fetchedChats = await chatAPI.listChats();
+      setChats(sortChatsByRecent(fetchedChats));
+    } catch (error) {
+      console.error('Error loading chats:', error);
+    }
+  }, []);
 
-	// after sending, append message and scroll to bottom (newest at bottom)
-	const sendMessage = () => {
-		if (!selectedId || !input.trim()) return;
-		const msg: Message = { id: String(Date.now()), from: 'me', text: input.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-		setMessages((prev) => ({ ...prev, [selectedId]: [...(prev[selectedId] || []), msg] }));
-		setInput('');
-		setTimeout(() => {
-			const el = scrollRef.current;
-			if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-		}, 50);
-	};
+  // Load messages for a chat
+  const loadMessages = useCallback(async (chatId: string) => {
+    try {
+      const fetchedMessages = await chatAPI.getMessages(chatId);
+      setMessages(fetchedMessages);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  }, []);
 
-	// filtered list based on search
-	const filteredChats = chats.filter(c => {
-		if (!search.trim()) return true;
-		const q = search.toLowerCase();
-		return c.name.toLowerCase().includes(q) || c.lastText.toLowerCase().includes(q);
-	});
+  // Handle chat selection
+  const handleSelectChat = useCallback(async (chat: Chat) => {
+    setCurrentChat(chat);
+    setTypingUsers([]);
+    setSearchQuery('');
+    setIsSearchVisible(false);
+    setIsMediaFilterActive(false);
+    await loadMessages(chat.id);
+  }, [loadMessages]);
 
-	return (
-		<div className="min-h-screen mb">
-			{/* collapsed navigation */}
-			<LeftSide isOpen={false} permanent onNavigate={() => { }} activeView="chats" />
+  // Handle user selection (start new chat)
+  const handleSelectUser = useCallback(async (user: User) => {
+    try {
+      const response = await chatAPI.createChat(user.id);
+      await loadChats();
+      
+      // Find and select the new/existing chat
+      const updatedChats = await chatAPI.listChats();
+      const chat = updatedChats.find(c => c.id === response.chat_id);
+      if (chat) {
+        handleSelectChat(chat);
+      }
+    } catch (error) {
+      console.error('Error creating chat:', error);
+    }
+  }, [loadChats, handleSelectChat]);
 
-			{/* Chat list column (fixed to the right of collapsed nav) */}
-			{/* start at the top of the viewport */}
-			<aside className="fixed top-0 left-14 bottom-0 w-[364px] bg-white border-r" style={{ borderColor: '#E5E7EB' }}>
-				<div className="h-full overflow-auto">
-								<div className="px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
-									<div className="flex items-center gap-3">
-										<div className="flex items-center text-lg font-semibold text-black gap-2 relative">
-											<button onClick={() => setIsModalOpen(prev => !prev)} aria-label="Open menu" className="flex items-center gap-2">
-												<Menu className="w-6 h-6 text-[#D7BA83]" />
-												<span>Chats</span>
-											</button>
-											<MeneModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-										</div>
+  // Handle send message
+  const handleSendMessage = useCallback(async (content: string) => {
+    if (!currentChat) return;
+    
+    try {
+      const message = await chatAPI.sendMessage(currentChat.id, content);
+      setMessages(prev => [...prev, message]);
+      loadChats(); // Refresh to update last message
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  }, [currentChat, loadChats]);
 
-										{/* search input */}
-                                        <div className="flex-1">
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 " />
-                                                <input
-                                                    value={search}
-                                                    onChange={(e) => setSearch(e.target.value)}
-                                                    placeholder="Search"
-                                                    className="w-full rounded-full py-2 pl-10 pr-3 text-sm shadow-sm text-black"
-                                                    style={{ background: '#FFF9F3', border: '1px solid var(--Tinted-Muted-Gold-5, #F7E9CF)' }}
-                                                />
-                                            </div>
-                                        </div>
-									</div>
+  // Handle send media
+  const handleSendMedia = useCallback(async (file: File, type: 'image' | 'video' | 'audio') => {
+    if (!currentChat) return;
+    
+    try {
+      const message = await chatAPI.sendMedia(currentChat.id, file, type);
+      setMessages(prev => [...prev, message]);
+      loadChats();
+    } catch (error) {
+      console.error('Error sending media:', error);
+      throw error;
+    }
+  }, [currentChat, loadChats]);
 
-									{/* Tabs like WhatsApp */}
-									<div className="mt-3">
-										<nav className="flex items-center gap-6 text-sm font-medium text-gray-600">
-											{(['All','Chats','Fatwa','Groups'] as const).map(tab => (
-												<button
-													key={tab}
-													onClick={() => setActiveTab(tab as any)}
-													className={`pb-2 ${activeTab === tab ? 'text-[#8A1538] border-b-2 border-[#8A1538]' : 'hover:text-gray-800'}`}
-												>
-													{tab}
-												</button>
-											))}
-										</nav>
-									</div>
-								</div>
-					<div className="p-2">
-						{filteredChats.map(c => (
-							<button key={c.id} onClick={() => openChat(c.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 ${selectedId === c.id ? 'bg-gray-50' : ''}`}>
-								<div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
-									<Image src={c.avatar} alt={c.name} width={40} height={40} />
-								</div>
-								<div className="flex-1 text-left">
-									<div className="flex items-center justify-between">
-										<div className="text-sm font-medium">{c.name}</div>
-										<div className="text-xs text-gray-400">{c.time}</div>
-									</div>
-									<div className="text-xs text-gray-500 truncate">{c.lastText}</div>
-								</div>
-								{c.unread ? (<div className="text-xs bg-[#8A1538] text-white px-2 py-1 rounded-full">{c.unread}</div>) : null}
-							</button>
-						))}
-					</div>
-				</div>
-			</aside>
+  // Handle delete message
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
+    
+    try {
+      await chatAPI.deleteMessage(messageId);
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      loadChats();
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  }, [loadChats]);
 
-			{/* Content area: leave space for collapsed nav (56px) + chat list (364px) and navbar (h-16) */}
-			{/* remove top padding so content begins at the very top */}
-			<main className="flex-1 flex flex-col bg-white ml-[420px] pt-0">
-				{selectedId ? (
-					<ChatContent
-						chat={chats.find(c => c.id === selectedId)}
-						messages={messages[selectedId] || []}
-						input={input}
-						setInput={setInput}
-						onSend={sendMessage}
-						scrollRef={scrollRef}
-					/>
-				) : (
-					<EmptyState />
-				)}
-			</main>
-		</div>
-	);
+  // Handle create group
+  const handleCreateGroup = useCallback(async (title: string, memberIds: string[]) => {
+    try {
+      const response = await chatAPI.createGroup(title, memberIds);
+      await loadChats();
+      
+      // Find and select the new group
+      const updatedChats = await chatAPI.listChats();
+      const chat = updatedChats.find(c => c.id === response.chat_id);
+      if (chat) {
+        handleSelectChat(chat);
+      }
+    } catch (error) {
+      console.error('Error creating group:', error);
+      throw error;
+    }
+  }, [loadChats, handleSelectChat]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8A1538]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex">
+      {/* Left Navigation */}
+      <LeftSide isOpen={false} permanent onNavigate={() => {}} activeView="chats" />
+
+      {/* Chat Sidebar */}
+      <aside className="fixed top-0 left-14 bottom-0 w-[364px] bg-white border-r border-gray-200">
+        {/* Connection Status */}
+        <div className="absolute top-2 left-2 z-10">
+          <ConnectionStatus status={connectionStatus} />
+        </div>
+        
+        <ChatSidebar
+          chats={chats}
+          currentChatId={currentChat?.id || null}
+          currentUserId={currentUserId}
+          onSelectChat={handleSelectChat}
+          onSelectUser={handleSelectUser}
+          onCreateGroup={() => setIsCreateGroupModalOpen(true)}
+        />
+      </aside>
+
+      {/* Main Chat Area */}
+      <main className="flex-1 flex flex-col bg-white ml-[420px]">
+        {currentChat ? (
+          <>
+            {/* Chat Header */}
+            <ChatHeader
+              chat={currentChat}
+              currentUserId={currentUserId}
+              isSearchVisible={isSearchVisible}
+              isMediaFilterActive={isMediaFilterActive}
+              onToggleSearch={() => setIsSearchVisible(!isSearchVisible)}
+              onToggleMediaFilter={() => setIsMediaFilterActive(!isMediaFilterActive)}
+              onShowGroupInfo={currentChat.type === 'group' ? () => {} : undefined}
+            />
+
+            {/* Search Bar */}
+            {isSearchVisible && (
+              <div className="px-4 py-2 bg-white border-b border-gray-200">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="بحث في المحادثة..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#667eea] focus:border-transparent text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {/* Message List */}
+            <div className="flex-1 relative overflow-hidden">
+              <MessageList
+                messages={messages}
+                currentUserId={currentUserId}
+                typingUsers={typingUsers}
+                searchQuery={searchQuery}
+                isMediaFilterActive={isMediaFilterActive}
+                onDeleteMessage={handleDeleteMessage}
+              />
+            </div>
+
+            {/* Message Input */}
+            <MessageInput
+              chatId={currentChat.id}
+              onSendMessage={handleSendMessage}
+              onSendMedia={handleSendMedia}
+            />
+          </>
+        ) : (
+          <EmptyState />
+        )}
+      </main>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        isOpen={isCreateGroupModalOpen}
+        currentUserId={currentUserId}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        onCreateGroup={handleCreateGroup}
+      />
+    </div>
+  );
 }

@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Play } from "lucide-react";
+import { likePost, unlikePost } from "@/src/api/postsApi";
 
 interface PostCardProps {
   id: string;
@@ -34,9 +35,26 @@ export default function PostCard({
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(likes);
 
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+  const handleLike = async () => {
+    // optimistic update
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    setLiked(!prevLiked);
+    setLikeCount(prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1);
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      const result = prevLiked ? await unlikePost(id, token) : await likePost(id, token);
+
+      if (result && result.likesCount !== undefined) {
+        setLikeCount(result.likesCount);
+      }
+    } catch (err) {
+      // revert on failure
+      console.error("Failed to toggle like on post:", err);
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+    }
   };
 
   return (
@@ -113,7 +131,9 @@ export default function PostCard({
           }`}
         >
           <Heart className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
-          <span>Like</span>
+          <span>
+            Like{likeCount > 0 ? ` (${likeCount})` : ""}
+          </span>
         </button>
 
         <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">

@@ -119,6 +119,63 @@ export async function unlikeComment(
 	};
 }
 
+// NEW: likePost / unlikePost for posts
+export async function likePost(
+	postId: string | number,
+	token?: string
+): Promise<LikeCommentResponse> {
+	const url = `/api/posts/${encodeURIComponent(String(postId))}/like`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	// Backend may expect a JSON body { post_id: "..." } — include it for safety
+	const res = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ post_id: String(postId) }),
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to like post: ${res.status} ${res.statusText} ${text}`);
+	}
+	const data = await res.json();
+	return {
+		success: true,
+		message: data.message,
+		likesCount: data.likes_count ?? data.likesCount ?? data.likes,
+	};
+}
+
+export async function unlikePost(
+	postId: string | number,
+	token?: string
+): Promise<LikeCommentResponse> {
+	const url = `/api/posts/${encodeURIComponent(String(postId))}/like`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const res = await fetch(url, {
+		method: 'DELETE',
+		headers,
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to unlike post: ${res.status} ${res.statusText} ${text}`);
+	}
+	const data = await res.json();
+	return {
+		success: true,
+		message: data.message,
+		likesCount: data.likes_count ?? data.likesCount ?? data.likes,
+	};
+}
+
 export type AddCommentResponse = {
 	success: boolean;
 	comment?: {

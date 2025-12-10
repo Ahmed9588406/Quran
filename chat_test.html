@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💬 نظام الشات - Chat System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background: white;
+            border-left: 1px solid #e4e6eb;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .sidebar-header h2 {
+            margin-bottom: 10px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .status-badge.connected {
+            background: #10b981;
+        }
+
+        .search-box {
+            padding: 15px;
+            border-bottom: 1px solid #e4e6eb;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e4e6eb;
+            border-radius: 20px;
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e4e6eb;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            background: white;
+            border: none;
+            font-size: 1em;
+            color: #65676b;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            font-weight: bold;
+        }
+
+        .tab:hover {
+            background: #f7f8fa;
+        }
+
+        .list-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .list-item {
+            padding: 15px;
+            border-bottom: 1px solid #f0f2f5;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .list-item:hover {
+            background: #f7f8fa;
+        }
+
+        .list-item.active {
+            background: #e7f3ff;
+            border-right: 3px solid #667eea;
+        }
+
+        .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+            flex-shrink: 0;
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #050505;
+            margin-bottom: 3px;
+        }
+
+        .item-message {
+            font-size: 0.9em;
+            color: #65676b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .item-time {
+            font-size: 0.8em;
+            color: #90949c;
+            flex-shrink: 0;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-dot.online {
+            background: #10b981;
+        }
+
+        .delete-btn {
+            opacity: 0;
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-right: 5px;
+            transition: opacity 0.2s;
+        }
+
+        .message:hover .delete-btn {
+            opacity: 1;
+        }
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f0f2f5;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #e4e6eb;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .chat-header-info {
+            flex: 1;
+        }
+
+        .chat-header-name {
+            font-weight: 600;
+            font-size: 1.1em;
+            color: #050505;
+        }
+
+        .chat-header-status {
+            font-size: 0.85em;
+            color: #65676b;
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23f0f2f5" width="100" height="100"/><circle fill="%23e4e6eb" cx="50" cy="50" r="1"/></svg>');
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.sent {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 60%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+
+        .message.sent .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.received .message-bubble {
+            background: white;
+            color: #050505;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-time {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: left;
+        }
+
+        .message.sent .message-time {
+            text-align: right;
+        }
+
+        .message-bubble img {
+            max-width: 100%;
+            border-radius: 10px;
+            margin-top: 5px;
+        }
+
+        .typing-indicator {
+            padding: 10px 20px;
+            color: #65676b;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+
+        .input-area {
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #e4e6eb;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 1px solid #e4e6eb;
+            border-radius: 20px;
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            width: 45px;
+            height: 45px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            transition: transform 0.2s;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .attach-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: #f0f2f5;
+            color: #65676b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            transition: all 0.2s;
+        }
+
+        .attach-btn:hover {
+            background: #e4e6eb;
+        }
+
+        /* Welcome Screen */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #65676b;
+        }
+
+        .welcome-screen h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .welcome-screen p {
+            font-size: 1.1em;
+        }
+
+        /* Login Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: #050505;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #65676b;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e4e6eb;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #65676b;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f0f2f5;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c4c4c4;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: #f0f2f5;
+        }
+
+        .attach-btn.recording {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+            }
+
+            70% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
+            }
+
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2>🔐 تسجيل الدخول</h2>
+            <div class="form-group">
+                <label>Access Token:</label>
+                <input type="text" id="tokenInput" placeholder="أدخل JWT Token">
+            </div>
+            <button class="btn-primary" onclick="login()">دخول</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>💬 الرسائل</h2>
+                <span class="status-badge" id="wsStatus">⚫ غير متصل</span>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 ابحث عن مستخدم..."
+                    oninput="searchUsers()">
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('chats')">المحادثات</button>
+                <button class="tab" onclick="switchTab('users')">المستخدمين</button>
+            </div>
+
+            <div style="padding: 10px;">
+                <button class="btn-primary" onclick="showCreateGroupModal()" style="padding: 8px; font-size: 0.9em;">+
+                    مجموعة جديدة</button>
+            </div>
+
+            <div class="list-container" id="chatsList"></div>
+            <div class="list-container hidden" id="usersList"></div>
+        </div>
+
+        <!-- Create Group Modal -->
+        <div id="createGroupModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>👥 إنشاء مجموعة جديدة</h2>
+                <div class="form-group">
+                    <label>اسم المجموعة:</label>
+                    <input type="text" id="groupNameInput" placeholder="أدخل اسم المجموعة">
+                </div>
+                <div class="form-group">
+                    <label>اختر الأعضاء:</label>
+                    <div id="groupUsersList"
+                        style="max-height: 200px; overflow-y: auto; border: 1px solid #e4e6eb; padding: 10px; border-radius: 10px;">
+                        <!-- Users will be loaded here -->
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-primary" onclick="createGroup()">إنشاء</button>
+                    <button class="btn-primary" onclick="closeCreateGroupModal()"
+                        style="background: #ccc; color: #333;">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Group Info Modal -->
+        <div id="groupInfoModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>👥 معلومات المجموعة</h2>
+                <div id="groupDetails" style="margin-bottom: 20px;">
+                    <!-- Details loaded here -->
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3>الأعضاء</h3>
+                    <button id="addMemberBtn" class="btn-primary hidden" onclick="showAddMemberModal()"
+                        style="padding: 5px 10px; font-size: 0.9em;">+ إضافة عضو</button>
+                </div>
+
+                <div id="groupMembersList"
+                    style="max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid #eee; padding: 10px; border-radius: 8px;">
+                    <!-- Members loaded here -->
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn-primary"
+                        onclick="document.getElementById('groupInfoModal').classList.add('hidden')"
+                        style="background: #ccc; color: #333;">إغلاق</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Member Modal -->
+        <div id="addMemberModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>➕ إضافة عضو</h2>
+                <div class="form-group">
+                    <input type="text" id="addMemberSearch" placeholder="بحث عن مستخدم..."
+                        oninput="filterAddMemberUsers()"
+                        style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <div id="addMemberUsersList"
+                        style="max-height: 200px; overflow-y: auto; border: 1px solid #e4e6eb; padding: 10px; border-radius: 10px;">
+                        <!-- Users loaded here -->
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-primary" onclick="submitAddMembers()">إضافة</button>
+                    <button class="btn-primary"
+                        onclick="document.getElementById('addMemberModal').classList.add('hidden')"
+                        style="background: #ccc; color: #333;">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area">
+            <div id="welcomeScreen" class="welcome-screen">
+                <h1>💬</h1>
+                <p>اختر محادثة للبدء</p>
+            </div>
+
+            <div id="chatScreen" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
+                <div class="chat-header">
+                    <div class="avatar" id="chatAvatar">?</div>
+                    <div class="chat-header-info">
+                        <div class="chat-header-name" id="chatName">اسم المستخدم</div>
+                        <div class="chat-header-status" id="chatStatus">متصل</div>
+                    </div>
+                    <button id="groupInfoBtn" class="btn-primary hidden" onclick="showGroupInfo()"
+                        style="margin-right: auto; padding: 5px 15px; font-size: 0.9em;">ℹ️ معلومات المجموعة</button>
+                    <div class="chat-actions" style="display: flex; gap: 10px;">
+                        <button class="icon-btn" onclick="toggleSearch()" title="بحث">🔍</button>
+                        <button class="icon-btn" onclick="toggleMediaFilter()" title="الوسائط فقط"
+                            id="mediaFilterBtn">🖼️</button>
+                    </div>
+                </div>
+
+                <div id="searchBar" class="search-bar hidden"
+                    style="padding: 10px; background: white; border-bottom: 1px solid #eee;">
+                    <input type="text" id="msgSearchInput" placeholder="بحث في المحادثة..."
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 15px;"
+                        oninput="searchMessages()">
+                </div>
+
+                <div class="messages-container" id="messagesContainer"></div>
+                <div class="typing-indicator" id="typingIndicator"></div>
+
+                <div class="input-area">
+                    <input type="file" id="fileInput" class="hidden" accept="image/*,video/*,audio/*"
+                        onchange="sendFile()">
+                    <button class="attach-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+                    <input type="text" id="messageInput" placeholder="اكتب رسالة..." onkeypress="handleKeyPress(event)"
+                        oninput="sendTyping()">
+                    <button class="attach-btn" id="micBtn" onclick="toggleRecording()">🎤</button>
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let token = '';
+        let currentUserId = '';
+        let currentChatId = '';
+        let currentChatUser = null;
+        let typingTimeout = null;
+        let allUsers = [];
+        let allChats = [];
+
+        // Voice Recording
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+
+        // Search & Filter
+        let isMediaFilterActive = false;
+        let searchDebounce = null;
+
+        const API_BASE = 'http://192.168.1.18:9000';
+        const WS_URL = 'ws://127.0.0.1:8080';
+
+        // Login
+        async function login() {
+            token = document.getElementById('tokenInput').value.trim();
+            if (!token) {
+                alert('الرجاء إدخال Token!');
+                return;
+            }
+
+            try {
+                // Verify token by getting user profile
+                const response = await fetch(`${API_BASE}/profile`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Invalid token');
+
+                const data = await response.json();
+                currentUserId = data.user.id;
+
+                document.getElementById('loginModal').classList.add('hidden');
+                connectWebSocket();
+                loadChats();
+                loadUsers();
+            } catch (e) {
+                alert('Token غير صالح!');
+            }
+        }
+
+        // WebSocket Connection
+        function connectWebSocket() {
+            ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+
+            ws.onopen = () => {
+                updateWSStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleWSMessage(message);
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                }
+            };
+
+            ws.onerror = () => updateWSStatus(false);
+            ws.onclose = () => {
+                updateWSStatus(false);
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function updateWSStatus(connected) {
+            const badge = document.getElementById('wsStatus');
+            if (connected) {
+                badge.className = 'status-badge connected';
+                badge.textContent = '🟢 متصل';
+            } else {
+                badge.className = 'status-badge';
+                badge.textContent = '⚫ غير متصل';
+            }
+        }
+
+        function handleWSMessage(message) {
+            switch (message.type) {
+                case 'chat/receive':
+                    if (message.data.chat_id === currentChatId) {
+                        displayMessage(message.data, false);
+                    }
+                    loadChats(); // Refresh chat list
+                    break;
+                case 'chat/typing':
+                    if (message.data.chat_id === currentChatId) {
+                        showTyping(message.data);
+                    }
+                    break;
+                case 'chat/seen':
+                    // Update message status
+                    break;
+                case 'presence':
+                    updateUserStatus(message.user_id, message.status);
+                    break;
+                case 'chat/message_deleted':
+                    if (message.data.chat_id === currentChatId) {
+                        const msgEl = document.getElementById(`msg-${message.data.message_id}`);
+                        if (msgEl) msgEl.remove();
+                    }
+                    loadChats();
+                    break;
+            }
+        }
+
+        function updateUserStatus(userId, status) {
+            // Update in chats list
+            const statusEl = document.getElementById(`status-${userId}`);
+            if (statusEl) {
+                statusEl.className = `status-dot ${status}`;
+                statusEl.title = status;
+            }
+
+            // Update in current chat header if open
+            if (currentChatUser && currentChatUser.id === userId) {
+                const headerStatus = document.getElementById('chatStatus');
+                headerStatus.textContent = status === 'online' ? 'متصل' : 'غير متصل';
+                headerStatus.style.color = status === 'online' ? '#10b981' : '#65676b';
+            }
+        }
+
+        async function deleteMessage(messageId) {
+            if (!confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/message/${messageId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const msgEl = document.getElementById(`msg-${messageId}`);
+                    if (msgEl) msgEl.remove();
+                } else {
+                    alert('فشل حذف الرسالة');
+                }
+            } catch (e) {
+                console.error('Error deleting message:', e);
+            }
+        }
+
+        // Load Chats
+        async function loadChats() {
+            try {
+                const response = await fetch(`${API_BASE}/chat/list`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    allChats = data.chats;
+                    displayChats(data.chats);
+                }
+            } catch (e) {
+                console.error('Error loading chats:', e);
+            }
+        }
+
+        function displayChats(chats) {
+            const container = document.getElementById('chatsList');
+            container.innerHTML = '';
+
+            if (chats.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <p>لا توجد محادثات بعد</p>
+                    </div>
+                `;
+                return;
+            }
+
+            chats.forEach(chat => {
+                const otherUser = chat.participants[0];
+                const lastMsg = chat.last_message || 'بدأ محادثة جديدة';
+                const time = chat.last_message_at ? formatTime(chat.last_message_at) : formatTime(chat.created_at);
+                const status = otherUser.status || 'offline';
+
+                const div = document.createElement('div');
+                div.className = `list-item ${chat.id === currentChatId ? 'active' : ''}`;
+                div.onclick = () => openChat(chat);
+                div.innerHTML = `
+                    <div class="avatar">
+                        ${otherUser.avatar_url ? `<img src="${otherUser.avatar_url}">` : otherUser.username[0].toUpperCase()}
+                    </div>
+                    <div class="item-content">
+                        <div class="item-name">
+                            <span class="status-dot ${status}" id="status-${otherUser.id}" title="${status}"></span>
+                            ${otherUser.display_name || otherUser.username}
+                        </div>
+                        <div class="item-message">${lastMsg}</div>
+                    </div>
+                    <div class="item-time">${time}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Load Users
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_BASE}/search/users?q=&limit=100`);
+
+                if (!response.ok) {
+                    console.error('HTTP error:', response.status, response.statusText);
+                    return;
+                }
+
+                const text = await response.text();
+                if (!text) {
+                    console.error('Empty response');
+                    return;
+                }
+
+                const data = JSON.parse(text);
+                if (data.success) {
+                    allUsers = data.users.filter(u => u.id !== currentUserId);
+                    displayUsers(allUsers);
+                } else {
+                    console.error('API error:', data.error);
+                }
+            } catch (e) {
+                console.error('Error loading users:', e);
+            }
+        }
+
+        function displayUsers(users) {
+            const container = document.getElementById('usersList');
+            container.innerHTML = '';
+
+            if (users.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <p>لا يوجد مستخدمين</p>
+                    </div>
+                `;
+                return;
+            }
+
+            users.forEach(user => {
+                const status = user.status || 'offline';
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.onclick = () => startChatWithUser(user);
+                div.innerHTML = `
+                    <div class="avatar">
+                        ${user.avatar_url ? `<img src="${user.avatar_url}">` : user.username[0].toUpperCase()}
+                    </div>
+                    <div class="item-content">
+                        <div class="item-name">
+                            <span class="status-dot ${status}" id="status-${user.id}" title="${status}"></span>
+                            ${user.display_name || user.username}
+                        </div>
+                        <div class="item-message">@${user.username}</div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Search Users
+        async function searchUsers() {
+            const query = document.getElementById('searchInput').value.trim();
+
+            try {
+                const response = await fetch(`${API_BASE}/search/users?q=${encodeURIComponent(query)}&limit=50`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    allUsers = data.users.filter(u => u.id !== currentUserId);
+                    displayUsers(allUsers);
+                }
+            } catch (e) {
+                console.error('Error searching users:', e);
+            }
+        }
+
+        // Switch Tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (tab === 'chats') {
+                document.getElementById('chatsList').classList.remove('hidden');
+                document.getElementById('usersList').classList.add('hidden');
+                loadChats();
+            } else {
+                document.getElementById('chatsList').classList.add('hidden');
+                document.getElementById('usersList').classList.remove('hidden');
+                loadUsers();
+            }
+        }
+
+        // Start Chat with User
+        async function startChatWithUser(user) {
+            try {
+                const response = await fetch(`${API_BASE}/chat/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ target_user_id: user.id })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    currentChatId = data.chat_id;
+                    currentChatUser = user;
+                    openChatById(data.chat_id);
+                    switchTab('chats');
+                    loadChats();
+                }
+            } catch (e) {
+                console.error('Error creating chat:', e);
+            }
+        }
+
+        // Open Chat
+        async function openChat(chat) {
+            currentChatId = chat.id;
+
+            let name = chat.title;
+            let initial = '?';
+
+            if (chat.type === 'group') {
+                document.getElementById('groupInfoBtn').classList.remove('hidden');
+                initial = (name || 'مجموعة').charAt(0).toUpperCase();
+            } else {
+                document.getElementById('groupInfoBtn').classList.add('hidden');
+                // Find other participant (already filtered in backend listChats?)
+                // listChats returns 'participants' array with other user info for direct chats?
+                // Wait, listChats implementation in ChatController:
+                // It fetches "other participant info" and puts it in 'participants' key?
+                // Let's check listChats again.
+                // It seems it puts the other user info directly in the chat object?
+                // No, let's assume it puts it in 'participants' or similar.
+                // Actually, looking at listChats in ChatController:
+                // It iterates chats and fetches "other participant info".
+                // It adds: 'username', 'display_name', 'avatar_url', 'status', 'last_seen' to the chat object itself!
+
+                name = chat.display_name || chat.username || 'مستخدم';
+                initial = name.charAt(0).toUpperCase();
+                currentChatUser = chat; // Use chat object as user object for direct chats
+            }
+
+            document.getElementById('welcomeScreen').classList.add('hidden');
+            document.getElementById('chatScreen').classList.remove('hidden');
+
+            document.getElementById('chatName').textContent = name;
+            document.getElementById('chatAvatar').textContent = initial;
+            document.getElementById('chatStatus').textContent = chat.type === 'group' ? `${chat.participants_count || ''} عضو` : (chat.status === 'online' ? 'متصل' : 'غير متصل');
+
+            await loadMessages(chat.id);
+            document.getElementById('messageInput').focus();
+        }
+
+        async function openChatById(chatId) {
+            // This function is now mostly used by startChatWithUser
+            // We should probably fetch chat details here if we want to support opening by ID properly
+            // For now, let's just load messages and assume direct chat defaults if called directly
+
+            currentChatId = chatId;
+            document.getElementById('welcomeScreen').classList.add('hidden');
+            document.getElementById('chatScreen').classList.remove('hidden');
+
+            // Reset UI to default/loading state if we don't have chat object
+            // But startChatWithUser sets currentChatUser before calling this (in previous implementation)
+            // Let's keep it simple for now
+
+            const name = currentChatUser?.display_name || currentChatUser?.username || 'مستخدم';
+            const initial = name.charAt(0).toUpperCase();
+
+            document.getElementById('chatName').textContent = name;
+            document.getElementById('chatAvatar').textContent = initial;
+            document.getElementById('chatStatus').textContent = '...';
+            document.getElementById('groupInfoBtn').classList.add('hidden'); // Default hidden
+
+            await loadMessages(chatId);
+            document.getElementById('messageInput').focus();
+        }
+
+        // Load Messages
+        async function loadMessages(chatId) {
+            try {
+                const response = await fetch(`${API_BASE}/chat/${chatId}/messages`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const container = document.getElementById('messagesContainer');
+                    container.innerHTML = '';
+                    data.messages.forEach(msg => {
+                        displayMessage(msg, msg.sender_id === currentUserId);
+                    });
+                    scrollToBottom();
+                }
+            } catch (e) {
+                console.error('Error loading messages:', e);
+            }
+        }
+
+        // Load Messages
+        async function loadMessages(chatId) {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+
+            let url = `${API_BASE}/chat/${chatId}/messages?limit=50`;
+            if (isMediaFilterActive) url += '&filter=media';
+
+            const search = document.getElementById('msgSearchInput').value.trim();
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    data.messages.forEach(msg => displayMessage(msg, msg.sender_id === currentUserId));
+                    scrollToBottom();
+                }
+            } catch (e) {
+                console.error('Error loading messages:', e);
+            }
+        }
+
+        // Search & Filter Functions
+        function toggleSearch() {
+            const bar = document.getElementById('searchBar');
+            bar.classList.toggle('hidden');
+            if (!bar.classList.contains('hidden')) {
+                document.getElementById('msgSearchInput').focus();
+            }
+        }
+
+        function searchMessages() {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(() => {
+                if (currentChatId) loadMessages(currentChatId);
+            }, 500);
+        }
+
+        function toggleMediaFilter() {
+            isMediaFilterActive = !isMediaFilterActive;
+            const btn = document.getElementById('mediaFilterBtn');
+            btn.style.background = isMediaFilterActive ? '#e7f3ff' : 'transparent';
+            if (currentChatId) loadMessages(currentChatId);
+        }
+
+        // Voice Recording Functions
+        async function toggleRecording() {
+            const btn = document.getElementById('micBtn');
+
+            if (!isRecording) {
+                // Start Recording
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        await sendAudio(audioBlob);
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    btn.textContent = '⏹️';
+                    btn.style.color = 'red';
+                    btn.classList.add('recording');
+                } catch (e) {
+                    console.error('Error accessing microphone:', e);
+                    alert('لا يمكن الوصول للميكروفون');
+                }
+            } else {
+                // Stop Recording
+                mediaRecorder.stop();
+                isRecording = false;
+                btn.textContent = '🎤';
+                btn.style.color = '';
+                btn.classList.remove('recording');
+            }
+        }
+
+        async function sendAudio(blob) {
+            if (!currentChatId) return;
+
+            const formData = new FormData();
+            formData.append('file', blob, 'voice_message.webm');
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/${currentChatId}/message/audio`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    loadMessages(currentChatId);
+                }
+            } catch (e) {
+                console.error('Error sending audio:', e);
+            }
+        }
+
+        // Send Message
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content || !currentChatId) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/${currentChatId}/message`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    displayMessage({ content, sender_id: currentUserId, created_at: new Date().toISOString() }, true);
+                    input.value = '';
+                    scrollToBottom();
+                    loadChats(); // Refresh to update last message
+                }
+            } catch (e) {
+                console.error('Error sending message:', e);
+            }
+        }
+
+        // Group Chat Functions
+        function showCreateGroupModal() {
+            document.getElementById('createGroupModal').classList.remove('hidden');
+            loadUsersForGroup();
+        }
+
+        function closeCreateGroupModal() {
+            document.getElementById('createGroupModal').classList.add('hidden');
+        }
+
+        async function loadUsersForGroup() {
+            try {
+                const response = await fetch(`${API_BASE}/search/users?q=&limit=100`);
+
+                if (!response.ok) {
+                    console.error('HTTP error:', response.status);
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    const container = document.getElementById('groupUsersList');
+                    container.innerHTML = '';
+                    data.users.filter(u => u.id !== currentUserId).forEach(user => {
+                        const div = document.createElement('div');
+                        div.className = 'list-item';
+                        div.innerHTML = `
+                            <input type="checkbox" value="${user.id}" id="user-${user.id}">
+                            <label for="user-${user.id}" style="flex:1; cursor:pointer; display:flex; align-items:center; gap:10px;">
+                                <div class="avatar">${user.username[0].toUpperCase()}</div>
+                                ${user.display_name || user.username}
+                            </label>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            } catch (e) {
+                console.error('Error loading users for group:', e);
+            }
+        }
+
+        async function createGroup() {
+            const title = document.getElementById('groupNameInput').value.trim();
+            if (!title) return alert('الرجاء إدخال اسم المجموعة');
+
+            const checkboxes = document.querySelectorAll('#groupUsersList input:checked');
+            const userIds = Array.from(checkboxes).map(cb => cb.value);
+
+            if (userIds.length === 0) return alert('الرجاء اختيار أعضاء للمجموعة');
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/group/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ title, member_ids: userIds })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    closeCreateGroupModal();
+                    loadChats();
+                    alert('تم إنشاء المجموعة بنجاح');
+                } else {
+                    alert('فشل إنشاء المجموعة: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                console.error('Error creating group:', e);
+                alert('حدث خطأ أثناء إنشاء المجموعة');
+            }
+        }
+
+        async function showGroupInfo() {
+            if (!currentChatId) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/${currentChatId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    const chat = data.chat;
+                    const participants = data.participants;
+                    const currentUserRole = participants.find(p => p.id === currentUserId)?.role;
+                    const isAdmin = currentUserRole === 'admin';
+
+                    // Update details
+                    document.getElementById('groupDetails').innerHTML = `
+                        <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${chat.title}</div>
+                        <div style="color: #666;">عدد الأعضاء: ${participants.length}</div>
+                        <div style="color: #888; font-size: 0.9em;">تم الإنشاء: ${new Date(chat.created_at).toLocaleDateString()}</div>
+                    `;
+
+                    // Show/Hide Add Member button
+                    const addMemberBtn = document.getElementById('addMemberBtn');
+                    if (isAdmin) {
+                        addMemberBtn.classList.remove('hidden');
+                    } else {
+                        addMemberBtn.classList.add('hidden');
+                    }
+
+                    // Store participants for add member filter
+                    window.currentGroupParticipants = participants;
+
+                    // Update members list
+                    const list = document.getElementById('groupMembersList');
+                    list.innerHTML = '';
+
+                    participants.forEach(p => {
+                        const isMe = p.id === currentUserId;
+                        const div = document.createElement('div');
+                        div.className = 'list-item';
+                        div.style.justifyContent = 'space-between';
+                        div.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div class="avatar">${p.username[0].toUpperCase()}</div>
+                                <div>
+                                    <div>${p.display_name || p.username} ${isMe ? '(أنت)' : ''}</div>
+                                    <div style="font-size: 0.8em; color: #666;">${p.role === 'admin' ? '👑 مسؤول' : 'عضو'}</div>
+                                </div>
+                            </div>
+                            ${isAdmin && !isMe ? `
+                                <button onclick="removeMember('${p.id}')" class="btn-primary" style="background: #ff4444; padding: 5px 10px; font-size: 0.8em;">حذف</button>
+                            ` : ''}
+                        `;
+                        list.appendChild(div);
+                    });
+
+                    document.getElementById('groupInfoModal').classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('Error loading group info:', e);
+            }
+        }
+
+        async function removeMember(userId) {
+            if (!confirm('هل أنت متأكد من حذف هذا العضو؟')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/group/${currentChatId}/remove`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('تم حذف العضو بنجاح');
+                    showGroupInfo(); // Refresh list
+                } else {
+                    alert('فشل حذف العضو: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                console.error('Error removing member:', e);
+                alert('حدث خطأ أثناء حذف العضو');
+            }
+        }
+
+        let allUsersForAdd = [];
+
+        async function showAddMemberModal() {
+            try {
+                const response = await fetch(`${API_BASE}/search/users?q=&limit=100`);
+                if (!response.ok) return;
+                const data = await response.json();
+
+                if (data.success) {
+                    // Filter out existing members
+                    const existingIds = new Set((window.currentGroupParticipants || []).map(p => p.id));
+                    allUsersForAdd = data.users.filter(u => !existingIds.has(u.id));
+
+                    displayAddMemberUsers(allUsersForAdd);
+                    document.getElementById('addMemberModal').classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('Error loading users for add member:', e);
+            }
+        }
+
+        function displayAddMemberUsers(users) {
+            const container = document.getElementById('addMemberUsersList');
+            container.innerHTML = '';
+
+            if (users.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:10px; color:#666;">لا يوجد مستخدمين لإضافتهم</div>';
+                return;
+            }
+
+            users.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <input type="checkbox" value="${user.id}" id="add-user-${user.id}">
+                    <label for="add-user-${user.id}" style="flex:1; cursor:pointer; display:flex; align-items:center; gap:10px;">
+                        <div class="avatar">${user.username[0].toUpperCase()}</div>
+                        ${user.display_name || user.username}
+                    </label>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function filterAddMemberUsers() {
+            const query = document.getElementById('addMemberSearch').value.toLowerCase();
+            const filtered = allUsersForAdd.filter(u =>
+                (u.username && u.username.toLowerCase().includes(query)) ||
+                (u.display_name && u.display_name.toLowerCase().includes(query))
+            );
+            displayAddMemberUsers(filtered);
+        }
+
+        async function submitAddMembers() {
+            const checkboxes = document.querySelectorAll('#addMemberUsersList input:checked');
+            const userIds = Array.from(checkboxes).map(cb => cb.value);
+
+            if (userIds.length === 0) return alert('الرجاء اختيار عضو واحد على الأقل');
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const userId of userIds) {
+                try {
+                    const response = await fetch(`${API_BASE}/chat/group/${currentChatId}/add`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ user_id: userId })
+                    });
+                    const data = await response.json();
+                    if (data.success) successCount++;
+                    else failCount++;
+                } catch (e) {
+                    failCount++;
+                }
+            }
+
+            if (successCount > 0) {
+                alert(`تم إضافة ${successCount} عضو بنجاح`);
+                document.getElementById('addMemberModal').classList.add('hidden');
+                showGroupInfo(); // Refresh group info
+            }
+
+            if (failCount > 0) {
+                console.warn(`Failed to add ${failCount} users`);
+            }
+        }
+
+        // Send File
+        async function sendFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file || !currentChatId) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            let type = 'image';
+            if (file.type.startsWith('video/')) type = 'video';
+            if (file.type.startsWith('audio/')) type = 'audio';
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/${currentChatId}/message/${type}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    loadMessages(currentChatId);
+                    fileInput.value = '';
+                }
+            } catch (e) {
+                console.error('Error sending file:', e);
+            }
+        }
+
+        // Display Message
+        function displayMessage(data, isSent) {
+            const container = document.getElementById('messagesContainer');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+            msgDiv.id = `msg-${data.message_id || data.id}`;
+
+            let content = data.content || '';
+            let mediaHtml = '';
+
+            // Handle Attachments (JSON)
+            if (data.attachments) {
+                try {
+                    const attachments = JSON.parse(data.attachments);
+                    attachments.forEach(att => {
+                        if (att.type === 'image') mediaHtml += `<br><img src="${API_BASE}${att.url}" alt="image">`;
+                        else if (att.type === 'video') mediaHtml += `<br><video src="${API_BASE}${att.url}" controls style="max-width: 100%"></video>`;
+                        else if (att.type === 'audio') mediaHtml += `<br><audio src="${API_BASE}${att.url}" controls></audio>`;
+                        else mediaHtml += `<br><a href="${API_BASE}${att.url}" target="_blank">📎 ملف</a>`;
+                    });
+                } catch (e) { }
+            }
+            // Handle Direct Media (WebSocket/Single Upload)
+            else if (data.media_url) {
+                const type = data.type || 'image';
+                if (type === 'image') mediaHtml += `<br><img src="${API_BASE}${data.media_url}" alt="image">`;
+                else if (type === 'video') mediaHtml += `<br><video src="${API_BASE}${data.media_url}" controls style="max-width: 100%"></video>`;
+                else if (type === 'audio') mediaHtml += `<br><audio src="${API_BASE}${data.media_url}" controls></audio>`;
+            }
+
+            const time = data.created_at ? formatTime(data.created_at) : formatTime(new Date().toISOString());
+            const deleteBtn = isSent ? `<button class="delete-btn" onclick="deleteMessage('${data.message_id || data.id}')">🗑️</button>` : '';
+
+            msgDiv.innerHTML = `
+                ${isSent ? deleteBtn : ''}
+                <div class="message-bubble">
+                    ${content}
+                    ${mediaHtml}
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        // Typing Indicator
+        function sendTyping() {
+            if (!currentChatId || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+            clearTimeout(typingTimeout);
+
+            ws.send(JSON.stringify({
+                type: 'chat/typing',
+                chat_id: currentChatId,
+                is_typing: true
+            }));
+
+            typingTimeout = setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'chat/typing',
+                    chat_id: currentChatId,
+                    is_typing: false
+                }));
+            }, 1000);
+        }
+
+        function showTyping(data) {
+            const indicator = document.getElementById('typingIndicator');
+            if (data.is_typing) {
+                indicator.textContent = '✍️ يكتب...';
+            } else {
+                indicator.textContent = '';
+            }
+        }
+
+        // Utilities
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messagesContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return 'الآن';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)} د`;
+            if (diff < 86400000) return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleDateString('ar-EG');
+        }
+
+        // Auto-login if token in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        if (urlToken) {
+            document.getElementById('tokenInput').value = urlToken;
+            login();
+        }
+    </script>
+</body>
+
+</html>
