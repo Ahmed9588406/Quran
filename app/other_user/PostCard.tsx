@@ -124,17 +124,45 @@ export default function PostCard({
 
       {/* Actions */}
       <div className="flex items-center gap-6 mt-4 pt-3 border-t border-gray-100">
-        <button
-          onClick={handleLike}
-          className={`flex items-center gap-2 text-sm ${
-            liked ? "text-red-500" : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Heart className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
-          <span>
-            Like{likeCount > 0 ? ` (${likeCount})` : ""}
-          </span>
-        </button>
+        {!liked ? (
+          <button
+            onClick={handleLike}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-red-500"
+          >
+            <Heart className={`w-5 h-5`} />
+            <span>
+              Like{likeCount > 0 ? ` (${likeCount})` : ""}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={async () => {
+              // Dislike (DELETE)
+              const prevLiked = liked;
+              const prevCount = likeCount;
+              setLiked(false);
+              setLikeCount(Math.max(0, prevCount - 1));
+              try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+                const result = await unlikePost(id, token);
+                if (result && result.likesCount !== undefined) {
+                  setLikeCount(result.likesCount);
+                }
+              } catch (err) {
+                // revert on failure
+                console.error("Failed to dislike post:", err);
+                setLiked(prevLiked);
+                setLikeCount(prevCount);
+              }
+            }}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600"
+          >
+            <Heart className="w-5 h-5 fill-current" />
+            <span>
+              Dislike{likeCount > 0 ? ` (${likeCount})` : ""}
+            </span>
+          </button>
+        )}
 
         <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
           <MessageCircle className="w-5 h-5" />
