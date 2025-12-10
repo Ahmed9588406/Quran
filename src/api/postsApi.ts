@@ -176,6 +176,58 @@ export async function unlikePost(
 	};
 }
 
+export async function savePost(
+	postId: string | number,
+	token?: string
+): Promise<LikeCommentResponse> {
+	const url = `/api/posts/${encodeURIComponent(String(postId))}/save`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers,
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to save post: ${res.status} ${res.statusText} ${text}`);
+	}
+	const data = await res.json();
+	return {
+		success: true,
+		message: data.message || 'Post saved successfully',
+	};
+}
+
+export async function unsavePost(
+	postId: string | number,
+	token?: string
+): Promise<LikeCommentResponse> {
+	const url = `/api/posts/${encodeURIComponent(String(postId))}/save`;
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+
+	const res = await fetch(url, {
+		method: 'DELETE',
+		headers,
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Failed to unsave post: ${res.status} ${res.statusText} ${text}`);
+	}
+	const data = await res.json();
+	return {
+		success: true,
+		message: data.message || 'Post unsaved successfully',
+	};
+}
+
 export type AddCommentResponse = {
 	success: boolean;
 	comment?: {

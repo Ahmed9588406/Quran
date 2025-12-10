@@ -5,49 +5,46 @@ import { MoreHorizontal } from "lucide-react";
 interface ProfileTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  isSavedView?: boolean;
 }
 
-const tabs = [
-  { id: "posts", label: "Posts" },
-  { id: "photos", label: "Photos" },
-  { id: "reels", label: "Reels" },
-  { id: "favorites", label: "Favorites" },
-  { id: "leaderboard", label: "Leaderboard" },
-  { id: "about", label: "About" },
-  
-];
+export default function ProfileTabs({
+  activeTab,
+  onTabChange,
+  isSavedView = false,
+}: ProfileTabsProps) {
+  const tabs = [
+    { id: "posts", label: "Posts", icon: "📝" },
+    { id: "photos", label: "Photos", icon: "🖼️" },
+    { id: "reels", label: "Reels", icon: "🎬" },
+    ...(isSavedView ? [{ id: "saved", label: "Saved", icon: "🔖" }] : []),
+  ];
 
-export default function ProfileTabs({ activeTab, onTabChange }: ProfileTabsProps) {
+  console.log("ProfileTabs: Rendering with tabs", {
+    activeTab,
+    tabs: tabs.map((t) => t.id),
+    isSavedView,
+  });
+
   return (
-    <div className="border-b border-[#f0e6e5]">
-      <div className="max-w-4xl mx-auto px-6">
-        <div className="flex items-center justify-between">
-          <nav className="flex items-center gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-                  activeTab === tab.id
-                    ? "text-[#7b2030]"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7b2030]" />
-                )}
-              </button>
-            ))}
-          </nav>
-
+    <div className="border-b border-gray-200 sticky top-0 bg-white z-40">
+      <div className="max-w-4xl mx-auto px-6 flex gap-8">
+        {tabs.map((tab) => (
           <button
-            aria-label="More options"
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
+            key={tab.id}
+            onClick={() => {
+              console.log("ProfileTabs: Tab clicked", { tabId: tab.id });
+              onTabChange(tab.id);
+            }}
+            className={`py-4 px-2 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-[#7b2030] text-[#7b2030]"
+                : "border-transparent text-gray-600 hover:text-gray-900"
+            }`}
           >
-            <MoreHorizontal className="w-5 h-5" />
+            {tab.icon} {tab.label}
           </button>
-        </div>
+        ))}
       </div>
     </div>
   );

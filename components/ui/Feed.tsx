@@ -922,9 +922,9 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 				<div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 mt-3">
 					<button
 						onClick={handleLike}
-						className={`flex items-center gap-2 text-sm ${liked ? "text-[#7b2030]" : "text-gray-500 hover:text-gray-700"}`}
+						className={`flex items-center gap-2 text-sm ${liked ? "text-[#7b2030] cursor-default" : "text-gray-500 hover:text-[#7b2030]"}`}
 					>
-						<ThumbsUp className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
+						<ThumbsUp className={`w-5 h-5 ${liked ? "fill-current text-[#7b2030]" : ""}`} />
 						<span>Like</span>
 					</button>
 
