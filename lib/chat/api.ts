@@ -251,17 +251,18 @@ export class ChatAPI {
   }
 
   /**
-   * Sends a media file (image, video, audio) to a chat.
+   * Sends a media file (image, video, audio, document) to a chat.
    * Backend endpoint: POST /chat/:chat_id/message/:type (image, video, audio)
+   * Documents are sent via the 'image' endpoint as the backend handles all file types there.
    * 
    * Requirements: 6.1
    * 
    * @param chatId - ID of the chat
    * @param file - File to upload
-   * @param type - Type of media ('image', 'video', 'audio')
+   * @param type - Type of media ('image', 'video', 'audio', 'document')
    * @returns Promise resolving to the created Message object
    */
-  async sendMedia(chatId: string, file: File, type: 'image' | 'video' | 'audio'): Promise<Message> {
+  async sendMedia(chatId: string, file: File, type: 'image' | 'video' | 'audio' | 'document'): Promise<Message> {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -273,21 +274,47 @@ export class ChatAPI {
     }
     
     // Backend uses /chat/:chat_id/message/:type for media uploads
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message/${type}`, {
+    // Documents use 'image' endpoint as backend doesn't have dedicated document endpoint
+    const endpointType = type === 'document' ? 'image' : type;
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message/${endpointType}`, {
       method: 'POST',
       headers,
       body: formData,
     });
     
-    const data = await handleResponse<{ success: boolean; message_id?: string; media_url?: string }>(response);
+    const data = await handleResponse<{ 
+      success: boolean; 
+      message_id?: string; 
+      media_url?: string;
+      attachments?: Array<{
+        type: string;
+        url: string;
+        filename: string;
+        size?: number;
+        mime_type?: string;
+      }>;
+    }>(response);
+    
+    // Build attachments array - always include file metadata for proper display
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const attachmentType = type === 'document' ? (isPdf ? 'pdf' : 'document') : type;
+    
+    const attachments = data.attachments || (data.media_url ? [{
+      type: attachmentType,
+      url: data.media_url,
+      filename: file.name,
+      size: file.size,
+      mime_type: file.type,
+    }] : undefined);
     
     return {
       id: data.message_id || '',
       chat_id: chatId,
       sender_id: '',
       content: '',
-      type,
+      type: type === 'document' ? 'document' : type,
       media_url: data.media_url,
+      attachments,
       created_at: new Date().toISOString(),
       is_read: false,
     };

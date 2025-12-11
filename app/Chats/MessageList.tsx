@@ -83,22 +83,23 @@ export default function MessageList({
   }, []);
 
   // Beige/cream background with subtle pattern
-  const bgStyle = {
+  const bgStyle: React.CSSProperties = {
     backgroundColor: '#F5E6D3',
     backgroundImage: `
       radial-gradient(circle at 20% 30%, rgba(215, 186, 131, 0.15) 0%, transparent 50%),
       radial-gradient(circle at 80% 70%, rgba(215, 186, 131, 0.15) 0%, transparent 50%),
       radial-gradient(circle at 50% 50%, rgba(215, 186, 131, 0.1) 0%, transparent 70%)
     `,
+    minHeight: '100%',
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="h-full overflow-hidden" style={{ backgroundColor: '#F5E6D3' }}>
       {/* Messages Container */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4"
+        className="h-full overflow-y-auto px-4 py-4"
         style={bgStyle}
       >
         {/* Date indicator */}

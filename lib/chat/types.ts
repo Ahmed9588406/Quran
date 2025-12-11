@@ -75,11 +75,12 @@ export interface ChatDetails extends Chat {
  * Represents a file attachment in a message
  */
 export interface Attachment {
-  type: 'image' | 'video' | 'audio' | 'file';
+  type: 'image' | 'video' | 'audio' | 'file' | 'document' | 'pdf';
   url: string;
   filename?: string;
   size?: number;
   mime_type?: string;
+  pageCount?: number; // For PDF documents
 }
 
 /**
@@ -91,7 +92,7 @@ export interface Message {
   sender_id: string;
   sender_name?: string;
   content: string;
-  type: 'text' | 'image' | 'video' | 'audio';
+  type: 'text' | 'image' | 'video' | 'audio' | 'document';
   // Attachments can be JSON string from backend or parsed array
   attachments?: Attachment[] | string;
   media_url?: string;

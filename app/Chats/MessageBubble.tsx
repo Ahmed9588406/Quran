@@ -16,6 +16,8 @@ import { formatMessageTime } from '@/lib/chat/utils';
 import { API_BASE_URL } from '@/lib/chat/api';
 import { Trash2, Check } from 'lucide-react';
 import AudioMessage from './AudioMessage';
+import DocumentMessage from './DocumentMessage';
+import PDFPreviewMessage from './PDFPreviewMessage';
 
 interface MessageBubbleProps {
   message: Message;
@@ -30,6 +32,22 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
   // Check if URL is an audio file
   const isAudioUrl = (url: string) => {
     return url.match(/\.(mp3|wav|ogg|webm|m4a)$/i) || url.includes('audio');
+  };
+
+  // Check if URL is a document file
+  const isDocumentUrl = (url: string) => {
+    return url.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$/i);
+  };
+
+  // Check if URL is a PDF file
+  const isPdfUrl = (url: string) => {
+    return url.match(/\.pdf$/i) !== null;
+  };
+
+  // Get filename from URL
+  const getFilenameFromUrl = (url: string) => {
+    const parts = url.split('/');
+    return parts[parts.length - 1] || 'Document';
   };
 
   // Render media content based on type
@@ -52,6 +70,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
       return attachments.map((attachment, index) => {
         const url = `${API_BASE_URL}${attachment.url}`;
+        const filename = attachment.filename || getFilenameFromUrl(url);
         
         switch (attachment.type) {
           case 'image':
@@ -79,7 +98,60 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
                 <AudioMessage src={url} isSent={isSent} />
               </div>
             );
+          case 'document':
+          case 'pdf':
+            // Use PDFPreviewMessage for PDF files, DocumentMessage for other documents
+            if (isPdfUrl(url) || attachment.type === 'pdf' || attachment.mime_type === 'application/pdf') {
+              return (
+                <div key={index} className="mt-2">
+                  <PDFPreviewMessage 
+                    url={url} 
+                    filename={filename}
+                    fileSize={attachment.size}
+                    pageCount={attachment.pageCount}
+                    isSent={isSent} 
+                  />
+                </div>
+              );
+            }
+            return (
+              <div key={index} className="mt-2">
+                <DocumentMessage 
+                  url={url} 
+                  filename={filename}
+                  fileSize={attachment.size}
+                  isSent={isSent} 
+                />
+              </div>
+            );
           default:
+            // Check if it's a document by extension
+            if (isDocumentUrl(url)) {
+              // Use PDFPreviewMessage for PDF files
+              if (isPdfUrl(url)) {
+                return (
+                  <div key={index} className="mt-2">
+                    <PDFPreviewMessage 
+                      url={url} 
+                      filename={filename}
+                      fileSize={attachment.size}
+                      pageCount={attachment.pageCount}
+                      isSent={isSent} 
+                    />
+                  </div>
+                );
+              }
+              return (
+                <div key={index} className="mt-2">
+                  <DocumentMessage 
+                    url={url} 
+                    filename={filename}
+                    fileSize={attachment.size}
+                    isSent={isSent} 
+                  />
+                </div>
+              );
+            }
             return (
               <a
                 key={index}
@@ -88,7 +160,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
                 rel="noopener noreferrer"
                 className={`flex items-center gap-2 mt-2 hover:underline ${isSent ? 'text-white/80' : 'text-blue-500'}`}
               >
-                📎 {attachment.filename || 'File'}
+                📎 {filename}
               </a>
             );
         }
@@ -147,6 +219,30 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
                 controls
                 className="max-w-full rounded-lg mt-2"
               />
+            );
+          }
+          // Check if it's a document
+          if (isDocumentUrl(mediaUrl)) {
+            // Use PDFPreviewMessage for PDF files
+            if (isPdfUrl(mediaUrl)) {
+              return (
+                <div className="mt-2">
+                  <PDFPreviewMessage 
+                    url={mediaUrl} 
+                    filename={getFilenameFromUrl(mediaUrl)}
+                    isSent={isSent} 
+                  />
+                </div>
+              );
+            }
+            return (
+              <div className="mt-2">
+                <DocumentMessage 
+                  url={mediaUrl} 
+                  filename={getFilenameFromUrl(mediaUrl)}
+                  isSent={isSent} 
+                />
+              </div>
             );
           }
           // Fallback - show as link

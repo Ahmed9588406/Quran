@@ -216,7 +216,7 @@ export default function ChatsPage() {
   }, [currentChat, currentUserId, loadChats]);
 
   // Handle send media
-  const handleSendMedia = useCallback(async (file: File, type: 'image' | 'video' | 'audio') => {
+  const handleSendMedia = useCallback(async (file: File, type: 'image' | 'video' | 'audio' | 'document') => {
     if (!currentChat) return;
     
     try {
@@ -296,36 +296,38 @@ export default function ChatsPage() {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col bg-white ml-[420px]">
+      <main className="fixed top-0 bottom-0 right-0 left-[420px] flex flex-col">
         {currentChat ? (
           <>
-            {/* Chat Header */}
-            <ChatHeader
-              chat={currentChat}
-              currentUserId={currentUserId}
-              isSearchVisible={isSearchVisible}
-              isMediaFilterActive={isMediaFilterActive}
-              onToggleSearch={() => setIsSearchVisible(!isSearchVisible)}
-              onToggleMediaFilter={() => setIsMediaFilterActive(!isMediaFilterActive)}
-              onShowGroupInfo={currentChat.type === 'group' ? () => {} : undefined}
-            />
+            {/* Chat Header - Fixed at top */}
+            <div className="flex-shrink-0">
+              <ChatHeader
+                chat={currentChat}
+                currentUserId={currentUserId}
+                isSearchVisible={isSearchVisible}
+                isMediaFilterActive={isMediaFilterActive}
+                onToggleSearch={() => setIsSearchVisible(!isSearchVisible)}
+                onToggleMediaFilter={() => setIsMediaFilterActive(!isMediaFilterActive)}
+                onShowGroupInfo={currentChat.type === 'group' ? () => {} : undefined}
+              />
 
-            {/* Search Bar */}
-            {isSearchVisible && (
-              <div className="px-4 py-2 bg-white border-b border-gray-200">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="بحث في المحادثة..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#667eea] focus:border-transparent text-sm"
-                  autoFocus
-                />
-              </div>
-            )}
+              {/* Search Bar */}
+              {isSearchVisible && (
+                <div className="px-4 py-2 bg-white border-b border-gray-200">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search in conversation..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#667eea] focus:border-transparent text-sm"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
 
-            {/* Message List */}
-            <div className="flex-1 relative overflow-hidden">
+            {/* Message List - Scrollable middle section */}
+            <div className="flex-1 overflow-hidden">
               <MessageList
                 messages={messages}
                 currentUserId={currentUserId}
@@ -336,12 +338,14 @@ export default function ChatsPage() {
               />
             </div>
 
-            {/* Message Input */}
-            <MessageInput
-              chatId={currentChat.id}
-              onSendMessage={handleSendMessage}
-              onSendMedia={handleSendMedia}
-            />
+            {/* Message Input - Fixed at bottom */}
+            <div className="flex-shrink-0">
+              <MessageInput
+                chatId={currentChat.id}
+                onSendMessage={handleSendMessage}
+                onSendMedia={handleSendMedia}
+              />
+            </div>
           </>
         ) : (
           <EmptyState />

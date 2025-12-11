@@ -4,7 +4,7 @@
  * Audio Message Component
  * 
  * Custom audio player for voice messages with waveform visualization.
- * Supports both sent (maroon) and received (white) message styles.
+ * Displays inline within the message bubble without extra rounded container.
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react';
@@ -87,95 +87,79 @@ export default function AudioMessage({ src, isSent, duration: providedDuration }
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="w-full max-w-md">
+    <div className="min-w-[220px]">
       <audio ref={audioRef} src={src} preload="metadata" />
       
-      <div className={`rounded-2xl p-4 shadow-xl ${
-        isSent 
-          ? 'bg-gradient-to-br from-[#6d1029] to-[#8A1538] border border-[#8A1538]/50' 
-          : 'bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700'
-      }`}>
-        {/* Player Controls */}
-        <div className="flex items-center gap-3">
-          {/* Play/Pause Button */}
-          <button
-            onClick={togglePlay}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg active:scale-95 ${
-              isSent
-                ? 'bg-gradient-to-br from-white/30 to-white/20 hover:from-white/40 hover:to-white/30'
-                : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 hover:shadow-blue-500/50'
+      {/* Player Controls - No outer container, just the controls */}
+      <div className="flex items-center gap-3">
+        {/* Play/Pause Button */}
+        <button
+          onClick={togglePlay}
+          className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg active:scale-95 bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 hover:shadow-blue-500/50"
+        >
+          {isPlaying ? (
+            <Pause className="w-5 h-5 text-white fill-white" />
+          ) : (
+            <Play className="w-5 h-5 text-white fill-white ml-0.5" />
+          )}
+        </button>
+
+        {/* Progress Section */}
+        <div className="flex-1">
+          {/* Waveform/Progress Bar */}
+          <div
+            onClick={handleSeek}
+            className={`relative h-10 rounded-lg overflow-hidden cursor-pointer group mb-1 ${
+              isSent ? 'bg-white/10' : 'bg-slate-700/50'
             }`}
           >
-            {isPlaying ? (
-              <Pause className="w-5 h-5 text-white fill-white" />
-            ) : (
-              <Play className="w-5 h-5 text-white fill-white ml-0.5" />
-            )}
-          </button>
-
-          {/* Progress Section */}
-          <div className="flex-1">
-            {/* Waveform/Progress Bar */}
+            {/* Progress Fill */}
             <div
-              onClick={handleSeek}
-              className={`relative h-10 rounded-lg overflow-hidden cursor-pointer group mb-1 ${
-                isSent ? 'bg-white/10' : 'bg-slate-700/50'
-              }`}
-            >
-              {/* Progress Fill */}
-              <div
-                className={`absolute inset-y-0 left-0 transition-all duration-100 ${
-                  isSent 
-                    ? 'bg-gradient-to-r from-white/30 to-white/20' 
-                    : 'bg-gradient-to-r from-blue-500 to-purple-600'
-                }`}
-                style={{ width: `${progress}%` }}
-              />
-              
-              {/* Waveform Effect */}
-              <div className="absolute inset-0 flex items-center justify-around px-1">
-                {waveformHeights.map((height, i) => (
-                  <div
-                    key={i}
-                    className={`w-0.5 rounded-full transition-all ${
-                      (i / 40) * 100 < progress
-                        ? 'bg-white/90'
-                        : isSent ? 'bg-white/30' : 'bg-slate-500/60'
-                    }`}
-                    style={{ height: `${height}%` }}
-                  />
-                ))}
-              </div>
-              
-              {/* Hover Indicator */}
-              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
+              className="absolute inset-y-0 left-0 transition-all duration-100 bg-gradient-to-r from-blue-500 to-purple-600"
+              style={{ width: `${progress}%` }}
+            />
+            
+            {/* Waveform Effect */}
+            <div className="absolute inset-0 flex items-center justify-around px-1">
+              {waveformHeights.map((height, i) => (
+                <div
+                  key={i}
+                  className={`w-0.5 rounded-full transition-all ${
+                    (i / 40) * 100 < progress
+                      ? 'bg-white/90'
+                      : isSent ? 'bg-white/30' : 'bg-slate-500/60'
+                  }`}
+                  style={{ height: `${height}%` }}
+                />
+              ))}
             </div>
-
-            {/* Time Display */}
-            <div className={`flex justify-between text-xs px-1 ${
-              isSent ? 'text-white/70' : 'text-slate-400'
-            }`}>
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
+            
+            {/* Hover Indicator */}
+            <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
           </div>
 
-          {/* Mute Button */}
-          <button
-            onClick={toggleMute}
-            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              isSent 
-                ? 'bg-white/10 hover:bg-white/20' 
-                : 'bg-slate-700/50 hover:bg-slate-600/50'
-            }`}
-          >
-            {isMuted ? (
-              <VolumeX className={`w-4 h-4 ${isSent ? 'text-white/70' : 'text-slate-300'}`} />
-            ) : (
-              <Volume2 className={`w-4 h-4 ${isSent ? 'text-white/70' : 'text-slate-300'}`} />
-            )}
-          </button>
+          {/* Time Display */}
+          <div className={`flex justify-between text-xs px-1 ${
+            isSent ? 'text-white/70' : 'text-slate-400'
+          }`}>
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
         </div>
+
+        {/* Mute Button */}
+        <button
+          onClick={toggleMute}
+          className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 ${
+            isSent ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-700/50 hover:bg-slate-600/50'
+          }`}
+        >
+          {isMuted ? (
+            <VolumeX className={`w-4 h-4 ${isSent ? 'text-white/70' : 'text-slate-300'}`} />
+          ) : (
+            <Volume2 className={`w-4 h-4 ${isSent ? 'text-white/70' : 'text-slate-300'}`} />
+          )}
+        </button>
       </div>
     </div>
   );
