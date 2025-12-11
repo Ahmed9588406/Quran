@@ -13,6 +13,8 @@ import ProfilePostCard from "./PostCard";
 import { Button } from "@/components/ui/button";
 import { getCurrentUserId } from "@/lib/auth-helpers";
 import { Bookmark, Grid, Film, Loader2 } from "lucide-react";
+import { ReelsGrid } from "../reels/ReelsGrid";
+import { Reel } from "@/lib/reels/types";
 
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
 
@@ -136,6 +138,12 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
   const [savedSubTab, setSavedSubTab] = useState<"posts" | "reels">("posts");
   const [savedPage, setSavedPage] = useState(1);
   const [savedHasMore, setSavedHasMore] = useState(true);
+
+  // User reels state (Requirements: 2.1, 2.2, 2.3)
+  const [userReels, setUserReels] = useState<Reel[]>([]);
+  const [reelsLoading, setReelsLoading] = useState(false);
+  const [reelsPage, setReelsPage] = useState(1);
+  const [reelsHasMore, setReelsHasMore] = useState(true);
 
   // Detect if viewing own profile and fetch current user data
   useEffect(() => {
@@ -357,6 +365,82 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
     }
   }, [activeTab, savedSubTab, isOwnProfile, fetchSavedItems]);
 
+  // Fetch user reels (Requirements: 2.1)
+  const fetchUserReels = useCallback(async (pageNum: number, append = false) => {
+    try {
+      setReelsLoading(true);
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setReelsLoading(false);
+        return;
+      }
+
+      // Fetch reels from /api/users/{userId}/reels endpoint
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/reels?limit=12&page=${pageNum}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to fetch user reels:", res.status);
+        setReelsLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const reels: Reel[] = data.reels || [];
+      
+      // Normalize video URLs
+      const normalizedReels = reels.map((reel: Reel) => ({
+        ...reel,
+        video_url: reel.video_url?.startsWith("http") 
+          ? reel.video_url 
+          : `http://192.168.1.18:9001${reel.video_url}`,
+        thumbnail_url: reel.thumbnail_url?.startsWith("http")
+          ? reel.thumbnail_url
+          : reel.thumbnail_url
+          ? `http://192.168.1.18:9001${reel.thumbnail_url}`
+          : undefined,
+        user_avatar: reel.user_avatar?.startsWith("http")
+          ? reel.user_avatar
+          : reel.user_avatar
+          ? `http://192.168.1.18:9001${reel.user_avatar}`
+          : "/icons/settings/profile.png",
+      }));
+
+      if (append) {
+        setUserReels(prev => [...prev, ...normalizedReels]);
+      } else {
+        setUserReels(normalizedReels);
+      }
+
+      // Check if there are more reels
+      const totalCount = data.total_count || 0;
+      const currentCount = append ? userReels.length + normalizedReels.length : normalizedReels.length;
+      setReelsHasMore(currentCount < totalCount);
+      
+      console.info("Fetched user reels:", normalizedReels);
+    } catch (err) {
+      console.error("Error fetching user reels:", err);
+    } finally {
+      setReelsLoading(false);
+    }
+  }, [userId, userReels.length]);
+
+  // Fetch reels when reels tab is active
+  useEffect(() => {
+    if (activeTab === "reels") {
+      setReelsPage(1);
+      fetchUserReels(1, false);
+    }
+  }, [activeTab, fetchUserReels]);
+
+  const handleLoadMoreReels = () => {
+    const nextPage = reelsPage + 1;
+    setReelsPage(nextPage);
+    fetchUserReels(nextPage, true);
+  };
+
   const handleUnsavePost = (postId: string) => {
     if (savedSubTab === "posts") {
       setSavedPosts(prev => prev.filter(p => p.id !== postId));
@@ -479,9 +563,46 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
           </div>
         );
       case "reels":
+        // Requirements: 2.1, 2.2, 2.3 - Display user's own reels in grid layout
         return (
-          <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
-            {userData?.reels_count === 0 ? "No reels yet" : `${userData?.reels_count} reels`}
+          <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
+            {reelsLoading && userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-[#7b2030] animate-spin mb-4" />
+                <p className="text-gray-500">Loading reels...</p>
+              </div>
+            ) : userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Film className="w-16 h-16 text-gray-300 mb-4" />
+                <p className="text-lg font-medium">No reels yet</p>
+                {isOwnProfile && (
+                  <p className="text-sm mt-2">Create your first reel to share with others</p>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* ReelsGrid component - Requirements: 2.2, 2.3 */}
+                <ReelsGrid reels={userReels} />
+                
+                {/* Load More Button */}
+                {reelsHasMore && !reelsLoading && (
+                  <div className="flex justify-center pt-6">
+                    <button
+                      onClick={handleLoadMoreReels}
+                      className="px-6 py-2 bg-[#7b2030] text-white rounded-full text-sm font-medium hover:bg-[#5e0e27] transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+                
+                {reelsLoading && userReels.length > 0 && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 text-[#7b2030] animate-spin" />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         );
       case "favorites":

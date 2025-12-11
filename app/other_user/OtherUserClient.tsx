@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import NavBar from "../user/navbar";
@@ -12,6 +12,9 @@ import AboutSection from "./AboutSection";
 import Leaderboard from "./Leaderboard";
 import { Button } from "@/components/ui/button";
 import PostCard from "../user-profile/PostCard";
+import { ReelsGrid } from "../reels/ReelsGrid";
+import { Reel } from "@/lib/reels/types";
+import { Film, Loader2 } from "lucide-react";
 
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
 const ChatPanel = dynamic(() => import("../user/chat"), { ssr: false });
@@ -96,6 +99,12 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Other user reels state (Requirements: 3.1, 3.2, 3.3)
+  const [userReels, setUserReels] = useState<Reel[]>([]);
+  const [reelsLoading, setReelsLoading] = useState(false);
+  const [reelsPage, setReelsPage] = useState(1);
+  const [reelsHasMore, setReelsHasMore] = useState(true);
 
   // Load current user from localStorage
   useEffect(() => {
@@ -279,6 +288,82 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
     fetchPhotos();
   }, [userId]);
 
+  // Fetch other user's reels (Requirements: 3.1)
+  const fetchUserReels = useCallback(async (pageNum: number, append = false) => {
+    try {
+      setReelsLoading(true);
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setReelsLoading(false);
+        return;
+      }
+
+      // Fetch reels from /api/reels/user/{userId} endpoint for other users
+      const res = await fetch(`/api/reels/user/${encodeURIComponent(userId)}?limit=12&page=${pageNum}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to fetch user reels:", res.status);
+        setReelsLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const reels: Reel[] = data.reels || [];
+      
+      // Normalize video URLs
+      const normalizedReels = reels.map((reel: Reel) => ({
+        ...reel,
+        video_url: reel.video_url?.startsWith("http") 
+          ? reel.video_url 
+          : `${BASE_URL}${reel.video_url}`,
+        thumbnail_url: reel.thumbnail_url?.startsWith("http")
+          ? reel.thumbnail_url
+          : reel.thumbnail_url
+          ? `${BASE_URL}${reel.thumbnail_url}`
+          : undefined,
+        user_avatar: reel.user_avatar?.startsWith("http")
+          ? reel.user_avatar
+          : reel.user_avatar
+          ? `${BASE_URL}${reel.user_avatar}`
+          : DEFAULT_AVATAR,
+      }));
+
+      if (append) {
+        setUserReels(prev => [...prev, ...normalizedReels]);
+      } else {
+        setUserReels(normalizedReels);
+      }
+
+      // Check if there are more reels
+      const totalCount = data.total_count || 0;
+      const currentCount = append ? userReels.length + normalizedReels.length : normalizedReels.length;
+      setReelsHasMore(currentCount < totalCount);
+      
+      console.info("Fetched other user reels:", normalizedReels);
+    } catch (err) {
+      console.error("Error fetching user reels:", err);
+    } finally {
+      setReelsLoading(false);
+    }
+  }, [userId, userReels.length]);
+
+  // Fetch reels when reels tab is active
+  useEffect(() => {
+    if (activeTab === "reels") {
+      setReelsPage(1);
+      fetchUserReels(1, false);
+    }
+  }, [activeTab, fetchUserReels]);
+
+  const handleLoadMoreReels = () => {
+    const nextPage = reelsPage + 1;
+    setReelsPage(nextPage);
+    fetchUserReels(nextPage, true);
+  };
+
   const handleToggleFollow = async () => {
     if (!userId) return;
 
@@ -418,9 +503,43 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
           </div>
         );
       case "reels":
+        // Requirements: 3.1, 3.2, 3.3 - Display other user's reels in grid layout
         return (
-          <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
-            {profile?.reels_count === 0 ? "No reels yet" : `${profile?.reels_count} reels`}
+          <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
+            {reelsLoading && userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-[#7b2030] animate-spin mb-4" />
+                <p className="text-gray-500">Loading reels...</p>
+              </div>
+            ) : userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Film className="w-16 h-16 text-gray-300 mb-4" />
+                <p className="text-lg font-medium">No reels yet</p>
+              </div>
+            ) : (
+              <>
+                {/* ReelsGrid component - Requirements: 3.2, 3.3 */}
+                <ReelsGrid reels={userReels} />
+                
+                {/* Load More Button */}
+                {reelsHasMore && !reelsLoading && (
+                  <div className="flex justify-center pt-6">
+                    <button
+                      onClick={handleLoadMoreReels}
+                      className="px-6 py-2 bg-[#7b2030] text-white rounded-full text-sm font-medium hover:bg-[#5e0e27] transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+                
+                {reelsLoading && userReels.length > 0 && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 text-[#7b2030] animate-spin" />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         );
       case "leaderboard":

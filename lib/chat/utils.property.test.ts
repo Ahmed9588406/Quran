@@ -16,11 +16,12 @@ import { Chat, Message, Participant } from './types';
 
 /**
  * Generates a valid ISO timestamp string
+ * Uses integer timestamps to avoid invalid date issues
  */
-const timestampArb = fc.date({
-  min: new Date('2020-01-01'),
-  max: new Date('2025-12-31'),
-}).map(d => d.toISOString());
+const timestampArb = fc.integer({
+  min: new Date('2020-01-01T00:00:00.000Z').getTime(),
+  max: new Date('2025-12-31T23:59:59.999Z').getTime(),
+}).map(ts => new Date(ts).toISOString());
 
 /**
  * Generates a valid participant
