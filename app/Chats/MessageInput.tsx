@@ -13,7 +13,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Mic, Square, Smile, Image as ImageIcon, X } from 'lucide-react';
 import { useVoiceRecorder } from '@/lib/chat/useVoiceRecorder';
-import { wsManager } from '@/lib/chat/websocket';
+import { chatAPI } from '@/lib/chat/api';
 
 interface MessageInputProps {
   chatId: string;
@@ -99,23 +99,31 @@ export default function MessageInput({
 
   /**
    * Handles input change and sends typing indicator.
-   * Implements debounce for stop-typing (Property 8).
+   * Implements debounce for typing indicator (Property 8).
+   * Uses REST API: POST /chat/:chat_id/typing with body { is_typing: true/false }
    */
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-
-    // Send typing indicator
-    wsManager.sendTyping(chatId, true);
+    const newValue = e.target.value;
+    setInput(newValue);
 
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set timeout to send stop-typing after 1 second of inactivity
+    // Send typing start indicator immediately when user starts typing
+    if (newValue.length > 0) {
+      chatAPI.sendTyping(chatId, true).catch((error) => {
+        console.error('Error sending typing indicator:', error);
+      });
+    }
+
+    // Set timeout to send stop-typing after 1.5 seconds of inactivity
     typingTimeoutRef.current = setTimeout(() => {
-      wsManager.sendTyping(chatId, false);
-    }, 1000);
+      chatAPI.sendTyping(chatId, false).catch((error) => {
+        console.error('Error sending stop typing indicator:', error);
+      });
+    }, 1500);
   }, [chatId]);
 
   /**

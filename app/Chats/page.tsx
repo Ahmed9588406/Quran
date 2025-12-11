@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Chat, Message, User } from '@/lib/chat/types';
+import { Chat, Message, User, WSMessageType } from '@/lib/chat/types';
 import { chatAPI } from '@/lib/chat/api';
 import { wsManager } from '@/lib/chat/websocket';
 import { sortChatsByRecent } from '@/lib/chat/utils';
@@ -107,21 +107,28 @@ export default function ChatsPage() {
             // Add message if it's for the current chat
             if (currentChat && chatId === currentChat.id) {
               setMessages(prev => [...prev, msgData]);
+              // Auto-mark as seen when receiving in active chat via REST API
+              chatAPI.markAsSeen(currentChat.id, msgData.id).catch(console.error);
             }
             // Refresh chat list
             loadChats();
           }
           break;
         
+        case 'typing' as WSMessageType:
         case 'chat/typing':
-          // Backend sends: { type: 'chat/typing', data: { chat_id, is_typing, user_id? } }
-          if (message.data) {
-            const typingData = message.data as { chat_id?: string; is_typing?: boolean; user_id?: string };
-            const typingChatId = typingData?.chat_id || message.chat_id;
-            const typingUserId = typingData?.user_id || message.user_id;
+          // Backend sends: { type: 'typing', chat_id, is_typing, user_id }
+          // or: { type: 'chat/typing', data: { chat_id, is_typing, user_id } }
+          {
+            // Handle both formats - data in root or nested in data object
+            const msgAny = message as unknown as Record<string, unknown>;
+            const typingData = (message.data as Record<string, unknown>) || msgAny;
+            const typingChatId = (typingData?.chat_id as string) || message.chat_id;
+            const typingUserId = (typingData?.user_id as string) || message.user_id;
+            const isTyping = typingData?.is_typing !== false;
             
             if (typingChatId === currentChat?.id && typingUserId) {
-              if (typingData?.is_typing !== false) {
+              if (isTyping) {
                 setTypingUsers(prev => [...new Set([...prev, typingUserId])]);
               } else {
                 setTypingUsers(prev => prev.filter(id => id !== typingUserId));
@@ -133,6 +140,17 @@ export default function ChatsPage() {
         case 'chat/stop_typing':
           if (message.chat_id === currentChat?.id && message.user_id) {
             setTypingUsers(prev => prev.filter(id => id !== message.user_id));
+          }
+          break;
+
+        case 'chat/seen':
+          // Backend sends: { type: 'chat/seen', chat_id, message_id, user_id }
+          if (message.chat_id === currentChat?.id && message.data) {
+            const seenData = message.data as { message_id: string; user_id: string };
+            // Update message read status
+            setMessages(prev => prev.map(m => 
+              m.id === seenData.message_id ? { ...m, is_read: true } : m
+            ));
           }
           break;
         
@@ -166,10 +184,31 @@ export default function ChatsPage() {
             })));
           }
           break;
+
+        case 'notification':
+          // Handle push notifications from server
+          if (message.data) {
+            const notifData = message.data as { id: string; title: string; body: string };
+            // Show browser notification if supported
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(notifData.title, { body: notifData.body });
+            }
+          }
+          break;
       }
     });
     return unsubscribe;
   }, [currentChat, loadChats]);
+
+  // Mark messages as seen when opening a chat via REST API
+  useEffect(() => {
+    if (currentChat && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.sender_id !== currentUserId && !lastMessage.is_read) {
+        chatAPI.markAsSeen(currentChat.id, lastMessage.id).catch(console.error);
+      }
+    }
+  }, [currentChat, messages, currentUserId]);
 
   // Handle chat selection
   const handleSelectChat = useCallback(async (chat: Chat) => {

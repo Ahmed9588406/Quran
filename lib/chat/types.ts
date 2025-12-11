@@ -125,11 +125,16 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 're
  */
 export type WSMessageType = 
   | 'chat/receive'
+  | 'typing'
   | 'chat/typing'
   | 'chat/stop_typing'
   | 'chat/seen'
+  | 'chat/seen_all'
   | 'chat/message_deleted'
-  | 'presence';
+  | 'presence'
+  | 'notification'
+  | 'notification/ack'
+  | 'seen';
 
 /**
  * Base WebSocket message structure
@@ -190,6 +195,30 @@ export interface WSPresenceMessage extends WSMessage {
   data: {
     status: 'online' | 'offline';
   };
+}
+
+/**
+ * WebSocket message for notifications
+ */
+export interface WSNotificationMessage extends WSMessage {
+  type: 'notification';
+  data: {
+    id: string;
+    title: string;
+    body: string;
+    chat_id?: string;
+    sender_id?: string;
+    created_at: string;
+  };
+}
+
+/**
+ * WebSocket message for seen all messages
+ */
+export interface WSSeenAllMessage extends WSMessage {
+  type: 'chat/seen_all';
+  chat_id: string;
+  last_message_id: string;
 }
 
 // ============================================================================

@@ -338,6 +338,51 @@ export class ChatAPI {
     await handleResponse<{ success: boolean }>(response);
   }
 
+  // ============================================================================
+  // Typing Indicator
+  // ============================================================================
+
+  /**
+   * Sends typing indicator to a chat.
+   * Backend endpoint: POST /chat/:chat_id/typing
+   * Body: { "is_typing": true/false }
+   * 
+   * Requirements: 4.1
+   * 
+   * @param chatId - ID of the chat where user is typing
+   * @param isTyping - Whether user is typing (default: true)
+   * @returns Promise resolving when typing indicator is sent
+   */
+  async sendTyping(chatId: string, isTyping: boolean = true): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/typing`, {
+      method: 'POST',
+      headers: createHeaders('application/json'),
+      body: JSON.stringify({ is_typing: isTyping }),
+    });
+    
+    await handleResponse<{ success: boolean }>(response);
+  }
+
+  /**
+   * Marks messages as seen in a chat.
+   * Backend endpoint: POST /chat/:chat_id/seen
+   * 
+   * @param chatId - ID of the chat
+   * @param messageId - Optional specific message ID to mark as seen
+   * @returns Promise resolving when seen status is sent
+   */
+  async markAsSeen(chatId: string, messageId?: string): Promise<void> {
+    const body = messageId ? { message_id: messageId } : {};
+    
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/seen`, {
+      method: 'POST',
+      headers: createHeaders('application/json'),
+      body: JSON.stringify(body),
+    });
+    
+    await handleResponse<{ success: boolean }>(response);
+  }
+
 
   // ============================================================================
   // Group Operations
