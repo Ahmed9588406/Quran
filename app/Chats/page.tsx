@@ -20,6 +20,7 @@ import MessageInput from './MessageInput';
 import ConnectionStatus from './ConnectionStatus';
 import CreateGroupModal from './CreateGroupModal';
 import EmptyState from './EmptyState';
+import ContactInfo from './contact_info';
 
 export default function ChatsPage() {
   // State
@@ -36,6 +37,7 @@ export default function ChatsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMediaFilterActive, setIsMediaFilterActive] = useState(false);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
 
   // Load chats - defined first so it can be used in useEffect
   const loadChats = useCallback(async () => {
@@ -309,6 +311,7 @@ export default function ChatsPage() {
                 onToggleSearch={() => setIsSearchVisible(!isSearchVisible)}
                 onToggleMediaFilter={() => setIsMediaFilterActive(!isMediaFilterActive)}
                 onShowGroupInfo={currentChat.type === 'group' ? () => {} : undefined}
+                onShowContactInfo={() => setIsContactInfoOpen(true)}
               />
 
               {/* Search Bar */}
@@ -359,6 +362,25 @@ export default function ChatsPage() {
         onClose={() => setIsCreateGroupModalOpen(false)}
         onCreateGroup={handleCreateGroup}
       />
+
+      {/* Contact Info Panel */}
+      {isContactInfoOpen && currentChat && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/20 z-40"
+            onClick={() => setIsContactInfoOpen(false)}
+          />
+          {/* Panel */}
+          <div className="fixed top-0 right-0 bottom-0 w-[360px] bg-white shadow-xl z-50 animate-slide-in-right">
+            <ContactInfo
+              chat={currentChat}
+              currentUserId={currentUserId}
+              onClose={() => setIsContactInfoOpen(false)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

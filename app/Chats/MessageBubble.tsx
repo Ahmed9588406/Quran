@@ -169,6 +169,33 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
 
     // Handle direct media_url
     if (mediaUrl) {
+      // First check if it's a PDF by URL extension (regardless of message type)
+      // This ensures PDFs are always displayed correctly even after page refresh
+      if (isPdfUrl(mediaUrl)) {
+        return (
+          <div className="mt-2">
+            <PDFPreviewMessage 
+              url={mediaUrl} 
+              filename={getFilenameFromUrl(mediaUrl)}
+              isSent={isSent} 
+            />
+          </div>
+        );
+      }
+      
+      // Check if it's another document type
+      if (isDocumentUrl(mediaUrl) && !isPdfUrl(mediaUrl)) {
+        return (
+          <div className="mt-2">
+            <DocumentMessage 
+              url={mediaUrl} 
+              filename={getFilenameFromUrl(mediaUrl)}
+              isSent={isSent} 
+            />
+          </div>
+        );
+      }
+
       switch (message.type) {
         case 'image':
           return (
@@ -191,6 +218,17 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
           return (
             <div className="mt-2">
               <AudioMessage src={mediaUrl} isSent={isSent} />
+            </div>
+          );
+        case 'document':
+          // Already handled above, but keep for explicit document type
+          return (
+            <div className="mt-2">
+              <DocumentMessage 
+                url={mediaUrl} 
+                filename={getFilenameFromUrl(mediaUrl)}
+                isSent={isSent} 
+              />
             </div>
           );
         default:
@@ -219,30 +257,6 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
                 controls
                 className="max-w-full rounded-lg mt-2"
               />
-            );
-          }
-          // Check if it's a document
-          if (isDocumentUrl(mediaUrl)) {
-            // Use PDFPreviewMessage for PDF files
-            if (isPdfUrl(mediaUrl)) {
-              return (
-                <div className="mt-2">
-                  <PDFPreviewMessage 
-                    url={mediaUrl} 
-                    filename={getFilenameFromUrl(mediaUrl)}
-                    isSent={isSent} 
-                  />
-                </div>
-              );
-            }
-            return (
-              <div className="mt-2">
-                <DocumentMessage 
-                  url={mediaUrl} 
-                  filename={getFilenameFromUrl(mediaUrl)}
-                  isSent={isSent} 
-                />
-              </div>
             );
           }
           // Fallback - show as link

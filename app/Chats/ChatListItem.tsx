@@ -10,7 +10,6 @@
  * **Feature: real-time-chat-system, Property 9: Presence status display**
  */
 
-import Image from 'next/image';
 import { Chat } from '@/lib/chat/types';
 import { formatTime, getChatDisplayName, getChatAvatarUrl, truncateText } from '@/lib/chat/utils';
 
@@ -28,10 +27,24 @@ export default function ChatListItem({
   onClick,
 }: ChatListItemProps) {
   const displayName = getChatDisplayName(chat, currentUserId);
-  const avatarUrl = getChatAvatarUrl(chat, currentUserId);
+  const rawAvatarUrl = getChatAvatarUrl(chat, currentUserId);
+  // Ensure avatar URL has the correct base URL
+  const avatarUrl = rawAvatarUrl 
+    ? (rawAvatarUrl.startsWith('http') ? rawAvatarUrl : `http://192.168.1.18:9001${rawAvatarUrl}`)
+    : undefined;
   const lastMessage = truncateText(chat.last_message || 'Start a new conversation', 35);
   const time = formatTime(chat.last_message_at || chat.created_at);
   const initial = displayName.charAt(0).toUpperCase();
+  
+  // Log chat data for debugging
+  console.log('ChatListItem data:', { 
+    chatId: chat.id, 
+    displayName, 
+    rawAvatarUrl, 
+    avatarUrl,
+    participants: chat.participants,
+    chat_avatar_url: chat.avatar_url
+  });
 
   return (
     <button
@@ -44,12 +57,14 @@ export default function ChatListItem({
       <div className="relative flex-shrink-0">
         <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center">
           {avatarUrl ? (
-            <Image
+            <img
               src={avatarUrl}
               alt={displayName}
-              width={48}
-              height={48}
               className="object-cover w-full h-full"
+              onError={(e) => {
+                // Hide broken image and show initial instead
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
             />
           ) : (
             <span className="text-amber-700 font-semibold text-lg">{initial}</span>

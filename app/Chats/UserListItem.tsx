@@ -7,8 +7,6 @@
  * Requirements: 2.1, 5.1
  */
 
-import React from 'react';
-import Image from 'next/image';
 import { User } from '@/lib/chat/types';
 
 interface UserListItemProps {
@@ -20,6 +18,20 @@ export default function UserListItem({ user, onClick }: UserListItemProps) {
   const displayName = user.display_name || user.username;
   const initial = displayName.charAt(0).toUpperCase();
   const isOnline = user.status === 'online';
+  
+  // Ensure avatar URL has the correct base URL
+  const avatarUrl = user.avatar_url 
+    ? (user.avatar_url.startsWith('http') ? user.avatar_url : `http://192.168.1.18:9001${user.avatar_url}`)
+    : undefined;
+  
+  // Log user data for debugging
+  console.log('UserListItem data:', { 
+    userId: user.id, 
+    displayName, 
+    rawAvatarUrl: user.avatar_url, 
+    avatarUrl,
+    status: user.status
+  });
 
   return (
     <button
@@ -29,13 +41,11 @@ export default function UserListItem({ user, onClick }: UserListItemProps) {
       {/* Avatar */}
       <div className="relative flex-shrink-0">
         <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center text-white font-bold text-lg">
-          {user.avatar_url ? (
-            <Image
-              src={user.avatar_url}
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
               alt={displayName}
-              width={48}
-              height={48}
-              className="object-cover"
+              className="object-cover w-full h-full"
             />
           ) : (
             <span>{initial}</span>
