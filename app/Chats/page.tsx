@@ -108,9 +108,10 @@ export default function ChatsPage() {
             if (currentChat && chatId === currentChat.id) {
               setMessages(prev => [...prev, msgData]);
               // Auto-mark as seen when receiving in active chat via REST API
-              chatAPI.markAsSeen(currentChat.id, msgData.id).catch(console.error);
+              // Endpoint: POST /chat/:chat_id/seen
+              chatAPI.markAsSeen(currentChat.id).catch(console.error);
             }
-            // Refresh chat list
+            // Refresh chat list to update unread counts
             loadChats();
           }
           break;
@@ -143,14 +144,32 @@ export default function ChatsPage() {
           }
           break;
 
+        case 'seen' as WSMessageType:
         case 'chat/seen':
           // Backend sends: { type: 'chat/seen', chat_id, message_id, user_id }
-          if (message.chat_id === currentChat?.id && message.data) {
-            const seenData = message.data as { message_id: string; user_id: string };
-            // Update message read status
-            setMessages(prev => prev.map(m => 
-              m.id === seenData.message_id ? { ...m, is_read: true } : m
-            ));
+          // or: { type: 'seen', chat_id, user_id }
+          {
+            const msgAny = message as unknown as Record<string, unknown>;
+            const seenData = (message.data as Record<string, unknown>) || msgAny;
+            const seenChatId = (seenData?.chat_id as string) || message.chat_id;
+            const seenMessageId = seenData?.message_id as string;
+            const seenUserId = (seenData?.user_id as string) || message.user_id;
+            
+            if (seenChatId === currentChat?.id) {
+              if (seenMessageId) {
+                // Mark specific message as read
+                setMessages(prev => prev.map(m => 
+                  m.id === seenMessageId ? { ...m, is_read: true } : m
+                ));
+              } else if (seenUserId) {
+                // Mark all messages from current user as read by the other user
+                setMessages(prev => prev.map(m => 
+                  m.sender_id === currentUserId ? { ...m, is_read: true } : m
+                ));
+              }
+              // Refresh chat list to update unread counts
+              loadChats();
+            }
           }
           break;
         
@@ -201,14 +220,29 @@ export default function ChatsPage() {
   }, [currentChat, loadChats]);
 
   // Mark messages as seen when opening a chat via REST API
+  // Endpoint: POST /chat/:chat_id/seen
   useEffect(() => {
     if (currentChat && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.sender_id !== currentUserId && !lastMessage.is_read) {
-        chatAPI.markAsSeen(currentChat.id, lastMessage.id).catch(console.error);
+      // Find unread messages from other users
+      const unreadMessages = messages.filter(
+        (msg) => msg.sender_id !== currentUserId && !msg.is_read
+      );
+      
+      if (unreadMessages.length > 0) {
+        // Mark all messages in the chat as seen
+        chatAPI.markAsSeen(currentChat.id).then(() => {
+          // Update local state to mark messages as read
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.sender_id !== currentUserId ? { ...msg, is_read: true } : msg
+            )
+          );
+          // Refresh chat list to update unread counts
+          loadChats();
+        }).catch(console.error);
       }
     }
-  }, [currentChat, messages, currentUserId]);
+  }, [currentChat?.id, messages.length, currentUserId, loadChats]);
 
   // Handle chat selection
   const handleSelectChat = useCallback(async (chat: Chat) => {

@@ -332,7 +332,18 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
         <div className={`flex items-center justify-end gap-1 mt-1 ${isSent ? 'text-white/70' : 'text-gray-400'}`}>
           <span className="text-xs">{time}</span>
           {isSent && (
-            <Check className="w-3 h-3" />
+            <span className="flex items-center">
+              {message.is_read ? (
+                // Double check marks (read/seen)
+                <span className="flex -space-x-1">
+                  <Check className="w-3 h-3 text-blue-300" />
+                  <Check className="w-3 h-3 text-blue-300" />
+                </span>
+              ) : (
+                // Single check mark (delivered)
+                <Check className="w-3 h-3" />
+              )}
+            </span>
           )}
         </div>
       </div>
