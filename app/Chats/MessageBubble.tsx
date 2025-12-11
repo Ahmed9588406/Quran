@@ -10,11 +10,12 @@
  * **Feature: real-time-chat-system, Property 10: Media rendering by type**
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Message } from '@/lib/chat/types';
 import { formatMessageTime } from '@/lib/chat/utils';
 import { API_BASE_URL } from '@/lib/chat/api';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Check } from 'lucide-react';
+import AudioMessage from './AudioMessage';
 
 interface MessageBubbleProps {
   message: Message;
@@ -25,6 +26,11 @@ interface MessageBubbleProps {
 export default function MessageBubble({ message, isSent, onDelete }: MessageBubbleProps) {
   const [isHovered, setIsHovered] = useState(false);
   const time = formatMessageTime(message.created_at);
+
+  // Check if URL is an audio file
+  const isAudioUrl = (url: string) => {
+    return url.match(/\.(mp3|wav|ogg|webm|m4a)$/i) || url.includes('audio');
+  };
 
   // Render media content based on type
   const renderMedia = () => {
@@ -53,7 +59,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
               <img
                 key={index}
                 src={url}
-                alt="صورة"
+                alt="Image"
                 className="max-w-full rounded-lg mt-2 cursor-pointer"
                 onClick={() => window.open(url, '_blank')}
               />
@@ -69,17 +75,8 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
             );
           case 'audio':
             return (
-              <div key={index} className="mt-2 min-w-[200px]">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">🎤</span>
-                  <span className="text-xs opacity-70">رسالة صوتية</span>
-                </div>
-                <audio
-                  src={url}
-                  controls
-                  className="w-full h-10"
-                  style={{ minWidth: '200px' }}
-                />
+              <div key={index} className="mt-2">
+                <AudioMessage src={url} isSent={isSent} />
               </div>
             );
           default:
@@ -89,9 +86,9 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 mt-2 text-blue-500 hover:underline"
+                className={`flex items-center gap-2 mt-2 hover:underline ${isSent ? 'text-white/80' : 'text-blue-500'}`}
               >
-                📎 {attachment.filename || 'ملف'}
+                📎 {attachment.filename || 'File'}
               </a>
             );
         }
@@ -105,7 +102,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
           return (
             <img
               src={mediaUrl}
-              alt="صورة"
+              alt="Image"
               className="max-w-full rounded-lg mt-2 cursor-pointer"
               onClick={() => window.open(mediaUrl, '_blank')}
             />
@@ -120,34 +117,16 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
           );
         case 'audio':
           return (
-            <div className="mt-2 min-w-[200px]">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">🎤</span>
-                <span className="text-xs opacity-70">رسالة صوتية</span>
-              </div>
-              <audio
-                src={mediaUrl}
-                controls
-                className="w-full h-10"
-                style={{ minWidth: '200px' }}
-              />
+            <div className="mt-2">
+              <AudioMessage src={mediaUrl} isSent={isSent} />
             </div>
           );
         default:
           // If type is not specified but we have media_url, try to detect from URL
-          if (mediaUrl.match(/\.(mp3|wav|ogg|webm|m4a)$/i) || mediaUrl.includes('audio')) {
+          if (isAudioUrl(mediaUrl)) {
             return (
-              <div className="mt-2 min-w-[200px]">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">🎤</span>
-                  <span className="text-xs opacity-70">رسالة صوتية</span>
-                </div>
-                <audio
-                  src={mediaUrl}
-                  controls
-                  className="w-full h-10"
-                  style={{ minWidth: '200px' }}
-                />
+              <div className="mt-2">
+                <AudioMessage src={mediaUrl} isSent={isSent} />
               </div>
             );
           }
@@ -155,7 +134,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
             return (
               <img
                 src={mediaUrl}
-                alt="صورة"
+                alt="Image"
                 className="max-w-full rounded-lg mt-2 cursor-pointer"
                 onClick={() => window.open(mediaUrl, '_blank')}
               />
@@ -176,9 +155,9 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
               href={mediaUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 mt-2 text-blue-400 hover:underline"
+              className={`flex items-center gap-2 mt-2 hover:underline ${isSent ? 'text-white/80' : 'text-blue-400'}`}
             >
-              📎 ملف مرفق
+              📎 Attached file
             </a>
           );
       }
@@ -189,7 +168,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
 
   return (
     <div
-      className={`flex ${isSent ? 'justify-end' : 'justify-start'} mb-3 animate-slideUp`}
+      className={`flex ${isSent ? 'justify-end' : 'justify-start'} mb-3`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -198,22 +177,22 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
         <button
           onClick={() => onDelete(message.id)}
           className="self-center mr-2 p-1.5 rounded-full hover:bg-red-100 text-red-500 transition-colors"
-          title="حذف الرسالة"
+          title="Delete message"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       )}
 
       <div
-        className={`max-w-[65%] px-3 py-2 rounded-2xl ${
+        className={`max-w-[65%] px-3 py-2 rounded-lg shadow-sm ${
           isSent
-            ? 'bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white rounded-br-sm'
-            : 'bg-white text-gray-900 rounded-bl-sm shadow-sm'
+            ? 'bg-[#8A1538] text-white rounded-br-none'
+            : 'bg-white text-gray-900 rounded-bl-none'
         }`}
       >
         {/* Sender name for received messages */}
         {!isSent && message.sender_name && (
-          <div className="text-xs font-medium text-[#667eea] mb-1">
+          <div className="text-xs font-medium text-[#8A1538] mb-1">
             {message.sender_name}
           </div>
         )}
@@ -229,13 +208,10 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
         {renderMedia()}
 
         {/* Time and read status */}
-        <div className={`flex items-center justify-end gap-1 mt-1 ${isSent ? 'text-white/70' : 'text-gray-500'}`}>
+        <div className={`flex items-center justify-end gap-1 mt-1 ${isSent ? 'text-white/70' : 'text-gray-400'}`}>
           <span className="text-xs">{time}</span>
-          {isSent && message.is_read && (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 8L6 11L13 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M6 8L9 11L16 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+          {isSent && (
+            <Check className="w-3 h-3" />
           )}
         </div>
       </div>

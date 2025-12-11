@@ -11,9 +11,8 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react';
-import { Send, Paperclip, Mic, Square, Smile } from 'lucide-react';
+import { Send, Paperclip, Mic, Square, Smile, Image as ImageIcon } from 'lucide-react';
 import { useVoiceRecorder } from '@/lib/chat/useVoiceRecorder';
-import { chatAPI } from '@/lib/chat/api';
 import { wsManager } from '@/lib/chat/websocket';
 
 interface MessageInputProps {
@@ -124,7 +123,7 @@ export default function MessageInput({
   }, [isRecording, startRecording, stopRecording, onSendMedia]);
 
   return (
-    <div className="flex items-center gap-2 p-3 bg-[#F0F2F5] border-t border-gray-200">
+    <div className="flex items-center gap-2 px-4 py-3 bg-white border-t border-gray-100">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -134,66 +133,68 @@ export default function MessageInput({
         className="hidden"
       />
 
-      {/* Emoji button (placeholder) */}
+      {/* Mic button */}
       <button
-        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
-        title="إيموجي"
+        onClick={handleRecordingToggle}
+        disabled={disabled}
+        className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${
+          isRecording
+            ? 'bg-red-500 animate-pulse'
+            : 'hover:bg-gray-100 text-gray-500'
+        }`}
+        title={isRecording ? 'Stop recording' : 'Voice message'}
       >
-        <Smile className="w-6 h-6" />
+        {isRecording ? (
+          <Square className="w-4 h-4 text-white" />
+        ) : (
+          <Mic className="w-5 h-5" />
+        )}
+      </button>
+
+      {/* Emoji button */}
+      <button
+        className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-500"
+        title="Emoji"
+      >
+        <Smile className="w-5 h-5" />
       </button>
 
       {/* Attachment button */}
       <button
         onClick={() => fileInputRef.current?.click()}
-        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
-        title="إرفاق ملف"
+        className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-500"
+        title="Attach file"
         disabled={disabled}
       >
-        <Paperclip className="w-6 h-6" />
+        <ImageIcon className="w-5 h-5" />
       </button>
 
       {/* Text input */}
-      <div className="flex-1 bg-white rounded-lg px-4 py-2">
+      <div className="flex-1 bg-gray-100 rounded-full px-4 py-2">
         <input
           type="text"
           value={input}
           onChange={handleInputChange}
           onKeyPress={handleKeyPress}
-          placeholder="اكتب رسالة..."
-          className="w-full bg-transparent focus:outline-none text-gray-900 text-sm"
+          placeholder="Message"
+          className="w-full bg-transparent focus:outline-none text-gray-900 text-sm placeholder-gray-400"
           disabled={disabled || isRecording}
         />
       </div>
 
-      {/* Mic / Send button */}
-      {input.trim() ? (
-        <button
-          onClick={handleSend}
-          disabled={isSending || disabled}
-          className="w-11 h-11 flex items-center justify-center rounded-full transition-all hover:scale-105 disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-          title="إرسال"
-        >
-          <Send className="w-5 h-5 text-white" />
-        </button>
-      ) : (
-        <button
-          onClick={handleRecordingToggle}
-          disabled={disabled}
-          className={`w-11 h-11 flex items-center justify-center rounded-full transition-all ${
-            isRecording
-              ? 'bg-red-500 animate-pulse'
-              : 'hover:bg-gray-200 text-gray-600'
-          }`}
-          title={isRecording ? 'إيقاف التسجيل' : 'تسجيل صوتي'}
-        >
-          {isRecording ? (
-            <Square className="w-5 h-5 text-white" />
-          ) : (
-            <Mic className="w-6 h-6" />
-          )}
-        </button>
-      )}
+      {/* Send button */}
+      <button
+        onClick={handleSend}
+        disabled={!input.trim() || isSending || disabled}
+        className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${
+          input.trim() 
+            ? 'bg-[#8A1538] hover:bg-[#6d1029] text-white' 
+            : 'text-gray-400 cursor-not-allowed'
+        }`}
+        title="Send"
+      >
+        <Send className="w-5 h-5" />
+      </button>
 
       {/* Recording error */}
       {recordingError && (

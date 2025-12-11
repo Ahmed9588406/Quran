@@ -21,7 +21,7 @@ import {
   FollowResponse,
 } from './types';
 
-// Backend API base URL
+// API base URL - call backend directly for file uploads
 const BASE_URL = 'http://192.168.1.18:9001';
 
 /**
@@ -70,18 +70,28 @@ export function createHeaders(contentType?: string): HeadersInit {
 /**
  * Handles API response and throws appropriate errors
  */
-async function handleResponse<T>(response: Response): Promise<T> {
+async function handleResponse<T>(response: Response, endpoint?: string): Promise<T> {
   if (!response.ok) {
     let errorMessage = 'An error occurred';
     let errorCode = 'UNKNOWN_ERROR';
+    let rawResponse = '';
     
     try {
-      const errorData = await response.json();
+      rawResponse = await response.text();
+      const errorData = JSON.parse(rawResponse);
       errorMessage = errorData.message || errorData.error || errorMessage;
       errorCode = errorData.error || errorCode;
     } catch {
-      errorMessage = response.statusText || errorMessage;
+      errorMessage = rawResponse || response.statusText || errorMessage;
     }
+    
+    console.error(`[ReelsAPI] ${endpoint || 'Request'} failed:`, {
+      status: response.status,
+      statusText: response.statusText,
+      errorCode,
+      errorMessage,
+      rawResponse,
+    });
     
     throw new ReelsAPIError(errorMessage, response.status, errorCode);
   }
@@ -95,8 +105,24 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 /**
+ * Sanitizes filename to remove special characters that may cause issues
+ */
+function sanitizeFilename(filename: string): string {
+  // Get extension
+  const ext = filename.split('.').pop() || '';
+  // Generate a simple filename with timestamp
+  return `video_${Date.now()}.${ext}`;
+}
+
+/**
  * Builds FormData for reel creation
  * Requirements: 4.6 - Form data structure for reel creation
+ * 
+ * Exact fields expected by backend (as shown in Postman):
+ * - video: File (required)
+ * - content: Text (required)
+ * - visibility: Text (required) - 'public', 'private', or 'followers'
+ * - thumbnail: File (optional)
  * 
  * @param data - CreateReelData object
  * @returns FormData with video, content, visibility, and optional thumbnail
@@ -104,14 +130,21 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export function buildReelFormData(data: CreateReelData): FormData {
   const formData = new FormData();
   
-  // Required fields
-  formData.append('video', data.video);
-  formData.append('content', data.content);
+  // Video file - REQUIRED
+  // Use sanitized filename to avoid issues with special characters
+  const sanitizedVideoName = sanitizeFilename(data.video.name);
+  formData.append('video', data.video, sanitizedVideoName);
+  
+  // Content/description - REQUIRED (can be empty string)
+  formData.append('content', data.content || '');
+  
+  // Visibility setting - REQUIRED
   formData.append('visibility', data.visibility);
   
-  // Optional thumbnail
+  // Thumbnail/cover photo - OPTIONAL
   if (data.thumbnail) {
-    formData.append('thumbnail', data.thumbnail);
+    const sanitizedThumbName = sanitizeFilename(data.thumbnail.name);
+    formData.append('thumbnail', data.thumbnail, sanitizedThumbName);
   }
   
   return formData;
@@ -207,7 +240,8 @@ export class ReelsAPI {
   // ============================================================================
 
   /**
-   * Creates a new reel with video upload.
+   * Creates a new reel with video upload using XMLHttpRequest.
+   * XMLHttpRequest handles multipart form data more reliably with some backends.
    * 
    * Requirements: 4.6
    * 
@@ -217,20 +251,79 @@ export class ReelsAPI {
   async createReel(data: CreateReelData): Promise<CreateReelResponse> {
     const formData = buildReelFormData(data);
     
-    // Don't set Content-Type header - browser will set it with boundary for multipart
-    const headers: HeadersInit = {};
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    const response = await fetch(`${this.baseUrl}/reels`, {
-      method: 'POST',
-      headers,
-      body: formData,
+    // Log what we're sending for debugging
+    console.log('[ReelsAPI] createReel - Sending:', {
+      videoName: data.video.name,
+      videoSize: data.video.size,
+      videoType: data.video.type,
+      content: data.content,
+      visibility: data.visibility,
+      hasThumbnail: !!data.thumbnail,
     });
     
-    return handleResponse<CreateReelResponse>(response);
+    // Log FormData entries
+    console.log('[ReelsAPI] FormData entries:');
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: File(name=${value.name}, size=${value.size}, type=${value.type})`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    }
+    
+    const token = getAuthToken();
+    
+    // Use XMLHttpRequest for better multipart handling
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseUrl}/reels`, true);
+      
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      
+      xhr.onload = () => {
+        console.log('[ReelsAPI] XHR Response status:', xhr.status);
+        console.log('[ReelsAPI] XHR Response text:', xhr.responseText);
+        
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            console.log('[ReelsAPI] Upload success:', response);
+            resolve(response);
+          } catch (parseError) {
+            console.error('[ReelsAPI] Failed to parse success response:', parseError);
+            reject(new ReelsAPIError('Invalid JSON response', xhr.status));
+          }
+        } else {
+          let errorMessage = 'Upload failed';
+          let errorCode = 'UNKNOWN_ERROR';
+          const rawResponse = xhr.responseText;
+          
+          try {
+            const errorData = JSON.parse(rawResponse);
+            errorMessage = errorData.message || errorData.error || errorMessage;
+            errorCode = errorData.error || errorCode;
+          } catch {
+            errorMessage = rawResponse || xhr.statusText || errorMessage;
+          }
+          
+          console.error('[ReelsAPI] POST /reels failed - Status:', xhr.status);
+          console.error('[ReelsAPI] POST /reels failed - Error code:', errorCode);
+          console.error('[ReelsAPI] POST /reels failed - Error message:', errorMessage);
+          console.error('[ReelsAPI] POST /reels failed - Raw response:', rawResponse);
+          
+          reject(new ReelsAPIError(errorMessage, xhr.status, errorCode));
+        }
+      };
+      
+      xhr.onerror = () => {
+        console.error('[ReelsAPI] XHR Network error');
+        reject(new ReelsAPIError('Network error', 0, 'NETWORK_ERROR'));
+      };
+      
+      xhr.send(formData);
+    });
   }
 
   // ============================================================================

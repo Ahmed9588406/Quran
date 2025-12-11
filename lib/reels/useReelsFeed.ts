@@ -99,10 +99,13 @@ export function useReelsFeed(options: UseReelsFeedOptions = {}): UseReelsFeedRet
    */
   const goToNext = useCallback(() => {
     setState(prev => {
-      const nextIndex = getNextIndex(prev.currentIndex, prev.reels.length);
+      const reelsLength = prev.reels?.length ?? 0;
+      if (reelsLength === 0) return prev;
+      
+      const nextIndex = getNextIndex(prev.currentIndex ?? 0, reelsLength);
       
       // Check if we should load more reels
-      if (shouldLoadMore(nextIndex, prev.reels.length) && prev.hasMore && !prev.isLoading) {
+      if (shouldLoadMore(nextIndex, reelsLength) && prev.hasMore && !prev.isLoading) {
         // Trigger load more asynchronously
         loadMore();
       }
@@ -118,7 +121,7 @@ export function useReelsFeed(options: UseReelsFeedOptions = {}): UseReelsFeedRet
   const goToPrevious = useCallback(() => {
     setState(prev => ({
       ...prev,
-      currentIndex: getPreviousIndex(prev.currentIndex),
+      currentIndex: getPreviousIndex(prev.currentIndex ?? 0),
     }));
   }, []);
 
@@ -127,7 +130,9 @@ export function useReelsFeed(options: UseReelsFeedOptions = {}): UseReelsFeedRet
    */
   const setCurrentIndex = useCallback((index: number) => {
     setState(prev => {
-      const validIndex = Math.max(0, Math.min(index, prev.reels.length - 1));
+      const reelsLength = prev.reels?.length ?? 0;
+      if (reelsLength === 0) return prev;
+      const validIndex = Math.max(0, Math.min(index, reelsLength - 1));
       return { ...prev, currentIndex: validIndex };
     });
   }, []);

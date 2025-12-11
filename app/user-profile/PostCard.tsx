@@ -365,28 +365,41 @@ interface MediaGridProps {
 }
 
 function MediaGrid({ media, onImageClick }: MediaGridProps) {
-  const imageMedia = media.filter(m => m.media_type !== "video");
-  const videoMedia = media.filter(m => m.media_type === "video");
+  // Check for video types - handle both "video" and "video/mp4", "video/webm", etc.
+  const isVideo = (m: Media) => m.media_type === "video" || m.media_type?.startsWith("video/");
+  const imageMedia = media.filter(m => !isVideo(m));
+  const videoMedia = media.filter(m => isVideo(m));
   const totalImages = imageMedia.length;
 
-  // Render videos first (full width)
+  // Render videos first (full width) with better styling
   const renderVideos = () => (
     <>
       {videoMedia.map((item, index) => {
         const mediaUrl = normalizeMediaUrl(item.url);
         return (
-          <div key={`video-${index}`} className="relative aspect-video bg-black">
+          <div key={`video-${index}`} className="relative aspect-video bg-black rounded-lg overflow-hidden mb-2">
             <video
               src={mediaUrl}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               controls
               preload="metadata"
+              playsInline
+              onError={(e) => {
+                console.error("Video failed to load:", mediaUrl);
+                const target = e.target as HTMLVideoElement;
+                target.style.display = 'none';
+              }}
             />
           </div>
         );
       })}
     </>
   );
+
+  // If only videos, render them without image grid
+  if (totalImages === 0 && videoMedia.length > 0) {
+    return <div className="mt-3">{renderVideos()}</div>;
+  }
 
   // Single image - full width
   if (totalImages === 1) {

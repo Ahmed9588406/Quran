@@ -70,7 +70,7 @@ export default function ReelsPage() {
    */
   const handleReelCreated = useCallback((reel: Reel) => {
     // The ReelsFeed will refresh automatically or we can trigger a refresh
-    console.log('Reel created successfully:', reel.id);
+    console.log('Reel created successfully:', reel?.id || 'unknown');
   }, []);
 
   /**
