@@ -69,8 +69,38 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
     
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
       return attachments.map((attachment, index) => {
-        const url = `${API_BASE_URL}${attachment.url}`;
+        const url = attachment.url.startsWith('http') ? attachment.url : `${API_BASE_URL}${attachment.url}`;
         const filename = attachment.filename || getFilenameFromUrl(url);
+        
+        // PRIORITY: Always check URL extension first for PDF detection
+        // This ensures PDFs display correctly regardless of attachment.type
+        if (isPdfUrl(url) || attachment.type === 'pdf' || attachment.mime_type === 'application/pdf') {
+          return (
+            <div key={index} className="mt-2">
+              <PDFPreviewMessage 
+                url={url} 
+                filename={filename}
+                fileSize={attachment.size}
+                pageCount={attachment.pageCount}
+                isSent={isSent} 
+              />
+            </div>
+          );
+        }
+        
+        // Check for other document types
+        if (isDocumentUrl(url) || attachment.type === 'document') {
+          return (
+            <div key={index} className="mt-2">
+              <DocumentMessage 
+                url={url} 
+                filename={filename}
+                fileSize={attachment.size}
+                isSent={isSent} 
+              />
+            </div>
+          );
+        }
         
         switch (attachment.type) {
           case 'image':
@@ -98,58 +128,34 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
                 <AudioMessage src={url} isSent={isSent} />
               </div>
             );
-          case 'document':
-          case 'pdf':
-            // Use PDFPreviewMessage for PDF files, DocumentMessage for other documents
-            if (isPdfUrl(url) || attachment.type === 'pdf' || attachment.mime_type === 'application/pdf') {
+          default:
+            // Fallback: detect type from URL extension
+            if (isAudioUrl(url)) {
               return (
                 <div key={index} className="mt-2">
-                  <PDFPreviewMessage 
-                    url={url} 
-                    filename={filename}
-                    fileSize={attachment.size}
-                    pageCount={attachment.pageCount}
-                    isSent={isSent} 
-                  />
+                  <AudioMessage src={url} isSent={isSent} />
                 </div>
               );
             }
-            return (
-              <div key={index} className="mt-2">
-                <DocumentMessage 
-                  url={url} 
-                  filename={filename}
-                  fileSize={attachment.size}
-                  isSent={isSent} 
-                />
-              </div>
-            );
-          default:
-            // Check if it's a document by extension
-            if (isDocumentUrl(url)) {
-              // Use PDFPreviewMessage for PDF files
-              if (isPdfUrl(url)) {
-                return (
-                  <div key={index} className="mt-2">
-                    <PDFPreviewMessage 
-                      url={url} 
-                      filename={filename}
-                      fileSize={attachment.size}
-                      pageCount={attachment.pageCount}
-                      isSent={isSent} 
-                    />
-                  </div>
-                );
-              }
+            if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
               return (
-                <div key={index} className="mt-2">
-                  <DocumentMessage 
-                    url={url} 
-                    filename={filename}
-                    fileSize={attachment.size}
-                    isSent={isSent} 
-                  />
-                </div>
+                <img
+                  key={index}
+                  src={url}
+                  alt="Image"
+                  className="max-w-full rounded-lg mt-2 cursor-pointer"
+                  onClick={() => window.open(url, '_blank')}
+                />
+              );
+            }
+            if (url.match(/\.(mp4|webm|mov)$/i)) {
+              return (
+                <video
+                  key={index}
+                  src={url}
+                  controls
+                  className="max-w-full rounded-lg mt-2"
+                />
               );
             }
             return (
@@ -167,7 +173,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
       });
     }
 
-    // Handle direct media_url
+    // Handle direct media_url - PRIORITY: Check file extension first
     if (mediaUrl) {
       // First check if it's a PDF by URL extension (regardless of message type)
       // This ensures PDFs are always displayed correctly even after page refresh
@@ -183,8 +189,8 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
         );
       }
       
-      // Check if it's another document type
-      if (isDocumentUrl(mediaUrl) && !isPdfUrl(mediaUrl)) {
+      // Check if it's another document type by extension
+      if (isDocumentUrl(mediaUrl)) {
         return (
           <div className="mt-2">
             <DocumentMessage 
@@ -196,16 +202,21 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
         );
       }
 
+      // Now check by message type (for non-document files)
       switch (message.type) {
         case 'image':
-          return (
-            <img
-              src={mediaUrl}
-              alt="Image"
-              className="max-w-full rounded-lg mt-2 cursor-pointer"
-              onClick={() => window.open(mediaUrl, '_blank')}
-            />
-          );
+          // Double-check it's actually an image, not a mistyped PDF
+          if (!isPdfUrl(mediaUrl) && !isDocumentUrl(mediaUrl)) {
+            return (
+              <img
+                src={mediaUrl}
+                alt="Image"
+                className="max-w-full rounded-lg mt-2 cursor-pointer"
+                onClick={() => window.open(mediaUrl, '_blank')}
+              />
+            );
+          }
+          break;
         case 'video':
           return (
             <video
@@ -221,7 +232,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
             </div>
           );
         case 'document':
-          // Already handled above, but keep for explicit document type
+          // Already handled above by extension check
           return (
             <div className="mt-2">
               <DocumentMessage 
@@ -231,46 +242,46 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
               />
             </div>
           );
-        default:
-          // If type is not specified but we have media_url, try to detect from URL
-          if (isAudioUrl(mediaUrl)) {
-            return (
-              <div className="mt-2">
-                <AudioMessage src={mediaUrl} isSent={isSent} />
-              </div>
-            );
-          }
-          if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-            return (
-              <img
-                src={mediaUrl}
-                alt="Image"
-                className="max-w-full rounded-lg mt-2 cursor-pointer"
-                onClick={() => window.open(mediaUrl, '_blank')}
-              />
-            );
-          }
-          if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
-            return (
-              <video
-                src={mediaUrl}
-                controls
-                className="max-w-full rounded-lg mt-2"
-              />
-            );
-          }
-          // Fallback - show as link
-          return (
-            <a
-              href={mediaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center gap-2 mt-2 hover:underline ${isSent ? 'text-white/80' : 'text-blue-400'}`}
-            >
-              📎 Attached file
-            </a>
-          );
       }
+      
+      // Fallback: detect type from URL extension
+      if (isAudioUrl(mediaUrl)) {
+        return (
+          <div className="mt-2">
+            <AudioMessage src={mediaUrl} isSent={isSent} />
+          </div>
+        );
+      }
+      if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        return (
+          <img
+            src={mediaUrl}
+            alt="Image"
+            className="max-w-full rounded-lg mt-2 cursor-pointer"
+            onClick={() => window.open(mediaUrl, '_blank')}
+          />
+        );
+      }
+      if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
+        return (
+          <video
+            src={mediaUrl}
+            controls
+            className="max-w-full rounded-lg mt-2"
+          />
+        );
+      }
+      // Final fallback - show as link
+      return (
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-2 mt-2 hover:underline ${isSent ? 'text-white/80' : 'text-blue-400'}`}
+        >
+          📎 Attached file
+        </a>
+      );
     }
 
     return null;
