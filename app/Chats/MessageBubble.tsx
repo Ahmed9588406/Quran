@@ -13,9 +13,8 @@
 import React, { useState } from 'react';
 import { Message } from '@/lib/chat/types';
 import { formatMessageTime } from '@/lib/chat/utils';
+import { API_BASE_URL } from '@/lib/chat/api';
 import { Trash2 } from 'lucide-react';
-
-const API_BASE = 'http://192.168.1.18:9001';
 
 interface MessageBubbleProps {
   message: Message;
@@ -29,12 +28,24 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
 
   // Render media content based on type
   const renderMedia = () => {
-    const mediaUrl = message.media_url ? `${API_BASE}${message.media_url}` : null;
+    const mediaUrl = message.media_url ? `${API_BASE_URL}${message.media_url}` : null;
     
-    // Handle attachments array
-    if (message.attachments && message.attachments.length > 0) {
-      return message.attachments.map((attachment, index) => {
-        const url = `${API_BASE}${attachment.url}`;
+    // Handle attachments - may be JSON string or array
+    let attachments = message.attachments;
+    if (attachments) {
+      // Parse if it's a JSON string (backend returns JSON string)
+      if (typeof attachments === 'string') {
+        try {
+          attachments = JSON.parse(attachments);
+        } catch {
+          attachments = undefined;
+        }
+      }
+    }
+    
+    if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+      return attachments.map((attachment, index) => {
+        const url = `${API_BASE_URL}${attachment.url}`;
         
         switch (attachment.type) {
           case 'image':
@@ -58,12 +69,18 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
             );
           case 'audio':
             return (
-              <audio
-                key={index}
-                src={url}
-                controls
-                className="w-full mt-2"
-              />
+              <div key={index} className="mt-2 min-w-[200px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🎤</span>
+                  <span className="text-xs opacity-70">رسالة صوتية</span>
+                </div>
+                <audio
+                  src={url}
+                  controls
+                  className="w-full h-10"
+                  style={{ minWidth: '200px' }}
+                />
+              </div>
             );
           default:
             return (
@@ -103,11 +120,66 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
           );
         case 'audio':
           return (
-            <audio
-              src={mediaUrl}
-              controls
-              className="w-full mt-2"
-            />
+            <div className="mt-2 min-w-[200px]">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">🎤</span>
+                <span className="text-xs opacity-70">رسالة صوتية</span>
+              </div>
+              <audio
+                src={mediaUrl}
+                controls
+                className="w-full h-10"
+                style={{ minWidth: '200px' }}
+              />
+            </div>
+          );
+        default:
+          // If type is not specified but we have media_url, try to detect from URL
+          if (mediaUrl.match(/\.(mp3|wav|ogg|webm|m4a)$/i) || mediaUrl.includes('audio')) {
+            return (
+              <div className="mt-2 min-w-[200px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🎤</span>
+                  <span className="text-xs opacity-70">رسالة صوتية</span>
+                </div>
+                <audio
+                  src={mediaUrl}
+                  controls
+                  className="w-full h-10"
+                  style={{ minWidth: '200px' }}
+                />
+              </div>
+            );
+          }
+          if (mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+            return (
+              <img
+                src={mediaUrl}
+                alt="صورة"
+                className="max-w-full rounded-lg mt-2 cursor-pointer"
+                onClick={() => window.open(mediaUrl, '_blank')}
+              />
+            );
+          }
+          if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
+            return (
+              <video
+                src={mediaUrl}
+                controls
+                className="max-w-full rounded-lg mt-2"
+              />
+            );
+          }
+          // Fallback - show as link
+          return (
+            <a
+              href={mediaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 mt-2 text-blue-400 hover:underline"
+            >
+              📎 ملف مرفق
+            </a>
           );
       }
     }

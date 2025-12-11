@@ -180,14 +180,19 @@ export function getChatDisplayName(chat: Chat, currentUserId?: string): string {
     return chat.title || 'Group Chat';
   }
   
+  // Backend may include user info directly on chat object for direct chats
+  if (chat.display_name || chat.username) {
+    return chat.display_name || chat.username || 'Unknown';
+  }
+  
   // For direct chats, find the other participant
-  const otherParticipant = chat.participants.find(p => p.id !== currentUserId);
+  const otherParticipant = chat.participants?.find(p => p.id !== currentUserId);
   if (otherParticipant) {
     return otherParticipant.display_name || otherParticipant.username;
   }
   
   // Fallback to first participant
-  const firstParticipant = chat.participants[0];
+  const firstParticipant = chat.participants?.[0];
   return firstParticipant?.display_name || firstParticipant?.username || 'Unknown';
 }
 
@@ -205,7 +210,12 @@ export function getChatAvatarUrl(chat: Chat, currentUserId?: string): string | u
     return undefined;
   }
   
-  const otherParticipant = chat.participants.find(p => p.id !== currentUserId);
+  // Backend may include avatar_url directly on chat object
+  if (chat.avatar_url) {
+    return chat.avatar_url;
+  }
+  
+  const otherParticipant = chat.participants?.find(p => p.id !== currentUserId);
   return otherParticipant?.avatar_url;
 }
 
@@ -217,5 +227,10 @@ export function getChatAvatarUrl(chat: Chat, currentUserId?: string): string | u
  * @returns True if any other participant is online
  */
 export function isChatOnline(chat: Chat, currentUserId?: string): boolean {
-  return chat.participants.some(p => p.id !== currentUserId && p.status === 'online');
+  // Backend may include status directly on chat object for direct chats
+  if (chat.type === 'direct' && chat.status) {
+    return chat.status === 'online';
+  }
+  
+  return chat.participants?.some(p => p.id !== currentUserId && p.status === 'online') || false;
 }

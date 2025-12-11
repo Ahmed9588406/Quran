@@ -42,9 +42,17 @@ export default function MessageList({
 
   // Filter by media if active
   if (isMediaFilterActive) {
-    filteredMessages = filteredMessages.filter(
-      (msg) => msg.media_url || (msg.attachments && msg.attachments.length > 0)
-    );
+    filteredMessages = filteredMessages.filter((msg) => {
+      if (msg.media_url) return true;
+      if (msg.attachments) {
+        // Handle both string and array attachments
+        const attachments = typeof msg.attachments === 'string' 
+          ? (() => { try { return JSON.parse(msg.attachments); } catch { return []; } })()
+          : msg.attachments;
+        return Array.isArray(attachments) && attachments.length > 0;
+      }
+      return false;
+    });
   }
 
   // Auto-scroll to bottom when new messages arrive
@@ -94,9 +102,9 @@ export default function MessageList({
 
         {/* Messages */}
         {filteredMessages.length > 0 ? (
-          filteredMessages.map((message) => (
+          filteredMessages.map((message, index) => (
             <MessageBubble
-              key={message.id}
+              key={message.id || `msg-${index}`}
               message={message}
               isSent={message.sender_id === currentUserId}
               onDelete={message.sender_id === currentUserId ? onDeleteMessage : undefined}

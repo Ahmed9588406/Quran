@@ -22,8 +22,8 @@ import {
   APIError,
 } from './types';
 
-// Backend API base URL
-const BASE_URL = 'http://192.168.1.18:9001';
+// Backend API base URL - matches the working backend
+export const API_BASE_URL = 'http://192.168.1.18:9001';
 
 /**
  * Custom error class for API errors
@@ -98,11 +98,12 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * Chat API Service Class
  * 
  * Provides all REST API methods for the chat system.
+ * Endpoints match the working backend at http://192.168.1.18:9001
  */
 export class ChatAPI {
   private baseUrl: string;
 
-  constructor(baseUrl: string = BASE_URL) {
+  constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
 
@@ -112,29 +113,28 @@ export class ChatAPI {
 
   /**
    * Lists all chats for the current user.
+   * Backend endpoint: GET /chat/list
    * 
    * Requirements: 1.1
    * 
    * @returns Promise resolving to array of Chat objects
    */
   async listChats(): Promise<Chat[]> {
-    const response = await fetch(`${this.baseUrl}/chats`, {
+    const response = await fetch(`${this.baseUrl}/chat/list`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ chats: Chat[] } | Chat[]>(response);
+    const data = await handleResponse<{ success: boolean; chats: Chat[] }>(response);
     
-    // Handle both array and object response shapes
-    if (Array.isArray(data)) {
-      return data;
-    }
+    // Backend returns { success: true, chats: [...] }
     return data.chats || [];
   }
 
   /**
    * Creates a new direct chat with another user.
    * If a chat already exists, returns the existing chat ID.
+   * Backend endpoint: POST /chat/create
    * 
    * Requirements: 2.2
    * 
@@ -142,28 +142,31 @@ export class ChatAPI {
    * @returns Promise resolving to CreateChatResponse with chat_id
    */
   async createChat(targetUserId: string): Promise<CreateChatResponse> {
-    const response = await fetch(`${this.baseUrl}/chats`, {
+    const response = await fetch(`${this.baseUrl}/chat/create`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ target_user_id: targetUserId }),
     });
     
-    return handleResponse<CreateChatResponse>(response);
+    const data = await handleResponse<{ success: boolean; chat_id: string }>(response);
+    return { chat_id: data.chat_id };
   }
 
   /**
    * Gets detailed information about a specific chat.
+   * Backend endpoint: GET /chat/:chatId
    * 
    * @param chatId - ID of the chat to retrieve
    * @returns Promise resolving to ChatDetails object
    */
   async getChatDetails(chatId: string): Promise<ChatDetails> {
-    const response = await fetch(`${this.baseUrl}/chats/${chatId}`, {
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    return handleResponse<ChatDetails>(response);
+    const data = await handleResponse<{ success: boolean; chat: ChatDetails; participants: any[] }>(response);
+    return { ...data.chat, participants: data.participants };
   }
 
 
@@ -173,7 +176,7 @@ export class ChatAPI {
 
   /**
    * Gets messages for a specific chat.
-   * Backend endpoint: /chat/:chat_id/messages?limit=50
+   * Backend endpoint: GET /chat/:chat_id/messages?limit=50
    * 
    * Requirements: 3.1
    * 
@@ -200,7 +203,6 @@ export class ChatAPI {
       params.append('after', options.after);
     }
     
-    // Backend endpoint: /chat/:chat_id/messages?limit=50
     const url = `${this.baseUrl}/chat/${chatId}/messages?${params.toString()}`;
     
     const response = await fetch(url, {
@@ -208,17 +210,13 @@ export class ChatAPI {
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ messages: Message[] } | Message[]>(response);
-    
-    // Handle both array and object response shapes
-    if (Array.isArray(data)) {
-      return data;
-    }
+    const data = await handleResponse<{ success: boolean; messages: Message[] }>(response);
     return data.messages || [];
   }
 
   /**
    * Sends a text message to a chat.
+   * Backend endpoint: POST /chat/:chat_id/message
    * 
    * Requirements: 3.1
    * 
@@ -227,17 +225,34 @@ export class ChatAPI {
    * @returns Promise resolving to the created Message object
    */
   async sendMessage(chatId: string, content: string): Promise<Message> {
-    const response = await fetch(`${this.baseUrl}/chats/${chatId}/messages`, {
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message`, {
       method: 'POST',
       headers: createHeaders('application/json'),
-      body: JSON.stringify({ content, type: 'text' }),
+      body: JSON.stringify({ content }),
     });
     
-    return handleResponse<Message>(response);
+    const data = await handleResponse<{ success: boolean; message_id?: string; message?: Message }>(response);
+    
+    // Return a message object - backend may return message_id or full message
+    if (data.message) {
+      return data.message;
+    }
+    
+    // Construct message from response
+    return {
+      id: data.message_id || '',
+      chat_id: chatId,
+      sender_id: '', // Will be filled by caller
+      content,
+      type: 'text',
+      created_at: new Date().toISOString(),
+      is_read: false,
+    };
   }
 
   /**
    * Sends a media file (image, video, audio) to a chat.
+   * Backend endpoint: POST /chat/:chat_id/message/:type (image, video, audio)
    * 
    * Requirements: 6.1
    * 
@@ -249,7 +264,6 @@ export class ChatAPI {
   async sendMedia(chatId: string, file: File, type: 'image' | 'video' | 'audio'): Promise<Message> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', type);
     
     // Don't set Content-Type header - browser will set it with boundary for multipart
     const headers: HeadersInit = {};
@@ -258,17 +272,30 @@ export class ChatAPI {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
-    const response = await fetch(`${this.baseUrl}/chats/${chatId}/media`, {
+    // Backend uses /chat/:chat_id/message/:type for media uploads
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message/${type}`, {
       method: 'POST',
       headers,
       body: formData,
     });
     
-    return handleResponse<Message>(response);
+    const data = await handleResponse<{ success: boolean; message_id?: string; media_url?: string }>(response);
+    
+    return {
+      id: data.message_id || '',
+      chat_id: chatId,
+      sender_id: '',
+      content: '',
+      type,
+      media_url: data.media_url,
+      created_at: new Date().toISOString(),
+      is_read: false,
+    };
   }
 
   /**
    * Deletes a message.
+   * Backend endpoint: DELETE /chat/message/:messageId
    * 
    * Requirements: 9.2
    * 
@@ -276,12 +303,12 @@ export class ChatAPI {
    * @returns Promise resolving when deletion is complete
    */
   async deleteMessage(messageId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/messages/${messageId}`, {
+    const response = await fetch(`${this.baseUrl}/chat/message/${messageId}`, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
     });
     
-    await handleResponse<void>(response);
+    await handleResponse<{ success: boolean }>(response);
   }
 
 
@@ -291,6 +318,7 @@ export class ChatAPI {
 
   /**
    * Creates a new group chat.
+   * Backend endpoint: POST /chat/group/create
    * 
    * Requirements: 8.1
    * 
@@ -299,17 +327,19 @@ export class ChatAPI {
    * @returns Promise resolving to CreateGroupResponse with chat_id
    */
   async createGroup(title: string, memberIds: string[]): Promise<CreateGroupResponse> {
-    const response = await fetch(`${this.baseUrl}/chats/group`, {
+    const response = await fetch(`${this.baseUrl}/chat/group/create`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ title, member_ids: memberIds }),
     });
     
-    return handleResponse<CreateGroupResponse>(response);
+    const data = await handleResponse<{ success: boolean; chat_id: string }>(response);
+    return { chat_id: data.chat_id };
   }
 
   /**
    * Adds a member to a group chat.
+   * Backend endpoint: POST /chat/group/:chatId/add
    * 
    * Requirements: 8.4
    * 
@@ -318,17 +348,18 @@ export class ChatAPI {
    * @returns Promise resolving when member is added
    */
   async addMember(chatId: string, userId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/chats/${chatId}/members`, {
+    const response = await fetch(`${this.baseUrl}/chat/group/${chatId}/add`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ user_id: userId }),
     });
     
-    await handleResponse<void>(response);
+    await handleResponse<{ success: boolean }>(response);
   }
 
   /**
    * Removes a member from a group chat.
+   * Backend endpoint: DELETE /chat/group/:chatId/remove
    * 
    * Requirements: 8.5
    * 
@@ -337,12 +368,13 @@ export class ChatAPI {
    * @returns Promise resolving when member is removed
    */
   async removeMember(chatId: string, userId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/chats/${chatId}/members/${userId}`, {
+    const response = await fetch(`${this.baseUrl}/chat/group/${chatId}/remove`, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
+      body: JSON.stringify({ user_id: userId }),
     });
     
-    await handleResponse<void>(response);
+    await handleResponse<{ success: boolean }>(response);
   }
 
   // ============================================================================
@@ -351,47 +383,34 @@ export class ChatAPI {
 
   /**
    * Searches for users by query string.
+   * Backend endpoint: GET /search/users?q=&limit=100
    * 
    * Requirements: 2.1
    * 
    * @param query - Search query string
+   * @param limit - Maximum number of results (default 100)
    * @returns Promise resolving to array of User objects
    */
-  async searchUsers(query: string): Promise<User[]> {
-    const params = new URLSearchParams({ q: query });
+  async searchUsers(query: string, limit: number = 100): Promise<User[]> {
+    const params = new URLSearchParams({ q: query, limit: limit.toString() });
     
-    const response = await fetch(`${this.baseUrl}/users/search?${params}`, {
+    const response = await fetch(`${this.baseUrl}/search/users?${params}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ users: User[] } | User[]>(response);
-    
-    // Handle both array and object response shapes
-    if (Array.isArray(data)) {
-      return data;
-    }
+    const data = await handleResponse<{ success: boolean; users: User[] }>(response);
     return data.users || [];
   }
 
   /**
    * Gets a list of available users for starting new chats.
+   * Uses search endpoint with empty query
    * 
    * @returns Promise resolving to array of User objects
    */
   async getUsers(): Promise<User[]> {
-    const response = await fetch(`${this.baseUrl}/users`, {
-      method: 'GET',
-      headers: createHeaders('application/json'),
-    });
-    
-    const data = await handleResponse<{ users: User[] } | User[]>(response);
-    
-    // Handle both array and object response shapes
-    if (Array.isArray(data)) {
-      return data;
-    }
-    return data.users || [];
+    return this.searchUsers('', 100);
   }
 
   /**
@@ -406,7 +425,24 @@ export class ChatAPI {
       headers: createHeaders('application/json'),
     });
     
-    return handleResponse<User>(response);
+    const data = await handleResponse<{ success: boolean; user: User }>(response);
+    return data.user;
+  }
+
+  /**
+   * Gets the current user's profile.
+   * Backend endpoint: GET /profile
+   * 
+   * @returns Promise resolving to User object
+   */
+  async getProfile(): Promise<User> {
+    const response = await fetch(`${this.baseUrl}/profile`, {
+      method: 'GET',
+      headers: createHeaders('application/json'),
+    });
+    
+    const data = await handleResponse<{ user: User }>(response);
+    return data.user;
   }
 }
 

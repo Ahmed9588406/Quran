@@ -39,6 +39,7 @@ export interface Participant {
 
 /**
  * Represents a chat conversation (direct or group)
+ * Backend may include user info directly on chat object for direct chats
  */
 export interface Chat {
   id: string;
@@ -49,6 +50,13 @@ export interface Chat {
   last_message_at?: string;
   unread_count: number;
   created_at: string;
+  // Direct chat - backend may include other user info directly
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  status?: 'online' | 'offline';
+  last_seen?: string;
+  participants_count?: number;
 }
 
 /**
@@ -84,7 +92,8 @@ export interface Message {
   sender_name?: string;
   content: string;
   type: 'text' | 'image' | 'video' | 'audio';
-  attachments?: Attachment[];
+  // Attachments can be JSON string from backend or parsed array
+  attachments?: Attachment[] | string;
   media_url?: string;
   created_at: string;
   is_read: boolean;

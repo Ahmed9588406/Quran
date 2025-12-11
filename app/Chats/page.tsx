@@ -7,7 +7,7 @@
  * Requirements: 1.1, 2.1, 3.1, 11.1
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Chat, Message, User } from '@/lib/chat/types';
 import { chatAPI } from '@/lib/chat/api';
 import { wsManager } from '@/lib/chat/websocket';
@@ -37,6 +37,26 @@ export default function ChatsPage() {
   const [isMediaFilterActive, setIsMediaFilterActive] = useState(false);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
 
+  // Load chats - defined first so it can be used in useEffect
+  const loadChats = useCallback(async () => {
+    try {
+      const fetchedChats = await chatAPI.listChats();
+      setChats(sortChatsByRecent(fetchedChats));
+    } catch (error) {
+      console.error('Error loading chats:', error);
+    }
+  }, []);
+
+  // Load messages for a chat
+  const loadMessages = useCallback(async (chatId: string) => {
+    try {
+      const fetchedMessages = await chatAPI.getMessages(chatId);
+      setMessages(fetchedMessages);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  }, []);
+
   // Initialize - get current user and connect WebSocket
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -62,7 +82,7 @@ export default function ChatsPage() {
     return () => {
       // Cleanup is handled by wsManager
     };
-  }, []);
+  }, [loadChats]);
 
   // WebSocket status listener
   useEffect(() => {
@@ -77,11 +97,14 @@ export default function ChatsPage() {
     const unsubscribe = wsManager.onMessage((message) => {
       switch (message.type) {
         case 'chat/receive':
-          if (message.data && message.chat_id) {
-            const newMessage = message.data as Message;
+          // Backend sends: { type: 'chat/receive', data: { chat_id, content, sender_id, ... } }
+          if (message.data) {
+            const msgData = message.data as Message & { chat_id?: string };
+            const chatId = msgData.chat_id || message.chat_id;
+            
             // Add message if it's for the current chat
-            if (currentChat && message.chat_id === currentChat.id) {
-              setMessages(prev => [...prev, newMessage]);
+            if (currentChat && chatId === currentChat.id) {
+              setMessages(prev => [...prev, msgData]);
             }
             // Refresh chat list
             loadChats();
@@ -89,8 +112,19 @@ export default function ChatsPage() {
           break;
         
         case 'chat/typing':
-          if (message.chat_id === currentChat?.id && message.user_id) {
-            setTypingUsers(prev => [...new Set([...prev, message.user_id!])]);
+          // Backend sends: { type: 'chat/typing', data: { chat_id, is_typing, user_id? } }
+          if (message.data) {
+            const typingData = message.data as { chat_id?: string; is_typing?: boolean; user_id?: string };
+            const typingChatId = typingData?.chat_id || message.chat_id;
+            const typingUserId = typingData?.user_id || message.user_id;
+            
+            if (typingChatId === currentChat?.id && typingUserId) {
+              if (typingData?.is_typing !== false) {
+                setTypingUsers(prev => [...new Set([...prev, typingUserId])]);
+              } else {
+                setTypingUsers(prev => prev.filter(id => id !== typingUserId));
+              }
+            }
           }
           break;
         
@@ -101,9 +135,14 @@ export default function ChatsPage() {
           break;
         
         case 'chat/message_deleted':
-          if (message.chat_id === currentChat?.id && message.data) {
-            const data = message.data as { message_id: string };
-            setMessages(prev => prev.filter(m => m.id !== data.message_id));
+          // Backend sends: { type: 'chat/message_deleted', data: { chat_id, message_id } }
+          if (message.data) {
+            const deleteData = message.data as { chat_id?: string; message_id: string };
+            const deleteChatId = deleteData.chat_id || message.chat_id;
+            
+            if (deleteChatId === currentChat?.id) {
+              setMessages(prev => prev.filter(m => m.id !== deleteData.message_id));
+            }
           }
           loadChats();
           break;
@@ -114,37 +153,21 @@ export default function ChatsPage() {
             const data = message.data as { status: 'online' | 'offline' };
             setChats(prev => prev.map(chat => ({
               ...chat,
-              participants: chat.participants.map(p =>
+              // Update status on chat object for direct chats
+              status: chat.type === 'direct' && 
+                (chat.participants?.some(p => p.id === message.user_id) || true) 
+                ? data.status 
+                : chat.status,
+              participants: chat.participants?.map(p =>
                 p.id === message.user_id ? { ...p, status: data.status } : p
-              ),
+              ) || [],
             })));
           }
           break;
       }
     });
     return unsubscribe;
-  }, [currentChat]);
-
-
-  // Load chats
-  const loadChats = useCallback(async () => {
-    try {
-      const fetchedChats = await chatAPI.listChats();
-      setChats(sortChatsByRecent(fetchedChats));
-    } catch (error) {
-      console.error('Error loading chats:', error);
-    }
-  }, []);
-
-  // Load messages for a chat
-  const loadMessages = useCallback(async (chatId: string) => {
-    try {
-      const fetchedMessages = await chatAPI.getMessages(chatId);
-      setMessages(fetchedMessages);
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    }
-  }, []);
+  }, [currentChat, loadChats]);
 
   // Handle chat selection
   const handleSelectChat = useCallback(async (chat: Chat) => {
@@ -179,13 +202,18 @@ export default function ChatsPage() {
     
     try {
       const message = await chatAPI.sendMessage(currentChat.id, content);
-      setMessages(prev => [...prev, message]);
+      // Fill in sender_id if not provided by backend
+      const fullMessage = {
+        ...message,
+        sender_id: message.sender_id || currentUserId,
+      };
+      setMessages(prev => [...prev, fullMessage]);
       loadChats(); // Refresh to update last message
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;
     }
-  }, [currentChat, loadChats]);
+  }, [currentChat, currentUserId, loadChats]);
 
   // Handle send media
   const handleSendMedia = useCallback(async (file: File, type: 'image' | 'video' | 'audio') => {
@@ -193,13 +221,18 @@ export default function ChatsPage() {
     
     try {
       const message = await chatAPI.sendMedia(currentChat.id, file, type);
-      setMessages(prev => [...prev, message]);
+      // Fill in sender_id if not provided by backend
+      const fullMessage = {
+        ...message,
+        sender_id: message.sender_id || currentUserId,
+      };
+      setMessages(prev => [...prev, fullMessage]);
       loadChats();
     } catch (error) {
       console.error('Error sending media:', error);
       throw error;
     }
-  }, [currentChat, loadChats]);
+  }, [currentChat, currentUserId, loadChats]);
 
   // Handle delete message
   const handleDeleteMessage = useCallback(async (messageId: string) => {
