@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import NavBar from "../user/navbar";
 import LeftSide from "../user/leftside";
@@ -12,6 +12,9 @@ import AboutSection from "./AboutSection";
 import ProfilePostCard from "./PostCard";
 import { Button } from "@/components/ui/button";
 import { getCurrentUserId } from "@/lib/auth-helpers";
+import { Bookmark, Grid, Film, Loader2 } from "lucide-react";
+import { ReelsGrid } from "../reels/ReelsGrid";
+import { Reel } from "@/lib/reels/types";
 
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
 
@@ -74,6 +77,7 @@ interface Media {
  */
 interface Post {
   id: string;
+  user_id?: string;
   content?: string;
   created_at?: string;
   username?: string;
@@ -87,6 +91,7 @@ interface Post {
   share_comment?: string;
   original_post?: {
     id: string;
+    user_id?: string;
     content?: string;
     created_at?: string;
     username?: string;
@@ -125,6 +130,20 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
   const [postsLoading, setPostsLoading] = useState(false);
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string>("/icons/settings/profile.png");
   const [currentUserName, setCurrentUserName] = useState<string>("You");
+  
+  // Saved posts state
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [savedReels, setSavedReels] = useState<Post[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [savedSubTab, setSavedSubTab] = useState<"posts" | "reels">("posts");
+  const [savedPage, setSavedPage] = useState(1);
+  const [savedHasMore, setSavedHasMore] = useState(true);
+
+  // User reels state (Requirements: 2.1, 2.2, 2.3)
+  const [userReels, setUserReels] = useState<Reel[]>([]);
+  const [reelsLoading, setReelsLoading] = useState(false);
+  const [reelsPage, setReelsPage] = useState(1);
+  const [reelsHasMore, setReelsHasMore] = useState(true);
 
   // Detect if viewing own profile and fetch current user data
   useEffect(() => {
@@ -289,6 +308,153 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
     fetchUserPosts();
   }, [userId]);
 
+  // Fetch saved items
+  const fetchSavedItems = useCallback(async (type: "posts" | "reels", pageNum: number, append = false) => {
+    try {
+      setSavedLoading(true);
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setSavedLoading(false);
+        return;
+      }
+
+      const res = await fetch(`/api/posts/saved?type=${type}&limit=20&page=${pageNum}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to fetch saved items:", res.status);
+        setSavedLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const items: Post[] = Array.isArray(data) ? data : data.posts || data.data || [];
+      
+      // Mark all items as saved
+      const normalizedItems = items.map((item: Post) => ({
+        ...item,
+        saved_by_current_user: true,
+      }));
+
+      if (type === "posts") {
+        setSavedPosts(prev => append ? [...prev, ...normalizedItems] : normalizedItems);
+      } else {
+        setSavedReels(prev => append ? [...prev, ...normalizedItems] : normalizedItems);
+      }
+
+      // Check if there are more items
+      const total = data.total || data.meta?.total;
+      const currentCount = append 
+        ? (type === "posts" ? savedPosts.length : savedReels.length) + normalizedItems.length 
+        : normalizedItems.length;
+      setSavedHasMore(total ? currentCount < total : normalizedItems.length === 20);
+    } catch (err) {
+      console.error("Error fetching saved items:", err);
+    } finally {
+      setSavedLoading(false);
+    }
+  }, [savedPosts.length, savedReels.length]);
+
+  // Fetch saved items when saved tab is active
+  useEffect(() => {
+    if (activeTab === "saved" && isOwnProfile) {
+      setSavedPage(1);
+      fetchSavedItems(savedSubTab, 1, false);
+    }
+  }, [activeTab, savedSubTab, isOwnProfile, fetchSavedItems]);
+
+  // Fetch user reels (Requirements: 2.1)
+  const fetchUserReels = useCallback(async (pageNum: number, append = false) => {
+    try {
+      setReelsLoading(true);
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setReelsLoading(false);
+        return;
+      }
+
+      // Fetch reels from /api/users/{userId}/reels endpoint
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/reels?limit=12&page=${pageNum}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to fetch user reels:", res.status);
+        setReelsLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const reels: Reel[] = data.reels || [];
+      
+      // Normalize video URLs
+      const normalizedReels = reels.map((reel: Reel) => ({
+        ...reel,
+        video_url: reel.video_url?.startsWith("http") 
+          ? reel.video_url 
+          : `http://192.168.1.18:9001${reel.video_url}`,
+        thumbnail_url: reel.thumbnail_url?.startsWith("http")
+          ? reel.thumbnail_url
+          : reel.thumbnail_url
+          ? `http://192.168.1.18:9001${reel.thumbnail_url}`
+          : undefined,
+        user_avatar: reel.user_avatar?.startsWith("http")
+          ? reel.user_avatar
+          : reel.user_avatar
+          ? `http://192.168.1.18:9001${reel.user_avatar}`
+          : "/icons/settings/profile.png",
+      }));
+
+      if (append) {
+        setUserReels(prev => [...prev, ...normalizedReels]);
+      } else {
+        setUserReels(normalizedReels);
+      }
+
+      // Check if there are more reels
+      const totalCount = data.total_count || 0;
+      const currentCount = append ? userReels.length + normalizedReels.length : normalizedReels.length;
+      setReelsHasMore(currentCount < totalCount);
+      
+      console.info("Fetched user reels:", normalizedReels);
+    } catch (err) {
+      console.error("Error fetching user reels:", err);
+    } finally {
+      setReelsLoading(false);
+    }
+  }, [userId, userReels.length]);
+
+  // Fetch reels when reels tab is active
+  useEffect(() => {
+    if (activeTab === "reels") {
+      setReelsPage(1);
+      fetchUserReels(1, false);
+    }
+  }, [activeTab, fetchUserReels]);
+
+  const handleLoadMoreReels = () => {
+    const nextPage = reelsPage + 1;
+    setReelsPage(nextPage);
+    fetchUserReels(nextPage, true);
+  };
+
+  const handleUnsavePost = (postId: string) => {
+    if (savedSubTab === "posts") {
+      setSavedPosts(prev => prev.filter(p => p.id !== postId));
+    } else {
+      setSavedReels(prev => prev.filter(r => r.id !== postId));
+    }
+  };
+
+  const handleLoadMoreSaved = () => {
+    const nextPage = savedPage + 1;
+    setSavedPage(nextPage);
+    fetchSavedItems(savedSubTab, nextPage, true);
+  };
+
   const handleLike = (postId: string) => {
     console.log("Like post:", postId);
     // TODO: Call API to like post
@@ -353,6 +519,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                     <ProfilePostCard
                       key={post.id}
                       id={post.id}
+                      user_id={post.user_id || userData?.id}
                       content={post.content}
                       created_at={post.created_at}
                       username={post.username || userData?.username}
@@ -396,9 +563,46 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
           </div>
         );
       case "reels":
+        // Requirements: 2.1, 2.2, 2.3 - Display user's own reels in grid layout
         return (
-          <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
-            {userData?.reels_count === 0 ? "No reels yet" : `${userData?.reels_count} reels`}
+          <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
+            {reelsLoading && userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-[#7b2030] animate-spin mb-4" />
+                <p className="text-gray-500">Loading reels...</p>
+              </div>
+            ) : userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Film className="w-16 h-16 text-gray-300 mb-4" />
+                <p className="text-lg font-medium">No reels yet</p>
+                {isOwnProfile && (
+                  <p className="text-sm mt-2">Create your first reel to share with others</p>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* ReelsGrid component - Requirements: 2.2, 2.3 */}
+                <ReelsGrid reels={userReels} />
+                
+                {/* Load More Button */}
+                {reelsHasMore && !reelsLoading && (
+                  <div className="flex justify-center pt-6">
+                    <button
+                      onClick={handleLoadMoreReels}
+                      className="px-6 py-2 bg-[#7b2030] text-white rounded-full text-sm font-medium hover:bg-[#5e0e27] transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+                
+                {reelsLoading && userReels.length > 0 && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 text-[#7b2030] animate-spin" />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         );
       case "favorites":
@@ -413,6 +617,149 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
             contactInfo={contactInfo}
             isOwnProfile={isOwnProfile}
           />
+        );
+      case "saved":
+        const currentSavedItems = savedSubTab === "posts" ? savedPosts : savedReels;
+        return (
+          <div>
+            {/* Sub-tabs for Posts and Reels */}
+            <div className="bg-white rounded-lg border border-[#f0e6e5] mb-4">
+              <div className="flex border-b border-gray-200">
+                <button
+                  onClick={() => setSavedSubTab("posts")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    savedSubTab === "posts"
+                      ? "border-[#7b2030] text-[#7b2030]"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Grid className="w-4 h-4" />
+                  Posts
+                </button>
+                <button
+                  onClick={() => setSavedSubTab("reels")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    savedSubTab === "reels"
+                      ? "border-[#7b2030] text-[#7b2030]"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Film className="w-4 h-4" />
+                  Reels
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            {savedLoading && currentSavedItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-[#7b2030] animate-spin mb-4" />
+                <p className="text-gray-500">Loading saved {savedSubTab}...</p>
+              </div>
+            ) : currentSavedItems.length === 0 ? (
+              <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 flex flex-col items-center justify-center">
+                <Bookmark className="w-16 h-16 text-gray-300 mb-4" />
+                <h2 className="text-lg font-medium text-gray-700 mb-2">
+                  No saved {savedSubTab} yet
+                </h2>
+                <p className="text-gray-500 text-center max-w-sm">
+                  {savedSubTab === "posts"
+                    ? "Save posts to view them later. Tap the bookmark icon on any post to save it."
+                    : "Save reels to watch them later. Tap the bookmark icon on any reel to save it."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {savedSubTab === "posts" ? (
+                  // Posts view - card layout
+                  currentSavedItems.map((post) => {
+                    const normalizedMedia = post.media?.map((m) => ({
+                      url: m.url.startsWith("http") ? m.url : `http://192.168.1.18:9001${m.url}`,
+                      media_type: m.media_type,
+                    }));
+                    const normalizedAvatar = post.avatar_url?.startsWith("http")
+                      ? post.avatar_url
+                      : post.avatar_url
+                      ? `http://192.168.1.18:9001${post.avatar_url}`
+                      : "/icons/settings/profile.png";
+
+                    return (
+                      <ProfilePostCard
+                        key={post.id}
+                        id={post.id}
+                        user_id={post.user_id}
+                        content={post.content}
+                        created_at={post.created_at}
+                        username={post.username}
+                        display_name={post.display_name}
+                        avatar_url={normalizedAvatar}
+                        media={normalizedMedia}
+                        likes_count={post.likes_count}
+                        liked_by_current_user={post.liked_by_current_user}
+                        saved_by_current_user={true}
+                        currentUserAvatar={currentUserAvatar}
+                        currentUserName={currentUserName}
+                        onUnsave={handleUnsavePost}
+                      />
+                    );
+                  })
+                ) : (
+                  // Reels view - grid layout
+                  <div className="grid grid-cols-3 gap-2">
+                    {currentSavedItems.map((reel) => {
+                      const videoMedia = reel.media?.find((m) => m.media_type === "video");
+                      const thumbnailUrl = videoMedia?.url
+                        ? videoMedia.url.startsWith("http")
+                          ? videoMedia.url
+                          : `http://192.168.1.18:9001${videoMedia.url}`
+                        : null;
+
+                      return (
+                        <div
+                          key={reel.id}
+                          className="relative aspect-[9/16] bg-gray-900 rounded-lg overflow-hidden group cursor-pointer"
+                        >
+                          {thumbnailUrl ? (
+                            <video
+                              src={thumbnailUrl}
+                              className="w-full h-full object-cover"
+                              muted
+                              preload="metadata"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                              <Film className="w-8 h-8 text-gray-500" />
+                            </div>
+                          )}
+                          <div className="absolute bottom-2 left-2">
+                            <Film className="w-4 h-4 text-white drop-shadow-lg" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Load More Button */}
+                {savedHasMore && !savedLoading && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={handleLoadMoreSaved}
+                      className="px-6 py-2 bg-[#7b2030] text-white rounded-full text-sm font-medium hover:bg-[#5e0e27] transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+
+                {savedLoading && currentSavedItems.length > 0 && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 text-[#7b2030] animate-spin" />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         );
       default:
         return null;
@@ -460,7 +807,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
         reelsCount={userData.reels_count}
       />
       
-      <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} isOwnProfile={isOwnProfile} />
       <main className="max-w-4xl mx-auto px-6 py-6">{renderTabContent()}</main>
       
       <div className="fixed right-8 bottom-8 z-50">

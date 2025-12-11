@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
+import { likePost, unlikePost } from "@/src/api/postsApi";
 
 type Media = {
   url: string;
@@ -57,6 +58,54 @@ export default function PostView() {
 
   const toggleLike = (id: string) => {
     setLikedIds((s) => ({ ...s, [id]: !s[id] }));
+  };
+
+  // Like/dislike logic for feed posts
+  const handleToggleLike = async (id: string) => {
+    const prevLiked = likedIds[id];
+    setLikedIds((s) => ({ ...s, [id]: !prevLiked }));
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              likes_count: prevLiked
+                ? Math.max(0, (p.likes_count ?? 0) - 1)
+                : (p.likes_count ?? 0) + 1,
+            }
+          : p
+      )
+    );
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      const result = prevLiked
+        ? await unlikePost(id, token)
+        : await likePost(id, token);
+      if (result && result.likesCount !== undefined) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...p, likes_count: result.likesCount }
+              : p
+          )
+        );
+      }
+    } catch (err) {
+      // revert on failure
+      setLikedIds((s) => ({ ...s, [id]: prevLiked }));
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                likes_count: prevLiked
+                  ? (p.likes_count ?? 0) + 1
+                  : Math.max(0, (p.likes_count ?? 0) - 1),
+              }
+            : p
+        )
+      );
+    }
   };
 
   useEffect(() => {
@@ -190,17 +239,28 @@ export default function PostView() {
               <div className="px-4 pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex gap-6">
-                    <button
-                      onClick={() => toggleLike(post.id)}
-                      className="flex flex-col items-center text-center focus:outline-none"
-                    >
-                      <Heart
-                        className={`w-5 h-5 ${likedIds[post.id] ? "text-red-500 fill-red-500" : "text-gray-500"}`}
-                      />
-                      <span className="text-xs mt-1 text-gray-600">
-                        {(post.likes_count ?? 0) + (likedIds[post.id] && !post.liked_by_me ? 1 : 0) - (!likedIds[post.id] && post.liked_by_me ? 1 : 0)}
-                      </span>
-                    </button>
+                    {/* Like/Dislike button */}
+                    {!likedIds[post.id] ? (
+                      <button
+                        onClick={() => handleToggleLike(post.id)}
+                        className="flex flex-col items-center text-center focus:outline-none"
+                      >
+                        <Heart className="w-5 h-5 text-gray-500" />
+                        <span className="text-xs mt-1 text-gray-600">
+                          {post.likes_count ?? 0}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleToggleLike(post.id)}
+                        className="flex flex-col items-center text-center focus:outline-none"
+                      >
+                        <Heart className="w-5 h-5 text-gray-400 fill-current" />
+                        <span className="text-xs mt-1 text-gray-600">
+                          Dislike{post.likes_count ? ` (${post.likes_count})` : ""}
+                        </span>
+                      </button>
+                    )}
 
                     <button className="flex flex-col items-center text-center text-gray-600 focus:outline-none">
                       <MessageCircle className="w-5 h-5 text-gray-500" />

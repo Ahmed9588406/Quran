@@ -194,12 +194,7 @@ export default function SuggestedUsers() {
     <div className="bg-white rounded-xl border border-[#f0e6e5] p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-900">Suggested for you</h3>
-        <button 
-          onClick={() => router.push("/explore/people")}
-          className="text-xs text-[#7b2030] font-medium hover:underline"
-        >
-          See all
-        </button>
+        
       </div>
       
       <div className="space-y-3">

@@ -1,38 +1,18 @@
 "use client";
 import React from "react";
-import { Pencil } from "lucide-react";
-import Image from "next/image";
+import { MapPin, Briefcase, Mail, Phone } from "lucide-react";
 
-interface WorkExperience {
+interface InfoItem {
   id: string;
-  icon: string;
+  icon?: string;
   title: string;
   subtitle?: string;
-  isAddNew?: boolean;
-}
-
-interface PlaceLived {
-  id: string;
-  icon: string;
-  title: string;
-  subtitle?: string;
-  isAddNew?: boolean;
-}
-
-interface ContactInfo {
-  id: string;
-  icon: string;
-  label: string;
-  value?: string;
-  isAddNew?: boolean;
 }
 
 interface AboutSectionProps {
-  workExperiences: WorkExperience[];
-  placesLived: PlaceLived[];
-  contactInfo: ContactInfo[
-    
-  ];
+  workExperiences: InfoItem[];
+  placesLived: InfoItem[];
+  contactInfo: InfoItem[];
   isOwnProfile?: boolean;
 }
 
@@ -40,175 +20,70 @@ export default function AboutSection({
   workExperiences,
   placesLived,
   contactInfo,
-  isOwnProfile = true,
+  isOwnProfile = false,
 }: AboutSectionProps) {
-  // helper to map contact item to an icon (uses provided icon if present)
-  const getContactIcon = (c: ContactInfo) => {
-    if (c.icon) return c.icon;
-
-    const label = (c.label || "").toLowerCase();
-    if (label.includes("phone") || label.includes("mobile"))
-      return "/icons/user_profile/phone.svg";
-    if (label.includes("email")) return "/icons/user_profile/email.svg";
-    if (label.includes("website") || label.includes("site"))
-      return "/icons/user_profile/info.svg";
-    if (label.includes("address") || label.includes("location"))
-      return "/icons/user_profile/info.svg";
-    // fallback
-    return "/icons/user_profile/info.svg";
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Work Section */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Work</h2>
-        <div className="space-y-3">
-          {workExperiences.map((work) => (
-            <div
-              key={work.id}
-              className="flex items-center justify-between py-2"
-            >
-              <div className="flex items-center gap-3">
-                <Image
-                  src="/icons/user_profile/work.svg"
-                  alt=""
-                  className="w-10 h-10"
-                  width={50}
-                  height={30}
-                />
-                <div>
-                  {work.isAddNew ? (
-                    <span className="text-sm text-[#7b2030] font-medium cursor-pointer hover:underline">
-                      {work.title}
-                    </span>
-                  ) : (
-                    <>
-                      <div className="text-sm font-medium text-gray-900">
-                        {work.title}
-                      </div>
-                      {work.subtitle && (
-                        <div className="text-xs text-gray-500">
-                          {work.subtitle}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-              {isOwnProfile && !work.isAddNew && (
-                <button
-                  aria-label="Edit"
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="bg-white rounded-lg border border-[#f0e6e5] p-6">
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">About</h2>
 
-      {/* Places Lived Section */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Places Lived</h2>
-        <div className="space-y-3">
-          {placesLived.map((place) => (
-            <div
-              key={place.id}
-              className="flex items-center justify-between py-2"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#fff0ed] flex items-center justify-center flex-shrink-0">
-                  <Image
-                    src="/icons/user_profile/place.svg"
-                    alt=""
-                    className="w-10 h-10"
-                    width={50}
-                    height={30}
-                  />
-                </div>
+      {/* Work Experience */}
+      {workExperiences.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Work</h3>
+          <div className="space-y-3">
+            {workExperiences.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <Briefcase className="w-5 h-5 text-gray-400" />
                 <div>
-                  {place.isAddNew ? (
-                    <span className="text-sm text-[#7b2030] font-medium cursor-pointer hover:underline">
-                      {place.title}
-                    </span>
-                  ) : (
-                    <>
-                      <div className="text-sm font-medium text-gray-900">
-                        {place.title}
-                      </div>
-                      {place.subtitle && (
-                        <div className="text-xs text-gray-500">
-                          {place.subtitle}
-                        </div>
-                      )}
-                    </>
-                  )}
+                  <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                  {item.subtitle && <p className="text-xs text-gray-500">{item.subtitle}</p>}
                 </div>
               </div>
-              {isOwnProfile && !place.isAddNew && (
-                <button
-                  aria-label="Edit"
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Contact Info Section */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Contact Info</h2>
-        <div className="space-y-3">
-          {contactInfo.map((contact) => (
-            <div
-              key={contact.id}
-              className="flex items-center justify-between py-2"
-            >
-              <div className="flex items-center gap-3">
-                  <Image
-                    src={getContactIcon(contact)}
-                    alt={contact.label}
-                    width={50}
-                    height={50}
-                    className="object-contain w-10 h-10"
-                  />
-                
+      {/* Places Lived */}
+      {placesLived.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Places Lived</h3>
+          <div className="space-y-3">
+            {placesLived.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <MapPin className="w-5 h-5 text-gray-400" />
                 <div>
-                  {contact.isAddNew ? (
-                    <span className="text-sm text-[#7b2030] font-medium cursor-pointer hover:underline">
-                      {contact.label}
-                    </span>
-                  ) : (
-                    <>
-                      <div className="text-sm font-medium text-gray-900">
-                        {contact.label}
-                      </div>
-                      {contact.value && (
-                        <div className="text-xs text-gray-500">
-                          {contact.value}
-                        </div>
-                      )}
-                    </>
-                  )}
+                  <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                  {item.subtitle && <p className="text-xs text-gray-500">{item.subtitle}</p>}
                 </div>
               </div>
-              {isOwnProfile && !contact.isAddNew && (
-                <button
-                  aria-label="Edit"
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Contact Info */}
+      {contactInfo.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Contact Info</h3>
+          <div className="space-y-3">
+            {contactInfo.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                {item.icon === "email" ? (
+                  <Mail className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <Phone className="w-5 h-5 text-gray-400" />
+                )}
+                <p className="text-sm text-gray-900">{item.title}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {workExperiences.length === 0 && placesLived.length === 0 && contactInfo.length === 0 && (
+        <p className="text-gray-500 text-sm">No information available</p>
+      )}
     </div>
   );
 }

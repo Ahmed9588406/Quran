@@ -1,13 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import NavBar from "../user/navbar";
 import LeftSide from "../user/leftside";
 import ProfileHeader from "./ProfileHeader";
+import ProfileTabs from "./ProfileTabs";
+import PhotosGrid from "./PhotosGrid";
+import AboutSection from "./AboutSection";
+import Leaderboard from "./Leaderboard";
 import { Button } from "@/components/ui/button";
 import PostCard from "../user-profile/PostCard";
+import { ReelsGrid } from "../reels/ReelsGrid";
+import { Reel } from "@/lib/reels/types";
+import { Film, Loader2 } from "lucide-react";
 
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
 const ChatPanel = dynamic(() => import("../user/chat"), { ssr: false });
@@ -36,6 +43,7 @@ interface UserProfile {
 
 interface Post {
   id: string;
+  user_id?: string;
   content: string;
   created_at: string;
   username: string;
@@ -48,6 +56,13 @@ interface Post {
   liked_by_me: boolean;
 }
 
+interface PhotoItem {
+  post_id: string;
+  photo_url: string;
+  media_type: string;
+  created_at: string;
+}
+
 interface OtherUserClientProps {
   userId: string;
 }
@@ -58,6 +73,13 @@ function normalizeUrl(url?: string | null): string {
   return `${BASE_URL}${url}`;
 }
 
+// Sample leaderboard data
+const leaderboardData = [
+  { rank: 1, name: "Mazen Mohamed", avatar: "/icons/settings/profile.png", points: 265, isCurrentUser: false },
+  { rank: 2, name: "Ali Mohamed", avatar: "/icons/settings/profile.png", points: 263 },
+  { rank: 3, name: "Mahmoud Mohamed", avatar: "/icons/settings/profile.png", points: 262 },
+];
+
 export default function OtherUserClient({ userId }: OtherUserClientProps) {
   const router = useRouter();
   const [isLeftOpen, setIsLeftOpen] = useState(false);
@@ -65,15 +87,24 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [activeView, setActiveView] = useState("home");
+  const [activeTab, setActiveTab] = useState("posts");
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Other user reels state (Requirements: 3.1, 3.2, 3.3)
+  const [userReels, setUserReels] = useState<Reel[]>([]);
+  const [reelsLoading, setReelsLoading] = useState(false);
+  const [reelsPage, setReelsPage] = useState(1);
+  const [reelsHasMore, setReelsHasMore] = useState(true);
 
   // Load current user from localStorage
   useEffect(() => {
@@ -87,7 +118,7 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
     }
   }, []);
 
-  // Fetch user profile - using same endpoint as UserProfileClient
+  // Fetch user profile
   useEffect(() => {
     if (!userId) return;
 
@@ -102,7 +133,6 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
           return;
         }
 
-        // Use the same API endpoint as UserProfileClient
         const res = await fetch(`/api/user_profile?userId=${encodeURIComponent(userId)}`, {
           method: "GET",
           headers: {
@@ -112,7 +142,6 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
         });
 
         if (!res.ok) {
-          console.error(`Profile fetch failed: ${res.status}`);
           throw new Error("Failed to load profile");
         }
 
@@ -149,7 +178,7 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
     fetchProfile();
   }, [userId]);
 
-  // Fetch user posts - using same endpoint pattern as UserProfileClient
+  // Fetch user posts
   useEffect(() => {
     if (!userId) return;
 
@@ -162,7 +191,6 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
           return;
         }
 
-        // Use the same API endpoint as UserProfileClient for posts
         const res = await fetch(`/api/user_profile?userId=${encodeURIComponent(userId)}&type=posts&limit=20&page=1`, {
           method: "GET",
           headers: {
@@ -172,15 +200,13 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
         });
 
         if (!res.ok) {
-          console.error(`Posts fetch failed: ${res.status}`);
           setPosts([]);
           return;
         }
 
         const data = await res.json();
         let postsArray: any[] = [];
-        
-        // Handle various response shapes
+
         if (data.success && Array.isArray(data.posts)) {
           postsArray = data.posts;
         } else if (Array.isArray(data.posts)) {
@@ -193,6 +219,7 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
 
         const normalizedPosts: Post[] = postsArray.map((p: any) => ({
           id: p.id,
+          user_id: p.user_id || profile?.id || userId,
           content: p.content || "",
           created_at: p.created_at,
           username: p.username || profile?.username || "",
@@ -218,7 +245,124 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
     }
 
     fetchPosts();
-  }, [userId, profile?.username, profile?.display_name, profile?.avatar_url]);
+  }, [userId, profile?.username, profile?.display_name, profile?.avatar_url, profile?.id]);
+
+  // Fetch user photos
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchPhotos() {
+      setLoadingPhotos(true);
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          setLoadingPhotos(false);
+          return;
+        }
+
+        const res = await fetch(`/api/user_photos?userId=${encodeURIComponent(userId)}&limit=20&page=1`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          setPhotos([]);
+          return;
+        }
+
+        const data = await res.json();
+        if (data?.photos && Array.isArray(data.photos)) {
+          setPhotos(data.photos);
+        }
+      } catch (err) {
+        console.error("Error fetching photos:", err);
+        setPhotos([]);
+      } finally {
+        setLoadingPhotos(false);
+      }
+    }
+
+    fetchPhotos();
+  }, [userId]);
+
+  // Fetch other user's reels (Requirements: 3.1)
+  const fetchUserReels = useCallback(async (pageNum: number, append = false) => {
+    try {
+      setReelsLoading(true);
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setReelsLoading(false);
+        return;
+      }
+
+      // Fetch reels from /api/reels/user/{userId} endpoint for other users
+      const res = await fetch(`/api/reels/user/${encodeURIComponent(userId)}?limit=12&page=${pageNum}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to fetch user reels:", res.status);
+        setReelsLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      const reels: Reel[] = data.reels || [];
+      
+      // Normalize video URLs
+      const normalizedReels = reels.map((reel: Reel) => ({
+        ...reel,
+        video_url: reel.video_url?.startsWith("http") 
+          ? reel.video_url 
+          : `${BASE_URL}${reel.video_url}`,
+        thumbnail_url: reel.thumbnail_url?.startsWith("http")
+          ? reel.thumbnail_url
+          : reel.thumbnail_url
+          ? `${BASE_URL}${reel.thumbnail_url}`
+          : undefined,
+        user_avatar: reel.user_avatar?.startsWith("http")
+          ? reel.user_avatar
+          : reel.user_avatar
+          ? `${BASE_URL}${reel.user_avatar}`
+          : DEFAULT_AVATAR,
+      }));
+
+      if (append) {
+        setUserReels(prev => [...prev, ...normalizedReels]);
+      } else {
+        setUserReels(normalizedReels);
+      }
+
+      // Check if there are more reels
+      const totalCount = data.total_count || 0;
+      const currentCount = append ? userReels.length + normalizedReels.length : normalizedReels.length;
+      setReelsHasMore(currentCount < totalCount);
+      
+      console.info("Fetched other user reels:", normalizedReels);
+    } catch (err) {
+      console.error("Error fetching user reels:", err);
+    } finally {
+      setReelsLoading(false);
+    }
+  }, [userId, userReels.length]);
+
+  // Fetch reels when reels tab is active
+  useEffect(() => {
+    if (activeTab === "reels") {
+      setReelsPage(1);
+      fetchUserReels(1, false);
+    }
+  }, [activeTab, fetchUserReels]);
+
+  const handleLoadMoreReels = () => {
+    const nextPage = reelsPage + 1;
+    setReelsPage(nextPage);
+    fetchUserReels(nextPage, true);
+  };
 
   const handleToggleFollow = async () => {
     if (!userId) return;
@@ -269,6 +413,155 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
     }
   };
 
+  const handleLike = (postId: string) => {
+    console.log("Like post:", postId);
+  };
+
+  const handleComment = (postId: string, content: string) => {
+    console.log("Comment on post:", postId, content);
+  };
+
+  const handleShare = (postId: string) => {
+    console.log("Share post:", postId);
+  };
+
+  const handleRepost = (postId: string) => {
+    console.log("Repost:", postId);
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "posts":
+        return (
+          <div className="flex gap-6">
+            {/* Left: Photos sidebar */}
+            <div className="w-72 flex-shrink-0 hidden md:block">
+              <div className="sticky top-6">
+                {loadingPhotos ? (
+                  <div className="bg-white rounded-lg border border-[#f0e6e5] p-4 text-center text-gray-500">
+                    Loading photos...
+                  </div>
+                ) : (
+                  <PhotosGrid photos={photos} onViewAll={() => setActiveTab("photos")} />
+                )}
+              </div>
+            </div>
+            {/* Right: Posts feed */}
+            <div className="flex-1 space-y-4">
+              {loadingPosts ? (
+                <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
+                  Loading posts...
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="bg-white rounded-lg border border-[#f0e6e5] p-8 text-center text-gray-500">
+                  No posts yet
+                </div>
+              ) : (
+                posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    id={post.id}
+                    user_id={post.user_id}
+                    content={post.content}
+                    created_at={post.created_at}
+                    username={post.username}
+                    display_name={post.display_name}
+                    avatar_url={post.avatar_url}
+                    media={post.media}
+                    likes_count={post.likes_count}
+                    liked_by_current_user={post.liked_by_me}
+                    isOwnProfile={false}
+                    currentUserAvatar={currentUser?.avatar_url || DEFAULT_AVATAR}
+                    currentUserName={currentUser?.display_name || currentUser?.username || "You"}
+                    onLike={handleLike}
+                    onComment={handleComment}
+                    onShare={handleShare}
+                    onRepost={handleRepost}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      case "photos":
+        return (
+          <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
+            <h2 className="text-lg font-semibold mb-4">All Photos</h2>
+            {loadingPhotos ? (
+              <div className="text-center text-gray-500 py-8">Loading photos...</div>
+            ) : photos.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">No photos yet</div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((photo, idx) => (
+                  <div key={photo.post_id || `photo-${idx}`} className="relative aspect-square rounded-lg overflow-hidden">
+                    <img src={photo.photo_url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      case "reels":
+        // Requirements: 3.1, 3.2, 3.3 - Display other user's reels in grid layout
+        return (
+          <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
+            {reelsLoading && userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-[#7b2030] animate-spin mb-4" />
+                <p className="text-gray-500">Loading reels...</p>
+              </div>
+            ) : userReels.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Film className="w-16 h-16 text-gray-300 mb-4" />
+                <p className="text-lg font-medium">No reels yet</p>
+              </div>
+            ) : (
+              <>
+                {/* ReelsGrid component - Requirements: 3.2, 3.3 */}
+                <ReelsGrid reels={userReels} />
+                
+                {/* Load More Button */}
+                {reelsHasMore && !reelsLoading && (
+                  <div className="flex justify-center pt-6">
+                    <button
+                      onClick={handleLoadMoreReels}
+                      className="px-6 py-2 bg-[#7b2030] text-white rounded-full text-sm font-medium hover:bg-[#5e0e27] transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+                
+                {reelsLoading && userReels.length > 0 && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 text-[#7b2030] animate-spin" />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      case "leaderboard":
+        return <Leaderboard entries={leaderboardData} currentUserRank={0} />;
+      case "about":
+        return (
+          <AboutSection
+            workExperiences={profile?.work ? [{ id: "w1", icon: "/icons/profile/work.svg", title: profile.work }] : []}
+            placesLived={
+              profile?.location || profile?.country
+                ? [{ id: "pl1", icon: "/icons/profile/location.svg", title: profile.location || profile.country || "" }]
+                : []
+            }
+            contactInfo={[]}
+            isOwnProfile={false}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   if (loadingProfile) {
     return (
       <div className="min-h-screen bg-[#faf8f6] flex items-center justify-center">
@@ -289,7 +582,7 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf8f6] text-gray-900">
+    <div className="min-h-screen bg-gray-50">
       <NavBar
         onToggleSidebar={() => setIsLeftOpen((s) => !s)}
         isSidebarOpen={isLeftOpen}
@@ -308,70 +601,42 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
         permanent={false}
       />
 
-      <main className="pt-16 w-full">
-        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8">
-          {/* Profile Header */}
-          <ProfileHeader
-            name={profile.display_name}
-            username={profile.username}
-            avatar={profile.avatar_url || DEFAULT_AVATAR}
-            coverUrl={profile.cover_url}
-            posts={profile.posts_count}
-            followers={profile.followers_count}
-            following={profile.following_count}
-            bio={profile.bio || ""}
-            tags={[]}
-            isOwnProfile={false}
-            isFollowing={isFollowing}
-            isTogglingFollow={isTogglingFollow}
-            location={profile.location}
-            work={profile.work}
-            education={profile.education}
-            onFollow={handleToggleFollow}
-            onMessage={handleMessage}
-          />
+      {/* Profile Header */}
+      <ProfileHeader
+        name={profile.display_name}
+        username={profile.username}
+        avatar={profile.avatar_url || DEFAULT_AVATAR}
+        coverUrl={profile.cover_url}
+        posts={profile.posts_count}
+        followers={profile.followers_count}
+        following={profile.following_count}
+        bio={profile.bio || ""}
+        tags={[]}
+        isOwnProfile={false}
+        isFollowing={isFollowing}
+        isTogglingFollow={isTogglingFollow}
+        location={profile.location}
+        work={profile.work}
+        education={profile.education}
+        onFollow={handleToggleFollow}
+        onMessage={handleMessage}
+      />
 
-          {/* Posts */}
-          <div className="space-y-6 mt-6">
-            {loadingPosts ? (
-              <div className="text-center text-gray-500 py-8">Loading posts...</div>
-            ) : posts.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">No posts yet</div>
-            ) : (
-              posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  id={post.id}
-                  content={post.content}
-                  created_at={post.created_at}
-                  username={post.username}
-                  display_name={post.display_name}
-                  avatar_url={post.avatar_url}
-                  media={post.media}
-                  likes_count={post.likes_count}
-                  liked_by_current_user={post.liked_by_me}
-                  isOwnProfile={false}
-                  currentUserAvatar={currentUser?.avatar_url || DEFAULT_AVATAR}
-                  currentUserName={currentUser?.display_name || currentUser?.username || "You"}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      </main>
+      {/* Profile Tabs */}
+      <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Tab Content */}
+      <main className="max-w-4xl mx-auto px-6 py-6">{renderTabContent()}</main>
 
       {/* Floating Messages button */}
-      <div className="fixed right-4 bottom-4 sm:right-6 sm:bottom-6 z-50">
+      <div className="fixed right-8 bottom-8 z-50">
         <Button
-          aria-label="Messages"
-          className="flex items-center justify-center gap-2 shadow-lg bg-[#7a1233] text-white rounded-full sm:rounded-2xl h-12 px-3 sm:px-4"
-          onClick={() => setIsMessagesOpen(true)}
+          aria-label="Open messages"
+          className="h-[48px] bg-[#7b2030] text-white rounded-2xl inline-flex items-center justify-center gap-2 px-5 py-2 shadow-lg hover:bg-[#5e0e27]"
           type="button"
+          onClick={() => setIsMessagesOpen(true)}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="opacity-90">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span className="text-sm font-medium hidden sm:inline">Messages</span>
+          <span className="text-sm font-medium">Messages</span>
         </Button>
       </div>
 
@@ -385,11 +650,7 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
         onOpenStart={() => setIsMessagesOpen(false)}
       />
 
-      <ChatPanel
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        contact={selectedContact}
-      />
+      <ChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} contact={selectedContact} />
     </div>
   );
 }

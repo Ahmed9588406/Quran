@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Use local API proxy to avoid CORS issues
 const API_URL = "/api/feed";
 
@@ -8,30 +9,25 @@ export type FeedMedia = {
 
 export type FeedPost = {
 	id: string;
-	author_id?: string;
+	user_id?: string | number;
+	author_id?: string | number;
 	content?: string;
-	visibility?: string;
-	created_at?: string;
-	original_post_id?: string | null;
-	share_comment?: string | null;
 	username?: string;
 	display_name?: string;
 	avatar_url?: string;
+	created_at?: string;
 	likes_count?: number;
 	comments_count?: number;
-	shares_count?: number;
-	is_following?: number;
-	score?: number;
-	is_shared?: boolean;
-	media?: FeedMedia[];
 	liked_by_me?: boolean;
+	is_following?: boolean | number;
+	media?: { url: string; media_type: string }[];
 };
 
 export type FeedResponse = {
 	success?: boolean;
-	posts?: FeedPost[];
+	posts: FeedPost[];
 	page?: number;
-	stories?: unknown[];
+	stories?: any[];
 };
 
 /** Fetch feed from local API proxy */

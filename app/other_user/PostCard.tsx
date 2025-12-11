@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Play } from "lucide-react";
+import { likePost, unlikePost, savePost, unsavePost } from "@/src/api/postsApi";
 
 interface PostCardProps {
   id: string;
@@ -34,9 +35,47 @@ export default function PostCard({
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(likes);
 
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+  // NEW: saved state and menu
+  const [saved, setSaved] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleLike = async () => {
+    // optimistic update
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    setLiked(!prevLiked);
+    setLikeCount(prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1);
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      const result = prevLiked ? await unlikePost(id, token) : await likePost(id, token);
+
+      if (result && result.likesCount !== undefined) {
+        setLikeCount(result.likesCount);
+      }
+    } catch (err) {
+      // revert on failure
+      console.error("Failed to toggle like on post:", err);
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+    }
+  };
+
+  const toggleSave = async () => {
+    const prev = saved;
+    setSaved(!prev); // optimistic
+    setMenuOpen(false);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      if (prev) {
+        await unsavePost(id, token);
+      } else {
+        await savePost(id, token);
+      }
+    } catch (err) {
+      console.error("Failed to toggle save on post:", err);
+      setSaved(prev); // revert
+    }
   };
 
   return (
@@ -62,12 +101,33 @@ export default function PostCard({
           <button className="px-4 py-1 bg-[#7b2030] text-white text-xs font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
             Follow
           </button>
-          <button
-            aria-label="More options"
-            className="p-1 text-gray-400 hover:text-gray-600"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
+          <div className="relative">
+            <button
+              aria-label="More options"
+              className="p-1 text-gray-400 hover:text-gray-600"
+              onClick={() => setMenuOpen((s) => !s)}
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+
+            {/* Menu */}
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-40 bg-white border rounded shadow z-50">
+                <button
+                  onClick={toggleSave}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                >
+                  {saved ? "Unsave post" : "Save post"}
+                </button>
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -106,15 +166,45 @@ export default function PostCard({
 
       {/* Actions */}
       <div className="flex items-center gap-6 mt-4 pt-3 border-t border-gray-100">
-        <button
-          onClick={handleLike}
-          className={`flex items-center gap-2 text-sm ${
-            liked ? "text-red-500" : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Heart className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
-          <span>Like</span>
-        </button>
+        {!liked ? (
+          <button
+            onClick={handleLike}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#7b2030]"
+          >
+            <Heart className="w-5 h-5" />
+            <span>
+              Like{likeCount > 0 ? ` (${likeCount})` : ""}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={async () => {
+              // Dislike (DELETE)
+              const prevLiked = liked;
+              const prevCount = likeCount;
+              setLiked(false);
+              setLikeCount(Math.max(0, prevCount - 1));
+              try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+                const result = await unlikePost(id, token);
+                if (result && result.likesCount !== undefined) {
+                  setLikeCount(result.likesCount);
+                }
+              } catch (err) {
+                // revert on failure
+                console.error("Failed to dislike post:", err);
+                setLiked(prevLiked);
+                setLikeCount(prevCount);
+              }
+            }}
+            className="flex items-center gap-2 text-sm text-[#7b2030] cursor-default"
+          >
+            <Heart className="w-5 h-5 fill-current text-[#7b2030]" />
+            <span>
+              Dislike{likeCount > 0 ? ` (${likeCount})` : ""}
+            </span>
+          </button>
+        )}
 
         <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
           <MessageCircle className="w-5 h-5" />

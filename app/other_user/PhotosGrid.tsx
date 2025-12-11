@@ -1,55 +1,54 @@
 "use client";
 import React from "react";
-import Image from "next/image";
-import { MoreHorizontal } from "lucide-react";
 
-interface Photo {
-  id: string;
-  src: string;
-  alt: string;
+interface PhotoItem {
+  post_id: string;
+  photo_url: string;
+  media_type: string;
+  created_at: string;
 }
 
 interface PhotosGridProps {
-  photos: Photo[];
+  photos: PhotoItem[];
   onViewAll?: () => void;
 }
 
 export default function PhotosGrid({ photos, onViewAll }: PhotosGridProps) {
+  const displayPhotos = photos.slice(0, 9);
+
   return (
     <div className="bg-white rounded-lg border border-[#f0e6e5] p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Photos</h2>
-        <button
-          aria-label="More options"
-          className="p-1 text-gray-400 hover:text-gray-600"
-        >
-          <MoreHorizontal className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-1">
-        {photos.slice(0, 9).map((photo) => (
-          <div
-            key={photo.id}
-            className="relative aspect-square overflow-hidden rounded-sm cursor-pointer hover:opacity-90 transition-opacity"
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-semibold text-gray-900">Photos</h3>
+        {photos.length > 9 && onViewAll && (
+          <button
+            onClick={onViewAll}
+            className="text-sm text-[#7b2030] hover:underline"
           >
-            <Image
-              src={photo.src}
-              alt={photo.alt}
-              fill
-              style={{ objectFit: "cover" }}
-            />
-          </div>
-        ))}
+            See All
+          </button>
+        )}
       </div>
 
-      {photos.length > 9 && (
-        <button
-          onClick={onViewAll}
-          className="w-full mt-3 py-2 text-sm text-[#7b2030] font-medium hover:bg-gray-50 rounded-md transition-colors"
-        >
-          View all photos
-        </button>
+      {displayPhotos.length === 0 ? (
+        <div className="text-center text-gray-500 py-4 text-sm">
+          No photos yet
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-1">
+          {displayPhotos.map((photo, idx) => (
+            <div
+              key={photo.post_id || `photo-${idx}`}
+              className="relative aspect-square rounded-lg overflow-hidden bg-gray-100"
+            >
+              <img
+                src={photo.photo_url}
+                alt={`Photo ${idx + 1}`}
+                className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+              />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

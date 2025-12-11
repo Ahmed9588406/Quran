@@ -29,7 +29,6 @@ export default function ProfileHeader({
   name,
   username,
   avatar,
-  coverUrl,
   posts,
   followers,
   following,
@@ -38,31 +37,27 @@ export default function ProfileHeader({
   isOwnProfile = false,
   isFollowing = false,
   isTogglingFollow = false,
-  country,
   location,
   education,
   work,
-  interests,
-  reelsCount = 0,
   onFollow,
   onMessage,
 }: ProfileHeaderProps) {
   return (
-    <div className="border-b border-[#f0e6e5] bg-white rounded-xl">
-      {/* Cover Image */}
-      {coverUrl && (
-        <div className="h-48 bg-gradient-to-r from-[#7b2030] to-[#5e0e27] relative">
-          <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
-        </div>
-      )}
-
-      <div className="px-6 py-8">
+    <div className="bg-white border-b border-[#f0e6e5]">
+      {/* Profile Info */}
+      <div className="max-w-4xl mx-auto px-6 py-20">
         <div className="flex items-start gap-6">
           {/* Avatar */}
-          <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-200 flex-shrink-0">
-            <img src={avatar || "/icons/settings/profile.png"} alt={name} className="w-full h-full object-cover" />
+          <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-200 flex-shrink-0 shadow-lg">
+            <img
+              src={avatar || "/icons/settings/profile.png"}
+              alt={name}
+              className="w-full h-full object-cover"
+            />
           </div>
 
+          {/* Name and actions */}
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <div>
@@ -85,7 +80,11 @@ export default function ProfileHeader({
                   </button>
                   <button
                     onClick={onMessage}
-                    className="px-5 py-2 text-sm font-medium rounded-full border border-gray-300 hover:bg-gray-50 transition-colors"
+                    style={{
+                      border: "1.5px solid var(--Tinted-Muted-Gold-1, #D7BA83)",
+                      color: "var(--Tinted-Muted-Gold-1, #D7BA83)",
+                    }}
+                    className="px-5 py-2 text-sm font-medium rounded-full hover:bg-[rgba(215,186,131,0.08)] transition-colors"
                   >
                     Message
                   </button>
@@ -98,7 +97,7 @@ export default function ProfileHeader({
 
             {/* Tags */}
             {tags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {tags.map((tag, idx) => (
                   <span key={idx} className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
                     {tag}
@@ -108,38 +107,38 @@ export default function ProfileHeader({
             )}
 
             {/* Stats */}
-            <div className="mt-4 flex items-center gap-6">
+            <div className="flex items-center gap-6 mt-4">
               <div>
-                <p className="text-lg font-semibold text-gray-900">{posts}</p>
-                <p className="text-xs text-gray-500">Posts</p>
+                <span className="text-lg font-semibold text-gray-900">{posts}</span>
+                <span className="text-sm text-gray-500 ml-1">Posts</span>
               </div>
               <div>
-                <p className="text-lg font-semibold text-gray-900">{followers}</p>
-                <p className="text-xs text-gray-500">Followers</p>
+                <span className="text-lg font-semibold text-gray-900">{followers}</span>
+                <span className="text-sm text-gray-500 ml-1">Followers</span>
               </div>
               <div>
-                <p className="text-lg font-semibold text-gray-900">{following}</p>
-                <p className="text-xs text-gray-500">Following</p>
+                <span className="text-lg font-semibold text-gray-900">{following}</span>
+                <span className="text-sm text-gray-500 ml-1">Following</span>
               </div>
             </div>
 
             {/* Location, Work, Education */}
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="flex flex-wrap gap-4 mt-4">
               {location && (
                 <div className="flex items-center text-sm text-gray-500">
-                  <MapPin className="w-5 h-5 mr-2" />
+                  <MapPin className="w-4 h-4 mr-1" />
                   {location}
                 </div>
               )}
               {work && (
                 <div className="flex items-center text-sm text-gray-500">
-                  <Briefcase className="w-5 h-5 mr-2" />
+                  <Briefcase className="w-4 h-4 mr-1" />
                   {work}
                 </div>
               )}
               {education && (
                 <div className="flex items-center text-sm text-gray-500">
-                  <GraduationCap className="w-5 h-5 mr-2" />
+                  <GraduationCap className="w-4 h-4 mr-1" />
                   {education}
                 </div>
               )}

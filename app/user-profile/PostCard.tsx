@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
-import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
-import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
+import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X, Bookmark } from "lucide-react";
+import { likeComment, unlikeComment, addComment, addReply, likePost, unlikePost, savePost, unsavePost } from "@/src/api/postsApi";
+import Image from "next/image";
+import Link from "next/link";
+import SavePostModal from "./SavePostModal";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -85,6 +88,7 @@ interface PostCardProps {
   likes_count?: number;
   shares_count?: number;
   liked_by_current_user?: boolean;
+  saved_by_current_user?: boolean;
   isOwnProfile?: boolean;
   currentUserAvatar?: string;
   currentUserName?: string;
@@ -92,6 +96,8 @@ interface PostCardProps {
   onComment?: (postId: string, content: string) => void;
   onShare?: (postId: string) => void;
   onRepost?: (postId: string) => void;
+  onUnsave?: (postId: string) => void;
+  user_id?: string;
 }
 
 /**
@@ -626,6 +632,7 @@ export default function PostCard({
   media,
   likes_count = 0,
   liked_by_current_user = false,
+  saved_by_current_user = false,
   isOwnProfile = false,
   currentUserAvatar = DEFAULT_AVATAR,
   currentUserName = "You",
@@ -633,9 +640,16 @@ export default function PostCard({
   onComment,
   onShare,
   onRepost,
+  onUnsave,
+  user_id,
 }: PostCardProps) {
+  // All state hooks must be declared at the top level
   const [liked, setLiked] = useState(liked_by_current_user);
   const [likeCount, setLikeCount] = useState(likes_count);
+  const [saved, setSaved] = useState(saved_by_current_user);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [isSavingPost, setIsSavingPost] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState<Comment[]>([]);
@@ -643,21 +657,44 @@ export default function PostCard({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const authorName = display_name || username || "User";
-  const authorAvatar = avatar_url || DEFAULT_AVATAR;
+  const authorAvatar = normalizeAvatarUrl(avatar_url);
   const timeAgo = formatRelativeTime(created_at);
-
-  // Filter only image media for lightbox
   const imageMedia = media?.filter(m => m.media_type !== "video") || [];
+  const hasValidUserId = user_id && user_id !== '';
+  const profileHref = hasValidUserId ? `/user-profile/${user_id}` : '#';
+
+  // Ensure comments is always an array
+  const safeComments: Comment[] = Array.isArray(comments) ? comments : [];
 
   const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+    // Optimistic update + call API
+    const prev = liked;
+    const prevCount = likeCount;
+    setLiked(!prev);
+    setLikeCount(prev ? Math.max(0, prevCount - 1) : prevCount + 1);
+
+    (async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+        const result = prev ? await unlikePost(id, token) : await likePost(id, token);
+        if (result && result.likesCount !== undefined) {
+          setLikeCount(result.likesCount);
+        }
+      } catch (err) {
+        console.error("Failed to toggle like on post:", err);
+        // revert optimistic update
+        setLiked(prev);
+        setLikeCount(prevCount);
+      }
+    })();
+
+    // preserve external callback
     onLike?.(id);
   };
 
   const handleToggleComments = async () => {
     setShowComments(!showComments);
-    if (!showComments && comments.length === 0) {
+    if (!showComments && safeComments.length === 0) {
       await fetchComments();
     }
   };
@@ -771,11 +808,9 @@ export default function PostCard({
   };
 
   const handleLikeComment = async (commentId: string) => {
-    // Find the comment to check current like state
     const comment = comments.find((c) => c.id === commentId);
     const isCurrentlyLiked = comment?.liked_by_current_user ?? false;
 
-    // Optimistic UI update
     setComments((prev) =>
       prev.map((c) =>
         c.id === commentId
@@ -788,14 +823,12 @@ export default function PostCard({
       )
     );
 
-    // Call appropriate API based on current state
     try {
       const token = localStorage.getItem("access_token") || undefined;
       const result = isCurrentlyLiked
         ? await unlikeComment(commentId, token)
         : await likeComment(commentId, token);
       
-      // Update with actual like count from server if available
       if (result.likesCount !== undefined) {
         setComments((prev) =>
           prev.map((c) =>
@@ -807,7 +840,6 @@ export default function PostCard({
       }
     } catch (error) {
       console.error("Failed to like/unlike comment:", error);
-      // Revert optimistic update on error
       setComments((prev) =>
         prev.map((c) =>
           c.id === commentId
@@ -852,34 +884,146 @@ export default function PostCard({
     setLightboxIndex(index);
   };
 
-  // Suppress unused variable warnings
-  void likeCount;
+  const handleSavePost = async () => {
+    setIsSavingPost(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      await savePost(id, token);
+      setSaved(true);
+      setTimeout(() => setShowSaveModal(false), 500);
+    } catch (err) {
+      console.error("Failed to save post:", err);
+    } finally {
+      setIsSavingPost(false);
+    }
+  };
 
+  const handleUnsavePost = async () => {
+    setIsSavingPost(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      await unsavePost(id, token);
+      setSaved(false);
+      onUnsave?.(id);
+      setTimeout(() => setShowSaveModal(false), 500);
+    } catch (err) {
+      console.error("Failed to unsave post:", err);
+    } finally {
+      setIsSavingPost(false);
+    }
+  };
+
+  // Debug save handler — use local API via savePost(...) to avoid CORS
+  async function handleBackendSave(postId: string, setSaved?: (v: boolean) => void) {
+    console.log("[debug] Calling local save API for postId:", postId);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      const result = await savePost(postId, token);
+      console.log("[debug] savePost result:", result);
+      if (result?.success) {
+        setSaved?.(true);
+        console.log("[debug] Save succeeded for post:", postId);
+      } else {
+        console.warn("[debug] Save reported no success:", result);
+      }
+    } catch (err) {
+      console.error("[debug] Error calling local save API:", err);
+    }
+  }
+  
   return (
     <>
       <div className="bg-white rounded-lg border border-[#f0e6e5] overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-4 pb-0">
           <div className="flex items-center gap-3">
-            <Avatar src={authorAvatar} alt={authorName} size={40} />
+            {hasValidUserId ? (
+              <Link href={profileHref} className="flex-shrink-0">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 cursor-pointer hover:opacity-80 transition-opacity">
+                  <img
+                    src={authorAvatar}
+                    alt={authorName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = DEFAULT_AVATAR;
+                    }}
+                  />
+                </div>
+              </Link>
+            ) : (
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                <img
+                  src={authorAvatar}
+                  alt={authorName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = DEFAULT_AVATAR;
+                  }}
+                />
+              </div>
+            )}
+            
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">{authorName}</h3>
-              <p className="text-xs text-gray-500">{timeAgo}</p>
+              {hasValidUserId ? (
+                <Link href={profileHref} className="font-semibold text-sm text-gray-900 hover:underline cursor-pointer">
+                  {authorName}
+                </Link>
+              ) : (
+                <span className="font-semibold text-sm text-gray-900">{authorName}</span>
+              )}
+              
+              {username && (
+                hasValidUserId ? (
+                  <Link href={profileHref}>
+                    <p className="text-xs text-gray-500 hover:underline cursor-pointer">@{username}</p>
+                  </Link>
+                ) : (
+                  <p className="text-xs text-gray-500">@{username}</p>
+                )
+              )}
+              
+              {created_at && <p className="text-xs text-gray-400">{timeAgo}</p>}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {!isOwnProfile && (
+            {!isOwnProfile && hasValidUserId && (
               <button className="px-4 py-1 bg-[#7b2030] text-white text-xs font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
                 Follow
               </button>
             )}
-            <button
-              aria-label="More options"
-              className="p-1 text-gray-400 hover:text-gray-600"
-            >
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
+            
+            <div className="relative">
+              <button
+                aria-label="More options"
+                className="p-1 text-gray-400 hover:text-gray-600"
+                onClick={() => setMenuOpen((s) => !s)}
+              >
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow z-50">
+                  <button
+                    onClick={() => {
+                      setShowSaveModal(true);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors"
+                  >
+                    {saved ? "Unsave post" : "Save post"}
+                  </button>
+                  <button
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -893,18 +1037,43 @@ export default function PostCard({
           <MediaGrid media={media} onImageClick={handleImageClick} />
         )}
 
-        {/* Actions */}
+        {/* Actions (replace the existing actions JSX with this changed block) */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 mt-3">
-          <button
-            onClick={handleLike}
-            className={`flex items-center gap-2 text-sm ${
-              liked ? "text-[#7b2030]" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <ThumbsUp className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
-            <span>Like</span>
-          </button>
-
+          {!liked ? (
+            <button
+              onClick={handleLike}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#7b2030]"
+            >
+              <ThumbsUp className="w-5 h-5" />
+              <span>Like{likeCount > 0 ? ` (${likeCount})` : ""}</span>
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                // Dislike (DELETE)
+                const prevLiked = liked;
+                const prevCount = likeCount;
+                setLiked(false);
+                setLikeCount(Math.max(0, prevCount - 1));
+                try {
+                  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+                  const result = await unlikePost(id, token);
+                  if (result && result.likesCount !== undefined) {
+                    setLikeCount(result.likesCount);
+                  }
+                } catch (err) {
+                  // revert on failure
+                  console.error("Failed to dislike post:", err);
+                  setLiked(prevLiked);
+                  setLikeCount(prevCount);
+                }
+              }}
+              className="flex items-center gap-2 text-sm text-[#7b2030] cursor-default"
+            >
+              <ThumbsUp className="w-5 h-5 fill-current text-[#7b2030]" />
+              <span>Dislike{likeCount > 0 ? ` (${likeCount})` : ""}</span>
+            </button>
+          )}
           <button
             onClick={handleToggleComments}
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -927,6 +1096,25 @@ export default function PostCard({
           >
             <Share2 className="w-5 h-5" />
             <span>Share</span>
+          </button>
+
+          {/* Save button with filled state when saved */}
+          <button
+            onClick={async () => {
+              if (saved) {
+                await handleUnsavePost();
+              } else {
+                await handleSavePost();
+              }
+            }}
+            className={`flex items-center gap-2 text-sm ${
+              saved 
+                ? "text-[#7b2030]" 
+                : "text-gray-500 hover:text-[#7b2030]"
+            }`}
+          >
+            <Bookmark className={`w-5 h-5 ${saved ? "fill-[#7b2030]" : ""}`} />
+            <span>{saved ? "Saved" : "Save"}</span>
           </button>
         </div>
 
@@ -958,11 +1146,11 @@ export default function PostCard({
             {/* Comments List */}
             {isLoadingComments ? (
               <div className="text-center text-gray-500 text-sm py-4">Loading comments...</div>
-            ) : comments.length === 0 ? (
+            ) : safeComments.length === 0 ? (
               <div className="text-center text-gray-500 text-sm py-4">No comments yet. Be the first to comment!</div>
             ) : (
               <div className="space-y-4">
-                {comments.map((comment, index) => (
+                {safeComments.map((comment, index) => (
                   <CommentItem
                     key={comment.id || `comment-${index}`}
                     comment={comment}
@@ -978,17 +1166,7 @@ export default function PostCard({
           </div>
         )}
       </div>
-
-      {/* Lightbox */}
-      {lightboxIndex !== null && imageMedia.length > 0 && (
-        <Lightbox
-          media={imageMedia}
-          currentIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-          onPrev={() => setLightboxIndex((prev) => Math.max(0, (prev || 0) - 1))}
-          onNext={() => setLightboxIndex((prev) => Math.min(imageMedia.length - 1, (prev || 0) + 1))}
-        />
-      )}
     </>
   );
 }
+

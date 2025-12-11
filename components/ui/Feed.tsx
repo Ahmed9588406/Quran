@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { fetchFeed, FeedPost } from "../../src/feed/feedApi";
 import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, X } from "lucide-react";
 import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
+import Link from "next/link";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 
@@ -601,6 +602,28 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 	const timeAgo = formatRelativeTime(post.created_at);
 	const imageMedia = post.media?.filter((m) => !m.media_type?.includes("video")) || [];
 
+	// Get user ID from post - check all possible field names and ensure it's a valid value
+	const userId = post.user_id || (post as any).author_id || (post as any).authorId || (post as any).userId;
+	
+	// Get current user ID to compare and avoid linking to self
+	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+	
+	useEffect(() => {
+		try {
+			const userStr = localStorage.getItem("user");
+			if (userStr) {
+				const user = JSON.parse(userStr);
+				setCurrentUserId(String(user.id || user.user_id || ""));
+			}
+		} catch (err) {
+			console.error("Error reading current user:", err);
+		}
+	}, []);
+	
+	// Only create profile link if we have a valid userId and it's not the current user
+	const isOtherUser = userId && currentUserId && String(userId) !== currentUserId;
+	const profileHref = isOtherUser ? `/user-profile/${userId}` : (userId ? `/user-profile/${userId}` : '#');
+
 	const handleLike = () => {
 		setLiked(!liked);
 		setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
@@ -640,7 +663,9 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 				id: c.id,
 				author: {
 					name: c.author?.display_name || c.author?.username || c.display_name || c.username || "User",
-					avatar: normalizeAvatarUrl(c.author?.avatar_url || c.author?.avatar || c.avatar_url || c.avatar),
+					avatar: normalizeAvatarUrl(
+						c.author?.avatar_url || c.author?.avatar || c.avatar_url || c.avatar || DEFAULT_AVATAR
+					),
 					username: c.author?.username || c.username || "",
 				},
 				content: c.content || c.text || "",
@@ -788,7 +813,7 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 
 	async function toggleFollow() {
 		// author id is expected on post.author_id; guard if missing
-		const authorId = (post as any).author_id || (post as any).authorId || undefined;
+		const authorId = (post as any).author_id || (post as any).authorId || (post as any).user_id || (post as any).userId || undefined;
 		if (!authorId) return;
 		const prev = isFollowing;
 		setIsFollowing(!prev);
@@ -826,26 +851,61 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 				{/* Header */}
 				<div className="flex items-start justify-between p-4 pb-0">
 					<div className="flex items-center gap-3">
-						<Avatar src={authorAvatar} alt={authorName} size={40} />
+						{userId ? (
+							<Link href={profileHref} className="flex-shrink-0">
+								<div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 cursor-pointer hover:opacity-80 transition-opacity">
+									<img
+										src={authorAvatar}
+										alt={authorName}
+										className="w-full h-full object-cover"
+									/>
+								</div>
+							</Link>
+						) : (
+							<div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+								<img
+									src={authorAvatar}
+									alt={authorName}
+									className="w-full h-full object-cover"
+								/>
+							</div>
+						)}
 						<div>
-							<h3 className="text-sm font-semibold text-gray-900">{authorName}</h3>
-							<p className="text-xs text-gray-500">{timeAgo}</p>
+							{userId ? (
+								<Link href={profileHref} className="font-semibold text-sm text-gray-900 hover:underline cursor-pointer">
+									{authorName}
+								</Link>
+							) : (
+								<span className="font-semibold text-sm text-gray-900">{authorName}</span>
+							)}
+							{post.username && (
+								userId ? (
+									<Link href={profileHref}>
+										<p className="text-xs text-gray-500 hover:underline cursor-pointer">@{post.username}</p>
+									</Link>
+								) : (
+									<p className="text-xs text-gray-500">@{post.username}</p>
+								)
+							)}
+							{post.created_at && <p className="text-xs text-gray-400">{timeAgo}</p>}
 						</div>
 					</div>
 
 					<div className="flex items-center gap-2">
-						{/* Follow / Following button */}
-						<button
-							onClick={toggleFollow}
-							disabled={isTogglingFollow}
-							className={`px-4 py-1 text-xs font-medium rounded-full transition-colors ${
-								isFollowing
-									? "bg-white text-[#7b2030] border border-[#7b2030] hover:bg-[#fffaf9]"
-									: "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
-							}`}
-						>
-							{isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
-						</button>
+						{/* Follow / Following button - only show if we have a user ID and it's not the current user */}
+						{isOtherUser && (
+							<button
+								onClick={toggleFollow}
+								disabled={isTogglingFollow}
+								className={`px-4 py-1 text-xs font-medium rounded-full transition-colors ${
+									isFollowing
+										? "bg-white text-[#7b2030] border border-[#7b2030] hover:bg-[#fffaf9]"
+										: "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
+								}`}
+							>
+								{isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
+							</button>
+						)}
 						<button aria-label="More options" className="p-1 text-gray-400 hover:text-gray-600">
 							<MoreHorizontal className="w-5 h-5" />
 						</button>
@@ -862,9 +922,9 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 				<div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 mt-3">
 					<button
 						onClick={handleLike}
-						className={`flex items-center gap-2 text-sm ${liked ? "text-[#7b2030]" : "text-gray-500 hover:text-gray-700"}`}
+						className={`flex items-center gap-2 text-sm ${liked ? "text-[#7b2030] cursor-default" : "text-gray-500 hover:text-[#7b2030]"}`}
 					>
-						<ThumbsUp className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
+						<ThumbsUp className={`w-5 h-5 ${liked ? "fill-current text-[#7b2030]" : ""}`} />
 						<span>Like</span>
 					</button>
 
