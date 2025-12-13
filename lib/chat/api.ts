@@ -390,7 +390,8 @@ export class ChatAPI {
 
   /**
    * Creates a new group chat.
-   * Backend endpoint: POST /chat/group/create
+   * Backend endpoint: POST /chat/group
+   * Body: { "title": "Group Name", "members": ["USER_ID_1", "USER_ID_2"] }
    * 
    * Requirements: 8.1
    * 
@@ -399,14 +400,47 @@ export class ChatAPI {
    * @returns Promise resolving to CreateGroupResponse with chat_id
    */
   async createGroup(title: string, memberIds: string[]): Promise<CreateGroupResponse> {
-    const response = await fetch(`${this.baseUrl}/chat/group/create`, {
-      method: 'POST',
-      headers: createHeaders('application/json'),
-      body: JSON.stringify({ title, member_ids: memberIds }),
+    const requestBody = { title, members: memberIds };
+    
+    console.log('Creating group with:', {
+      url: `${this.baseUrl}/chat/group`,
+      body: requestBody,
     });
     
-    const data = await handleResponse<{ success: boolean; chat_id: string }>(response);
-    return { chat_id: data.chat_id };
+    const response = await fetch(`${this.baseUrl}/chat/group`, {
+      method: 'POST',
+      headers: createHeaders('application/json'),
+      body: JSON.stringify(requestBody),
+    });
+    
+    // Log response for debugging
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Group creation failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      
+      // Try to parse as JSON for better error message
+      try {
+        const errorData = JSON.parse(errorText);
+        throw new ChatAPIError(
+          errorData.message || errorData.error || 'Failed to create group',
+          response.status,
+          errorData.error || 'GROUP_CREATE_ERROR'
+        );
+      } catch (e) {
+        if (e instanceof ChatAPIError) throw e;
+        throw new ChatAPIError(errorText || 'Failed to create group', response.status, 'GROUP_CREATE_ERROR');
+      }
+    }
+    
+    const data = await response.json();
+    console.log('Group created successfully:', data);
+    
+    // Handle different response formats
+    return { chat_id: data.chat_id || data.id || data.group_id };
   }
 
   /**
