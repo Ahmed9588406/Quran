@@ -15,9 +15,9 @@ import PostCard from "../user-profile/PostCard";
 import { ReelsGrid } from "../reels/ReelsGrid";
 import { Reel } from "@/lib/reels/types";
 import { Film, Loader2 } from "lucide-react";
+import { chatAPI } from "@/lib/chat/api";
 
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
-const ChatPanel = dynamic(() => import("../user/chat"), { ssr: false });
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
 const BASE_URL = "http://192.168.1.18:9001";
@@ -84,8 +84,6 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
   const router = useRouter();
   const [isLeftOpen, setIsLeftOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [activeView, setActiveView] = useState("home");
   const [activeTab, setActiveTab] = useState("posts");
 
@@ -402,14 +400,16 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
     }
   };
 
-  const handleMessage = () => {
+  const handleMessage = async () => {
     if (profile) {
-      setSelectedContact({
-        id: profile.id,
-        name: profile.display_name || profile.username,
-        avatar: profile.avatar_url || DEFAULT_AVATAR,
-      });
-      setIsChatOpen(true);
+      // Create chat with this user and open messages modal
+      try {
+        await chatAPI.createChat(profile.id);
+      } catch (err) {
+        console.error("Error creating chat:", err);
+      }
+      // Open messages modal
+      setIsMessagesOpen(true);
     }
   };
 
@@ -640,17 +640,15 @@ export default function OtherUserClient({ userId }: OtherUserClientProps) {
         </Button>
       </div>
 
+      {/* Messages modal - chat opens inline within the modal */}
       <MessagesModal
         isOpen={isMessagesOpen}
         onClose={() => setIsMessagesOpen(false)}
-        onOpenChat={(item) => {
-          setSelectedContact({ id: item.id, name: item.name, avatar: item.avatar });
-          setIsChatOpen(true);
+        onOpenChat={() => {
+          // Chat opens inline within MessagesModal, no separate ChatPanel needed
         }}
         onOpenStart={() => setIsMessagesOpen(false)}
       />
-
-      <ChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} contact={selectedContact} />
     </div>
   );
 }

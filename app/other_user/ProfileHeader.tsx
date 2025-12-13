@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { MapPin, Briefcase, GraduationCap } from "lucide-react";
+import { MapPin, Briefcase, GraduationCap, MessageCircle } from "lucide-react";
 
 interface ProfileHeaderProps {
   name: string;
@@ -84,8 +84,9 @@ export default function ProfileHeader({
                       border: "1.5px solid var(--Tinted-Muted-Gold-1, #D7BA83)",
                       color: "var(--Tinted-Muted-Gold-1, #D7BA83)",
                     }}
-                    className="px-5 py-2 text-sm font-medium rounded-full hover:bg-[rgba(215,186,131,0.08)] transition-colors"
+                    className="px-5 py-2 text-sm font-medium rounded-full hover:bg-[rgba(215,186,131,0.08)] transition-colors flex items-center gap-2"
                   >
+                    <MessageCircle className="w-4 h-4" />
                     Message
                   </button>
                 </div>

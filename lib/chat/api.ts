@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Chat API Service
  * 
@@ -20,6 +21,7 @@ import {
   CreateChatResponse,
   CreateGroupResponse,
   APIError,
+  Attachment, // <-- added
 } from './types';
 
 // Backend API base URL - matches the working backend
@@ -286,26 +288,31 @@ export class ChatAPI {
       success: boolean; 
       message_id?: string; 
       media_url?: string;
-      attachments?: Array<{
-        type: string;
-        url: string;
-        filename: string;
-        size?: number;
-        mime_type?: string;
-      }>;
+      attachments?: any; // keep as any from server
     }>(response);
     
     // Build attachments array - always include file metadata for proper display
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    const attachmentType = type === 'document' ? (isPdf ? 'pdf' : 'document') : type;
-    
-    const attachments = data.attachments || (data.media_url ? [{
-      type: attachmentType,
-      url: data.media_url,
-      filename: file.name,
-      size: file.size,
-      mime_type: file.type,
-    }] : undefined);
+
+    // Narrow attachmentType to the allowed literal union
+    let attachmentType: 'image' | 'video' | 'audio' | 'document' | 'pdf';
+    if (type === 'document') {
+      attachmentType = isPdf ? 'pdf' : 'document';
+    } else {
+      // type is one of 'image'|'video'|'audio' so assign directly
+      attachmentType = type;
+    }
+
+    // Ensure attachments conforms to Attachment[] | undefined
+    const attachments: Attachment[] | undefined = data.attachments
+      ? (data.attachments as Attachment[])
+      : (data.media_url ? [{
+          type: attachmentType,
+          url: data.media_url,
+          filename: file.name,
+          size: file.size,
+          mime_type: file.type,
+        } as Attachment] : undefined);
     
     return {
       id: data.message_id || '',

@@ -8,10 +8,10 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Menu, MessageCircle, Archive, Users, CheckSquare, LogOut } from 'lucide-react';
+import { Search, Menu, MessageCircle, Archive, Users, CheckSquare, LogOut, Circle } from 'lucide-react';
 import { Chat, User } from '@/lib/chat/types';
 import { chatAPI } from '@/lib/chat/api';
-import { filterChatsByQuery } from '@/lib/chat/utils';
+import { filterChatsByQuery, isChatOnline } from '@/lib/chat/utils';
 import ChatListItem from './ChatListItem';
 import UserListItem from './UserListItem';
 
@@ -25,7 +25,7 @@ interface ChatSidebarProps {
   onMenuClick?: () => void;
 }
 
-type TabType = 'all' | 'chats' | 'fatwa' | 'groups';
+type TabType = 'all' | 'chats' | 'online' | 'groups';
 
 export default function ChatSidebar({
   chats,
@@ -78,12 +78,15 @@ export default function ChatSidebar({
     if (activeTab === 'all') return true;
     if (activeTab === 'chats') return chat.type === 'direct';
     if (activeTab === 'groups') return chat.type === 'group';
-    if (activeTab === 'fatwa') return false; // Placeholder for fatwa type
+    if (activeTab === 'online') return chat.type === 'direct' && isChatOnline(chat, currentUserId);
     return true;
   });
 
-  // Filter users based on search query
+  // Filter users based on search query and online status
   const filteredUsers = users.filter(user => {
+    // For online tab, only show online users
+    if (activeTab === 'online' && user.status !== 'online') return false;
+    
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -92,16 +95,19 @@ export default function ChatSidebar({
     );
   });
 
+  // Get online users count
+  const onlineUsersCount = users.filter(u => u.status === 'online').length;
+  const onlineChatsCount = chats.filter(c => c.type === 'direct' && isChatOnline(c, currentUserId)).length;
+
   // Count chats by type
   const allCount = chats.length;
   const chatsCount = chats.filter(c => c.type === 'direct').length;
   const groupsCount = chats.filter(c => c.type === 'group').length;
-  const fatwaCount = 0; // Placeholder
 
   const tabs = [
     { id: 'all' as TabType, label: 'All', count: allCount },
     { id: 'chats' as TabType, label: 'Chats', count: chatsCount },
-    { id: 'fatwa' as TabType, label: 'Fatwa', count: fatwaCount },
+    { id: 'online' as TabType, label: 'Online', count: onlineChatsCount + onlineUsersCount },
     { id: 'groups' as TabType, label: 'Groups', count: groupsCount },
   ];
 

@@ -19,6 +19,10 @@ import {
   LikeResponse,
   SaveResponse,
   FollowResponse,
+  CommentsResponse,
+  CreateCommentData,
+  CreateCommentResponse,
+  ReelComment,
 } from './types';
 
 // API base URL - call backend directly for file uploads
@@ -434,6 +438,98 @@ export class ReelsAPI {
     });
     
     return handleResponse<FollowResponse>(response);
+  }
+
+  // ============================================================================
+  // Comment Operations
+  // ============================================================================
+
+  /**
+   * Gets comments for a reel.
+   * 
+   * @param reelId - ID of the reel
+   * @param page - Page number (default 1)
+   * @param limit - Number of comments per page (default 20)
+   * @returns Promise resolving to CommentsResponse
+   */
+  async getComments(reelId: string, page: number = 1, limit: number = 20): Promise<CommentsResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    
+    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments?${params}`, {
+      method: 'GET',
+      headers: createHeaders('application/json'),
+    });
+    
+    return handleResponse<CommentsResponse>(response);
+  }
+
+  /**
+   * Creates a comment on a reel.
+   * Endpoint: POST /reels/{reel_id}/comment
+   * 
+   * @param reelId - ID of the reel to comment on
+   * @param data - Comment content
+   * @returns Promise resolving to CreateCommentResponse
+   */
+  async createComment(reelId: string, data: CreateCommentData): Promise<CreateCommentResponse> {
+    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comment`, {
+      method: 'POST',
+      headers: createHeaders('application/json'),
+      body: JSON.stringify(data),
+    });
+    
+    return handleResponse<CreateCommentResponse>(response);
+  }
+
+  /**
+   * Deletes a comment.
+   * 
+   * @param reelId - ID of the reel
+   * @param commentId - ID of the comment to delete
+   * @returns Promise resolving to success status
+   */
+  async deleteComment(reelId: string, commentId: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: createHeaders('application/json'),
+    });
+    
+    return handleResponse<{ success: boolean }>(response);
+  }
+
+  /**
+   * Likes a comment.
+   * 
+   * @param reelId - ID of the reel
+   * @param commentId - ID of the comment to like
+   * @returns Promise resolving to LikeResponse
+   */
+  async likeComment(reelId: string, commentId: string): Promise<LikeResponse> {
+    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments/${commentId}/like`, {
+      method: 'POST',
+      headers: createHeaders('application/json'),
+    });
+    
+    return handleResponse<LikeResponse>(response);
+  }
+
+  /**
+   * Unlikes a comment.
+   * 
+   * @param reelId - ID of the reel
+   * @param commentId - ID of the comment to unlike
+   * @returns Promise resolving to LikeResponse
+   */
+  async unlikeComment(reelId: string, commentId: string): Promise<LikeResponse> {
+    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments/${commentId}/like`, {
+      method: 'DELETE',
+      headers: createHeaders('application/json'),
+    });
+    
+    return handleResponse<LikeResponse>(response);
   }
 }
 

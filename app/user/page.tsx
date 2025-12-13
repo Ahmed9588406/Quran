@@ -15,15 +15,12 @@ import { useRouter } from "next/navigation";
 import { isAuthenticated, clearSession } from "@/lib/auth-helpers";
 
 const MessagesModal = dynamic(() => import("./messages"), { ssr: false });
-const ChatPanel = dynamic(() => import("./chat"), { ssr: false });
 
 export default function UserPage() {
   const [isLeftOpen, setIsLeftOpen] = useState(false); // mobile drawer state (default closed)
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [activeView, setActiveView] = useState<string>('home');
   const [isSidebarOpen, setSidebarOpen] = useState(false); // for larger screens toggling (if used)
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -305,13 +302,12 @@ export default function UserPage() {
         </Button>
       </div>
 
-      {/* Messages modal */}
+      {/* Messages modal - chat opens inline within the modal */}
       <MessagesModal
         isOpen={isMessagesOpen}
         onClose={() => setIsMessagesOpen(false)}
-        onOpenChat={(item) => {
-          setSelectedContact({ id: item.id, name: item.name, avatar: item.avatar });
-          setIsChatOpen(true);
+        onOpenChat={() => {
+          // Chat opens inline within MessagesModal, no separate ChatPanel needed
         }}
         onOpenStart={() => {
           setIsMessagesOpen(false);
@@ -324,18 +320,11 @@ export default function UserPage() {
         isOpen={isStartOpen}
         onClose={() => setIsStartOpen(false)}
         users={startUsers}
-        onSelect={(u) => {
-          setSelectedContact({ id: u.id, name: u.name, avatar: u.avatar });
-          setIsChatOpen(true);
+        onSelect={() => {
+          // After selecting a user, open messages modal to start the chat
           setIsStartOpen(false);
+          setIsMessagesOpen(true);
         }}
-      />
-
-      {/* Chat panel */}
-      <ChatPanel
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        contact={selectedContact}
       />
 
       {/* QR Scan modal */}

@@ -116,10 +116,10 @@ export default function NavBar({
               <Moon className="w-5 h-5" />
             </button>
 
-            {/* Messages - hidden on mobile (use floating button) */}
-            <button aria-label="Messages" className="hidden md:flex p-2 rounded-full text-gray-600 hover:bg-gray-100" onClick={() => onOpenMessages?.()}>
+            {/* Messages - links to full Chats page */}
+            <Link href="/Chats" aria-label="Messages" className="hidden md:flex p-2 rounded-full text-gray-600 hover:bg-gray-100">
               <MessageCircle className="w-5 h-5" />
-            </button>
+            </Link>
 
             {/* Notifications */}
             <button aria-label="Notifications" onClick={() => setNotifOpen((s) => !s)} className="relative p-2 rounded-full text-gray-600 hover:bg-gray-100" type="button">

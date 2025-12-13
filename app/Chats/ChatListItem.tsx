@@ -11,7 +11,7 @@
  */
 
 import { Chat } from '@/lib/chat/types';
-import { formatTime, getChatDisplayName, getChatAvatarUrl, truncateText } from '@/lib/chat/utils';
+import { formatTime, getChatDisplayName, getChatAvatarUrl, truncateText, isChatOnline } from '@/lib/chat/utils';
 
 interface ChatListItemProps {
   chat: Chat;
@@ -35,6 +35,7 @@ export default function ChatListItem({
   const lastMessage = truncateText(chat.last_message || 'Start a new conversation', 35);
   const time = formatTime(chat.last_message_at || chat.created_at);
   const initial = displayName.charAt(0).toUpperCase();
+  const isOnline = isChatOnline(chat, currentUserId);
   
   // Log chat data for debugging
   console.log('ChatListItem data:', { 
@@ -43,7 +44,8 @@ export default function ChatListItem({
     rawAvatarUrl, 
     avatarUrl,
     participants: chat.participants,
-    chat_avatar_url: chat.avatar_url
+    chat_avatar_url: chat.avatar_url,
+    isOnline
   });
 
   return (
@@ -53,7 +55,7 @@ export default function ChatListItem({
         isActive ? 'bg-gray-50' : 'hover:bg-gray-50'
       }`}
     >
-      {/* Avatar */}
+      {/* Avatar with Online Indicator */}
       <div className="relative flex-shrink-0">
         <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center">
           {avatarUrl ? (
@@ -70,6 +72,15 @@ export default function ChatListItem({
             <span className="text-amber-700 font-semibold text-lg">{initial}</span>
           )}
         </div>
+        {/* Online Status Indicator - Green dot */}
+        {chat.type === 'direct' && (
+          <span
+            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+              isOnline ? 'bg-green-500' : 'bg-gray-400'
+            }`}
+            title={isOnline ? 'متصل' : 'غير متصل'}
+          />
+        )}
       </div>
 
       {/* Content */}

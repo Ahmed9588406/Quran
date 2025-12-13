@@ -97,38 +97,6 @@ export function ReelViewer({ reel, isActive, isMuted, onToggleMute }: ReelViewer
         </div>
       )}
 
-      {/* Gradient overlays for better text visibility */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40 pointer-events-none" />
-
-      {/* Reel metadata for display completeness - Requirements: 1.2 */}
-      <div 
-        className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none"
-        data-testid="reel-metadata"
-      >
-        {/* User info */}
-        <div className="flex items-center gap-2 mb-2" data-testid="reel-user-info">
-          <img
-            src={reel.user_avatar}
-            alt={reel.username}
-            className="w-10 h-10 rounded-full border-2 border-white object-cover"
-            data-testid="reel-avatar"
-          />
-          <span className="text-white font-semibold" data-testid="reel-username">
-            {reel.username}
-          </span>
-        </div>
-
-        {/* Caption */}
-        <p className="text-white text-sm mb-2 line-clamp-2" data-testid="reel-caption">
-          {reel.content}
-        </p>
-
-        {/* Stats */}
-        <div className="flex items-center gap-4 text-white/80 text-sm">
-          <span data-testid="reel-like-count">{reel.likes_count} likes</span>
-          <span data-testid="reel-comment-count">{reel.comments_count} comments</span>
-        </div>
-      </div>
     </div>
   );
 }

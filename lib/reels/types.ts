@@ -142,3 +142,44 @@ export interface CreateReelResponse {
   success: boolean;
   reel: Reel;
 }
+
+/**
+ * Comment data model
+ */
+export interface ReelComment {
+  id: string;
+  reel_id: string;
+  user_id: string;
+  username: string;
+  user_avatar: string;
+  content: string;
+  created_at: string;
+  likes_count?: number;
+  is_liked?: boolean;
+}
+
+/**
+ * Comments list response
+ */
+export interface CommentsResponse {
+  comments: ReelComment[];
+  total_count: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+/**
+ * Create comment request
+ */
+export interface CreateCommentData {
+  content: string;
+}
+
+/**
+ * Create comment response
+ */
+export interface CreateCommentResponse {
+  success: boolean;
+  comment: ReelComment;
+}
