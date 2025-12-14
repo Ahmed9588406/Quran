@@ -10,7 +10,7 @@ function Settings() {
 
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden"
+      className="h-screen flex flex-col overflow-hidden mt-15"
       style={{
         backgroundImage: "url('/icons/settings/background.jpg')",
         backgroundSize: "cover",

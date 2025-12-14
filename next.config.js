@@ -19,14 +19,14 @@ const nextConfig = {
     root: "C:\\Users\\Ahmed\\Desktop\\Quran\\quran-app",
   },
 
-  // Optional: add other Next config values below if needed.
-  // For example, to avoid the images.domains deprecation warning you can
-  // migrate to images.remotePatterns here.
-  // images: {
-  //   remotePatterns: [
-  //     // { protocol: 'https', hostname: 'example.com', pathname: '/**' },
-  //   ],
-  // },
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/fatwas/my/:status',
+        destination: 'http://192.168.1.29:8080/api/v1/fatwas/my/:status',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

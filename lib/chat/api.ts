@@ -350,7 +350,8 @@ export class ChatAPI {
   // ============================================================================
 
   /**
-   * Sends typing indicator to a chat.
+   * Sends typing indicator to a chat via REST API.
+   * Frontend endpoint: POST /api/chats/:chatId/typing
    * Backend endpoint: POST /chat/:chat_id/typing
    * Body: { "is_typing": true/false }
    * 
@@ -361,17 +362,34 @@ export class ChatAPI {
    * @returns Promise resolving when typing indicator is sent
    */
   async sendTyping(chatId: string, isTyping: boolean = true): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}/typing`, {
-      method: 'POST',
-      headers: createHeaders('application/json'),
-      body: JSON.stringify({ is_typing: isTyping }),
-    });
-    
-    await handleResponse<{ success: boolean }>(response);
+    try {
+      // Use frontend API route which proxies to backend
+      const response = await fetch(`/api/chats/${chatId}/typing`, {
+        method: 'POST',
+        headers: createHeaders('application/json'),
+        body: JSON.stringify({ is_typing: isTyping }),
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Failed to send typing indicator:', response.status, text);
+        throw new ChatAPIError(
+          'Failed to send typing indicator',
+          response.status,
+          'TYPING_ERROR'
+        );
+      }
+      
+      await handleResponse<{ success: boolean }>(response);
+    } catch (error) {
+      console.error('Error sending typing indicator:', error);
+      // Don't throw - typing indicator is not critical
+    }
   }
 
   /**
-   * Marks messages as seen in a chat.
+   * Marks messages as seen in a chat via REST API.
+   * Frontend endpoint: POST /api/chats/:chatId/seen
    * Backend endpoint: POST /chat/:chat_id/seen
    * 
    * @param chatId - ID of the chat
@@ -379,15 +397,31 @@ export class ChatAPI {
    * @returns Promise resolving when seen status is sent
    */
   async markAsSeen(chatId: string, messageId?: string): Promise<void> {
-    const body = messageId ? { message_id: messageId } : {};
-    
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}/seen`, {
-      method: 'POST',
-      headers: createHeaders('application/json'),
-      body: JSON.stringify(body),
-    });
-    
-    await handleResponse<{ success: boolean }>(response);
+    try {
+      // Use frontend API route which proxies to backend
+      const body = messageId ? { message_id: messageId } : {};
+      
+      const response = await fetch(`/api/chats/${chatId}/seen`, {
+        method: 'POST',
+        headers: createHeaders('application/json'),
+        body: JSON.stringify(body),
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Failed to mark as seen:', response.status, text);
+        throw new ChatAPIError(
+          'Failed to mark messages as seen',
+          response.status,
+          'SEEN_ERROR'
+        );
+      }
+      
+      await handleResponse<{ success: boolean }>(response);
+    } catch (error) {
+      console.error('Error marking messages as seen:', error);
+      // Don't throw - seen status is not critical
+    }
   }
 
 
