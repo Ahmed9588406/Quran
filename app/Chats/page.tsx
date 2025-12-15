@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
 /**
@@ -8,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Chat, Message, User } from '@/lib/chat/types';
+import { Chat, Message, User, WSMessageType } from '@/lib/chat/types';
 import { chatAPI } from '@/lib/chat/api';
 import { wsManager } from '@/lib/chat/websocket';
 import { sortChatsByRecent } from '@/lib/chat/utils';
@@ -20,6 +22,7 @@ import MessageInput from './MessageInput';
 import ConnectionStatus from './ConnectionStatus';
 import CreateGroupModal from './CreateGroupModal';
 import EmptyState from './EmptyState';
+import ContactInfo from './contact_info';
 
 export default function ChatsPage() {
   // State
@@ -36,6 +39,7 @@ export default function ChatsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMediaFilterActive, setIsMediaFilterActive] = useState(false);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
 
   // Load chats - defined first so it can be used in useEffect
   const loadChats = useCallback(async () => {
@@ -105,21 +109,29 @@ export default function ChatsPage() {
             // Add message if it's for the current chat
             if (currentChat && chatId === currentChat.id) {
               setMessages(prev => [...prev, msgData]);
+              // Auto-mark as seen when receiving in active chat via REST API
+              // Endpoint: POST /chat/:chat_id/seen
+              chatAPI.markAsSeen(currentChat.id).catch(console.error);
             }
-            // Refresh chat list
+            // Refresh chat list to update unread counts
             loadChats();
           }
           break;
         
+        case 'typing' as WSMessageType:
         case 'chat/typing':
-          // Backend sends: { type: 'chat/typing', data: { chat_id, is_typing, user_id? } }
-          if (message.data) {
-            const typingData = message.data as { chat_id?: string; is_typing?: boolean; user_id?: string };
-            const typingChatId = typingData?.chat_id || message.chat_id;
-            const typingUserId = typingData?.user_id || message.user_id;
+          // Backend sends: { type: 'typing', chat_id, is_typing, user_id }
+          // or: { type: 'chat/typing', data: { chat_id, is_typing, user_id } }
+          {
+            // Handle both formats - data in root or nested in data object
+            const msgAny = message as unknown as Record<string, unknown>;
+            const typingData = (message.data as Record<string, unknown>) || msgAny;
+            const typingChatId = (typingData?.chat_id as string) || message.chat_id;
+            const typingUserId = (typingData?.user_id as string) || message.user_id;
+            const isTyping = typingData?.is_typing !== false;
             
             if (typingChatId === currentChat?.id && typingUserId) {
-              if (typingData?.is_typing !== false) {
+              if (isTyping) {
                 setTypingUsers(prev => [...new Set([...prev, typingUserId])]);
               } else {
                 setTypingUsers(prev => prev.filter(id => id !== typingUserId));
@@ -131,6 +143,35 @@ export default function ChatsPage() {
         case 'chat/stop_typing':
           if (message.chat_id === currentChat?.id && message.user_id) {
             setTypingUsers(prev => prev.filter(id => id !== message.user_id));
+          }
+          break;
+
+        case 'seen' as WSMessageType:
+        case 'chat/seen':
+          // Backend sends: { type: 'chat/seen', chat_id, message_id, user_id }
+          // or: { type: 'seen', chat_id, user_id }
+          {
+            const msgAny = message as unknown as Record<string, unknown>;
+            const seenData = (message.data as Record<string, unknown>) || msgAny;
+            const seenChatId = (seenData?.chat_id as string) || message.chat_id;
+            const seenMessageId = seenData?.message_id as string;
+            const seenUserId = (seenData?.user_id as string) || message.user_id;
+            
+            if (seenChatId === currentChat?.id) {
+              if (seenMessageId) {
+                // Mark specific message as read
+                setMessages(prev => prev.map(m => 
+                  m.id === seenMessageId ? { ...m, is_read: true } : m
+                ));
+              } else if (seenUserId) {
+                // Mark all messages from current user as read by the other user
+                setMessages(prev => prev.map(m => 
+                  m.sender_id === currentUserId ? { ...m, is_read: true } : m
+                ));
+              }
+              // Refresh chat list to update unread counts
+              loadChats();
+            }
           }
           break;
         
@@ -164,10 +205,46 @@ export default function ChatsPage() {
             })));
           }
           break;
+
+        case 'notification':
+          // Handle push notifications from server
+          if (message.data) {
+            const notifData = message.data as { id: string; title: string; body: string };
+            // Show browser notification if supported
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(notifData.title, { body: notifData.body });
+            }
+          }
+          break;
       }
     });
     return unsubscribe;
   }, [currentChat, loadChats]);
+
+  // Mark messages as seen when opening a chat via REST API
+  // Endpoint: POST /chat/:chat_id/seen
+  useEffect(() => {
+    if (currentChat && messages.length > 0) {
+      // Find unread messages from other users
+      const unreadMessages = messages.filter(
+        (msg) => msg.sender_id !== currentUserId && !msg.is_read
+      );
+      
+      if (unreadMessages.length > 0) {
+        // Mark all messages in the chat as seen
+        chatAPI.markAsSeen(currentChat.id).then(() => {
+          // Update local state to mark messages as read
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.sender_id !== currentUserId ? { ...msg, is_read: true } : msg
+            )
+          );
+          // Refresh chat list to update unread counts
+          loadChats();
+        }).catch(console.error);
+      }
+    }
+  }, [currentChat?.id, messages.length, currentUserId, loadChats]);
 
   // Handle chat selection
   const handleSelectChat = useCallback(async (chat: Chat) => {
@@ -216,7 +293,7 @@ export default function ChatsPage() {
   }, [currentChat, currentUserId, loadChats]);
 
   // Handle send media
-  const handleSendMedia = useCallback(async (file: File, type: 'image' | 'video' | 'audio') => {
+  const handleSendMedia = useCallback(async (file: File, type: 'image' | 'video' | 'audio' | 'document') => {
     if (!currentChat) return;
     
     try {
@@ -296,36 +373,39 @@ export default function ChatsPage() {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col bg-white ml-[420px]">
+      <main className="fixed top-0 bottom-0 right-0 left-[420px] flex flex-col">
         {currentChat ? (
           <>
-            {/* Chat Header */}
-            <ChatHeader
-              chat={currentChat}
-              currentUserId={currentUserId}
-              isSearchVisible={isSearchVisible}
-              isMediaFilterActive={isMediaFilterActive}
-              onToggleSearch={() => setIsSearchVisible(!isSearchVisible)}
-              onToggleMediaFilter={() => setIsMediaFilterActive(!isMediaFilterActive)}
-              onShowGroupInfo={currentChat.type === 'group' ? () => {} : undefined}
-            />
+            {/* Chat Header - Fixed at top */}
+            <div className="flex-shrink-0">
+              <ChatHeader
+                chat={currentChat}
+                currentUserId={currentUserId}
+                isSearchVisible={isSearchVisible}
+                isMediaFilterActive={isMediaFilterActive}
+                onToggleSearch={() => setIsSearchVisible(!isSearchVisible)}
+                onToggleMediaFilter={() => setIsMediaFilterActive(!isMediaFilterActive)}
+                onShowGroupInfo={currentChat.type === 'group' ? () => {} : undefined}
+                onShowContactInfo={() => setIsContactInfoOpen(true)}
+              />
 
-            {/* Search Bar */}
-            {isSearchVisible && (
-              <div className="px-4 py-2 bg-white border-b border-gray-200">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="بحث في المحادثة..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#667eea] focus:border-transparent text-sm"
-                  autoFocus
-                />
-              </div>
-            )}
+              {/* Search Bar */}
+              {isSearchVisible && (
+                <div className="px-4 py-2 bg-white border-b border-gray-200">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search in conversation..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#667eea] focus:border-transparent text-sm"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
 
-            {/* Message List */}
-            <div className="flex-1 relative overflow-hidden">
+            {/* Message List - Scrollable middle section */}
+            <div className="flex-1 overflow-hidden">
               <MessageList
                 messages={messages}
                 currentUserId={currentUserId}
@@ -336,12 +416,14 @@ export default function ChatsPage() {
               />
             </div>
 
-            {/* Message Input */}
-            <MessageInput
-              chatId={currentChat.id}
-              onSendMessage={handleSendMessage}
-              onSendMedia={handleSendMedia}
-            />
+            {/* Message Input - Fixed at bottom */}
+            <div className="flex-shrink-0">
+              <MessageInput
+                chatId={currentChat.id}
+                onSendMessage={handleSendMessage}
+                onSendMedia={handleSendMedia}
+              />
+            </div>
           </>
         ) : (
           <EmptyState />
@@ -349,12 +431,31 @@ export default function ChatsPage() {
       </main>
 
       {/* Create Group Modal */}
-      <CreateGroupModal
-        isOpen={isCreateGroupModalOpen}
-        currentUserId={currentUserId}
-        onClose={() => setIsCreateGroupModalOpen(false)}
-        onCreateGroup={handleCreateGroup}
-      />
+      <CreateGroupModal {...({
+        isOpen: isCreateGroupModalOpen,
+        currentUserId,
+        onClose: () => setIsCreateGroupModalOpen(false),
+        onCreateGroup: handleCreateGroup,
+      } as any)} />
+
+      {/* Contact Info Panel */}
+      {isContactInfoOpen && currentChat && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/20 z-40"
+            onClick={() => setIsContactInfoOpen(false)}
+          />
+          {/* Panel */}
+          <div className="fixed top-0 right-0 bottom-0 w-[360px] bg-white shadow-xl z-50 animate-slide-in-right">
+            <ContactInfo
+              chat={currentChat}
+              currentUserId={currentUserId}
+              onClose={() => setIsContactInfoOpen(false)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

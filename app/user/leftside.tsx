@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import Image from "next/image";
-import { Home, QrCode, Film, Settings } from "lucide-react";
+import { Home, QrCode, Film, Settings, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth-helpers";
 
@@ -147,6 +147,16 @@ export default function LeftSide({
             onClick={() => { onNavigate?.("home"); onClose?.(); }}
           >
             <Home className="w-5 h-5" />
+          </IconBtn>
+
+          {/* Messages/Chats */}
+          <IconBtn
+            href="/Chats"
+            label="Messages"
+            active={activeView === "chats"}
+            onClick={() => { onNavigate?.("chats"); onClose?.(); }}
+          >
+            <MessageCircle className="w-5 h-5" />
           </IconBtn>
 
           <IconBtn label="Scan QR" onClick={openQrModal}>

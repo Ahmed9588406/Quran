@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+    input, button { padding: 8px 12px; margin: 5px; }
+    button { background: #8A1538; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #6d1029; }
+    #log { background: #f5f5f5; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    .status { padding: 5px 10px; border-radius: 4px; display: inline-block; }
+    .connected { background: #4caf50; color: white; }
+    .disconnected { background: #f44336; color: white; }
+    .connecting { background: #ff9800; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🔌 WebSocket Test Tool</h1>
+  
+  <div class="section">
+    <h3>Connection</h3>
+    <p>Status: <span id="status" class="status disconnected">Disconnected</span></p>
+    <input type="text" id="token" placeholder="JWT Token" style="width: 300px;">
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+
+  <div class="section">
+    <h3>Test Typing Indicator (REST API)</h3>
+    <p style="font-size: 12px; color: #666;">Endpoint: POST /chat/:chat_id/typing | Body: {"is_typing": true/false}</p>
+    <input type="text" id="typingChatId" placeholder="Chat ID" value="">
+    <button onclick="sendTypingREST()">Start Typing (REST)</button>
+    <button onclick="sendStopTypingREST()">Stop Typing (REST)</button>
+    <button onclick="sendTypingWS()">Send Typing (WS)</button>
+  </div>
+
+  <div class="section">
+    <h3>Test Message Seen (REST API)</h3>
+    <p style="font-size: 12px; color: #666;">Endpoint: POST /chat/:chat_id/seen</p>
+    <input type="text" id="seenChatId" placeholder="Chat ID">
+    <input type="text" id="seenMessageId" placeholder="Message ID (optional)">
+    <button onclick="sendSeenREST()">Mark as Seen (REST)</button>
+    <button onclick="sendSeenWS()">Mark as Seen (WS)</button>
+  </div>
+
+  <div class="section">
+    <h3>Test Presence</h3>
+    <button onclick="sendPresence('online')">Online</button>
+    <button onclick="sendPresence('offline')">Offline</button>
+    <button onclick="sendPresence('away')">Away</button>
+  </div>
+
+  <div class="section">
+    <h3>Send Custom Message</h3>
+    <textarea id="customMsg" rows="3" style="width: 100%;">{"type": "chat/typing", "chat_id": "test-123"}</textarea>
+    <button onclick="sendCustom()">Send Custom</button>
+  </div>
+
+  <div class="section">
+    <h3>Log</h3>
+    <button onclick="clearLog()">Clear Log</button>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const WS_URL = 'ws://192.168.1.18:8080';
+    let ws = null;
+
+    function log(msg, type = 'info') {
+      const logEl = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const color = type === 'sent' ? '#2196f3' : type === 'received' ? '#4caf50' : type === 'error' ? '#f44336' : '#666';
+      logEl.innerHTML += `<div style="color: ${color}">[${time}] ${msg}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateStatus(status) {
+      const el = document.getElementById('status');
+      el.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      el.className = 'status ' + status;
+    }
+
+    function connect() {
+      const token = document.getElementById('token').value || localStorage.getItem('access_token');
+      if (!token) {
+        log('Please enter a token or have one in localStorage', 'error');
+        return;
+      }
+
+      updateStatus('connecting');
+      log('Connecting to ' + WS_URL + '?token=***');
+
+      ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+
+      ws.onopen = () => {
+        updateStatus('connected');
+        log('✅ Connected successfully!');
+      };
+
+      ws.onmessage = (event) => {
+        log('📥 RECEIVED: ' + event.data, 'received');
+      };
+
+      ws.onerror = (error) => {
+        log('❌ Error: ' + JSON.stringify(error), 'error');
+      };
+
+      ws.onclose = (event) => {
+        updateStatus('disconnected');
+        log(`🔌 Disconnected (code: ${event.code}, reason: ${event.reason})`);
+      };
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    }
+
+    function send(data) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log('Not connected!', 'error');
+        return;
+      }
+      const msg = JSON.stringify(data);
+      ws.send(msg);
+      log('📤 SENT: ' + msg, 'sent');
+    }
+
+    const API_URL = 'http://192.168.1.18:9001';
+
+    // REST API: Send typing indicator (is_typing: true)
+    async function sendTypingREST() {
+      await sendTypingRequest(true);
+    }
+
+    // REST API: Send stop typing indicator (is_typing: false)
+    async function sendStopTypingREST() {
+      await sendTypingRequest(false);
+    }
+
+    // Helper function for typing requests
+    async function sendTypingRequest(isTyping) {
+      const chatId = document.getElementById('typingChatId').value;
+      const token = document.getElementById('token').value || localStorage.getItem('access_token');
+      
+      if (!chatId) {
+        log('Please enter a Chat ID', 'error');
+        return;
+      }
+      
+      try {
+        const body = { is_typing: isTyping };
+        log(`📤 REST POST /chat/${chatId}/typing - Body: ${JSON.stringify(body)}`, 'sent');
+        const response = await fetch(`${API_URL}/chat/${chatId}/typing`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        const data = await response.json();
+        log(`📥 REST Response: ${JSON.stringify(data)}`, 'received');
+      } catch (error) {
+        log(`❌ REST Error: ${error.message}`, 'error');
+      }
+    }
+
+    // WebSocket: Send typing indicator
+    function sendTypingWS() {
+      const chatId = document.getElementById('typingChatId').value;
+      send({ type: 'typing', chat_id: chatId, is_typing: true });
+    }
+
+    // REST API: Mark as seen
+    async function sendSeenREST() {
+      const chatId = document.getElementById('seenChatId').value;
+      const messageId = document.getElementById('seenMessageId').value;
+      const token = document.getElementById('token').value || localStorage.getItem('access_token');
+      
+      if (!chatId) {
+        log('Please enter a Chat ID', 'error');
+        return;
+      }
+      
+      try {
+        const body = messageId ? { message_id: messageId } : {};
+        log(`📤 REST POST /chat/${chatId}/seen ${JSON.stringify(body)}`, 'sent');
+        
+        const response = await fetch(`${API_URL}/chat/${chatId}/seen`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        const data = await response.json();
+        log(`📥 REST Response: ${JSON.stringify(data)}`, 'received');
+      } catch (error) {
+        log(`❌ REST Error: ${error.message}`, 'error');
+      }
+    }
+
+    // WebSocket: Mark as seen
+    function sendSeenWS() {
+      const chatId = document.getElementById('seenChatId').value;
+      const messageId = document.getElementById('seenMessageId').value;
+      send({ type: 'seen', chat_id: chatId, message_id: messageId });
+    }
+
+    function sendPresence(status) {
+      send({ type: 'presence', status: status, timestamp: new Date().toISOString() });
+    }
+
+    function sendCustom() {
+      try {
+        const data = JSON.parse(document.getElementById('customMsg').value);
+        send(data);
+      } catch (e) {
+        log('Invalid JSON: ' + e.message, 'error');
+      }
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    // Auto-fill token from localStorage
+    window.onload = () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        document.getElementById('token').value = token.substring(0, 20) + '...';
+        log('Token found in localStorage');
+      }
+    };
+  </script>
+</body>
+</html>

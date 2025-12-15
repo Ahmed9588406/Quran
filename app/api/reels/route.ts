@@ -81,7 +81,7 @@ export async function GET(request: Request) {
  * 
  * Body: FormData with:
  * - video: File (required)
- * - content: string (required)
+ * - content: string (optional - description)
  * - visibility: 'public' | 'private' | 'followers' (required)
  * - thumbnail: File (optional)
  * 
@@ -102,25 +102,17 @@ export async function POST(request: Request) {
     // Get the form data from the request
     const formData = await request.formData();
     
-    // Validate required fields
+    // Validate video exists
     const video = formData.get("video");
-    const content = formData.get("content");
-    const visibility = formData.get("visibility");
-
-    if (!video) {
+    if (!video || !(video instanceof Blob)) {
       return NextResponse.json(
         { error: "Video file is required" },
         { status: 400, headers: corsHeaders() }
       );
     }
 
-    if (!content) {
-      return NextResponse.json(
-        { error: "Content/caption is required" },
-        { status: 400, headers: corsHeaders() }
-      );
-    }
-
+    // Validate visibility exists
+    const visibility = formData.get("visibility");
     if (!visibility) {
       return NextResponse.json(
         { error: "Visibility is required" },
@@ -128,20 +120,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Forward the form data to the backend
-    // Don't set Content-Type - fetch will set it with boundary for multipart
-    const headers: Record<string, string> = {
-      Authorization: authHeader,
-    };
-
+    // Forward the original formData directly to backend
+    // This preserves the multipart boundary and file structure
     const res = await fetch(`${BASE_URL}/reels`, {
       method: "POST",
-      headers,
+      headers: {
+        Authorization: authHeader,
+      },
       body: formData,
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      console.error("Backend error creating reel:", res.status, text);
       return NextResponse.json(
         { error: `Failed to create reel: ${res.status} ${text}` },
         { status: res.status, headers: corsHeaders() }

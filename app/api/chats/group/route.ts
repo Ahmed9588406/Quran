@@ -2,6 +2,8 @@
  * Group Chat Creation API Route
  * 
  * POST - Create a new group chat
+ * Endpoint: POST /chat/group
+ * Body: { "title": "Group Name", "members": ["USER_ID_1", "USER_ID_2"] }
  * 
  * Requirements: 8.1
  */
@@ -24,19 +26,49 @@ export async function OPTIONS() {
 
 /**
  * POST /api/chats/group - Create a group chat
+ * 
+ * Request body:
+ * {
+ *   "title": "My Group Chat",
+ *   "members": ["USER_ID_1", "USER_ID_2"]
+ * }
+ * 
+ * Response:
+ * {
+ *   "success": true,
+ *   "chat_id": "generated_chat_id"
+ * }
  */
 export async function POST(req: NextRequest) {
   try {
     const auth = req.headers.get('authorization') ?? '';
     const body = await req.json();
 
-    const response = await fetch(`${BASE_URL}/chat/group/create`, {
+    // Validate request body
+    if (!body.title || typeof body.title !== 'string') {
+      return NextResponse.json(
+        { error: 'Title is required and must be a string' },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+
+    if (!body.members || !Array.isArray(body.members) || body.members.length === 0) {
+      return NextResponse.json(
+        { error: 'Members array is required and must contain at least one user ID' },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+
+    const response = await fetch(`${BASE_URL}/chat/group`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(auth ? { Authorization: auth } : {}),
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        title: body.title,
+        members: body.members,
+      }),
     });
 
     if (!response.ok) {

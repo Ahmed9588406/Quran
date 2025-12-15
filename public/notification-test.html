@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notification System Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    h1 { color: #333; margin-bottom: 8px; }
+    p.subtitle { color: #666; margin-bottom: 24px; }
+    .test-btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .test-btn:hover { opacity: 0.9; }
+    .test-btn:active { transform: scale(0.98); }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-purple { background: #9c27b0; color: white; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-gray { background: #666; color: white; }
+    .status {
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    .status.info { background: #e3f2fd; color: #1565c0; }
+    .status.success { background: #e8f5e9; color: #2e7d32; }
+    .status.warning { background: #fff3e0; color: #ef6c00; }
+    .log {
+      background: #263238;
+      color: #aed581;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 16px;
+    }
+    .log-entry { margin: 4px 0; }
+    .log-time { color: #78909c; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔔 Notification System Test</h1>
+    <p class="subtitle">Test the notification system to ensure it works correctly across all screens.</p>
+
+    <button class="test-btn btn-blue" onclick="sendTestNotification('system_alert')">
+      📢 Send System Alert
+    </button>
+    <button class="test-btn btn-green" onclick="sendTestNotification('broadcast')">
+      🌍 Send Broadcast
+    </button>
+    <button class="test-btn btn-purple" onclick="sendTestNotification('personal')">
+      👤 Send Personal Notification
+    </button>
+    <button class="test-btn btn-red" onclick="clearAllNotifications()">
+      🗑️ Clear All Notifications
+    </button>
+    <button class="test-btn btn-gray" onclick="checkStatus()">
+      📊 Check Status
+    </button>
+
+    <div id="status" class="status info">
+      Click a button to test the notification system.
+    </div>
+
+    <div class="log" id="log">
+      <div class="log-entry"><span class="log-time">[Ready]</span> Notification test page loaded</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📋 Instructions</h2>
+    <ol>
+      <li>Open your app in another browser tab (e.g., <code>/user</code>)</li>
+      <li>Click one of the test buttons above</li>
+      <li>You should see:
+        <ul>
+          <li>✅ A toast notification appear in the top-right corner</li>
+          <li>✅ A sound play (if enabled)</li>
+          <li>✅ The navbar bell icon update with unread count</li>
+          <li>✅ A browser notification (if permitted)</li>
+        </ul>
+      </li>
+      <li>Click the bell icon to see the notification in the dropdown</li>
+    </ol>
+  </div>
+
+  <script>
+    const NOTIFICATION_KEY = 'admin_notifications';
+    let notificationCount = 0;
+
+    function log(message) {
+      const logEl = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(message, type = 'info') {
+      const statusEl = document.getElementById('status');
+      statusEl.className = `status ${type}`;
+      statusEl.textContent = message;
+    }
+
+    function sendTestNotification(type) {
+      notificationCount++;
+      const titles = {
+        system_alert: '🔧 System Update',
+        broadcast: '📣 Announcement',
+        personal: '💬 New Message'
+      };
+      const messages = {
+        system_alert: `System maintenance scheduled. Test #${notificationCount}`,
+        broadcast: `Important announcement for all users. Test #${notificationCount}`,
+        personal: `You have a new message waiting. Test #${notificationCount}`
+      };
+
+      try {
+        const existing = JSON.parse(localStorage.getItem(NOTIFICATION_KEY) || '[]');
+        const newNotif = {
+          id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: titles[type],
+          message: messages[type],
+          type: type,
+          timestamp: Date.now(),
+          read: false
+        };
+        
+        const updated = [newNotif, ...existing].slice(0, 50);
+        localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(updated));
+        
+        // Trigger storage event for other tabs
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: NOTIFICATION_KEY,
+          newValue: JSON.stringify(updated),
+          oldValue: JSON.stringify(existing)
+        }));
+
+        // Play sound
+        playSound();
+
+        // Show browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(newNotif.title, {
+            body: newNotif.message,
+            icon: '/figma-assets/logo_wesal.png',
+            tag: newNotif.id
+          });
+        }
+
+        log(`✅ Sent ${type} notification: "${newNotif.title}"`);
+        setStatus(`Notification sent! Check your app's navbar.`, 'success');
+      } catch (error) {
+        log(`❌ Error: ${error.message}`);
+        setStatus(`Error: ${error.message}`, 'warning');
+      }
+    }
+
+    function clearAllNotifications() {
+      localStorage.removeItem(NOTIFICATION_KEY);
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: NOTIFICATION_KEY,
+        newValue: '[]',
+        oldValue: null
+      }));
+      log('🗑️ Cleared all notifications');
+      setStatus('All notifications cleared!', 'success');
+    }
+
+    function checkStatus() {
+      try {
+        const notifications = JSON.parse(localStorage.getItem(NOTIFICATION_KEY) || '[]');
+        const unread = notifications.filter(n => !n.read).length;
+        const total = notifications.length;
+        
+        log(`📊 Status: ${total} total, ${unread} unread`);
+        setStatus(`Total: ${total} notifications, Unread: ${unread}`, 'info');
+
+        // Check browser notification permission
+        if ('Notification' in window) {
+          log(`🔔 Browser notifications: ${Notification.permission}`);
+        }
+      } catch (error) {
+        log(`❌ Error checking status: ${error.message}`);
+      }
+    }
+
+    function playSound() {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = 800;
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+
+        setTimeout(() => {
+          const osc2 = audioContext.createOscillator();
+          const gain2 = audioContext.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioContext.destination);
+
+          osc2.frequency.value = 1000;
+          gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+          osc2.start(audioContext.currentTime);
+          osc2.stop(audioContext.currentTime + 0.1);
+        }, 150);
+      } catch (e) {
+        log('⚠️ Could not play sound');
+      }
+    }
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        log(`🔔 Notification permission: ${permission}`);
+      });
+    }
+
+    // Initial status check
+    checkStatus();
+  </script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 "use client";
 import React, { useEffect, useRef } from "react";
 import Image from "next/image";
+import { useNotifications } from "../components/NotificationProvider";
+import { Volume2, VolumeX, Trash2 } from "lucide-react";
 
 type NotificationItem = {
   id: string;
@@ -20,6 +22,7 @@ export default function NotificationPanel({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const { notifications: adminNotifications, soundEnabled, toggleSound, markAsRead, markAllAsRead, clearAll } = useNotifications();
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -38,6 +41,24 @@ export default function NotificationPanel({
       document.removeEventListener("keydown", onKey);
     };
   }, [isOpen, onClose]);
+
+  const formatTime = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "Now";
+    if (minutes < 60) return `${minutes}m`;
+    if (hours < 24) return `${hours}h`;
+    if (days < 7) return `${days}d`;
+    return new Date(timestamp).toLocaleDateString();
+  };
+
+  const handleNotificationClick = (notificationId: string) => {
+    markAsRead(notificationId);
+  };
 
   if (!isOpen) return null;
 
@@ -192,6 +213,13 @@ export default function NotificationPanel({
     </div>
   );
 
+  // Separate admin notifications and regular notifications
+  const adminNotifsSorted = [...adminNotifications].sort(
+    (a, b) => b.timestamp - a.timestamp
+  );
+  const unreadAdminNotifs = adminNotifsSorted.filter((n) => !n.read);
+  const readAdminNotifs = adminNotifsSorted.filter((n) => n.read);
+
   return (
     <div
       ref={ref}
@@ -201,31 +229,127 @@ export default function NotificationPanel({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
-        <div className="text-sm font-semibold">Feed</div>
-        <button
-          className="text-sm text-gray-500 hover:underline"
-          onClick={() => {
-            /* placeholder */
-          }}
-        >
-          See All
-        </button>
+        <div className="text-sm font-semibold">Notifications</div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSound}
+            className="p-1 rounded hover:bg-gray-100 transition"
+            title={soundEnabled ? "Mute notifications" : "Unmute notifications"}
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4 text-gray-600" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+          <button
+            className="text-sm text-gray-500 hover:underline"
+            onClick={() => {
+              /* placeholder */
+            }}
+          >
+            See All
+          </button>
+        </div>
       </div>
 
       <div className="border-t border-[#f0e6e5]" />
 
-      <div className="px-4 py-3">
-        {/* New section */}
-        <div className="text-xs font-semibold mb-3">New</div>
-        <div className="space-y-4">{newItems.map(renderItem)}</div>
+      <div className="px-4 py-3 max-h-[500px] overflow-y-auto">
+        {/* Admin Notifications Section */}
+        {adminNotifsSorted.length > 0 && (
+          <>
+            {unreadAdminNotifs.length > 0 && (
+              <div className="mb-4">
+                <div className="text-xs font-semibold mb-3 text-[#7b2030]">
+                  System Alerts ({unreadAdminNotifs.length})
+                </div>
+                <div className="space-y-3">
+                  {unreadAdminNotifs.map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => handleNotificationClick(notif.id)}
+                      className="p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-blue-900 truncate">
+                            {notif.title}
+                          </div>
+                          <div className="text-sm text-blue-800 mt-1 line-clamp-2">
+                            {notif.message}
+                          </div>
+                          <div className="text-xs text-blue-600 mt-1">
+                            {formatTime(notif.timestamp)}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-1" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        <div className="mt-4 border-t border-[#f0e6e5] pt-4" />
+            {readAdminNotifs.length > 0 && (
+              <div>
+                {unreadAdminNotifs.length > 0 && (
+                  <div className="my-3 border-t border-[#f0e6e5]" />
+                )}
+                <div className="text-xs font-semibold mb-3 text-gray-500">
+                  Earlier
+                </div>
+                <div className="space-y-3">
+                  {readAdminNotifs.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className="p-3 bg-gray-50 border border-gray-200 rounded-lg opacity-75"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-gray-700 truncate">
+                            {notif.title}
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1 line-clamp-2">
+                            {notif.message}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {formatTime(notif.timestamp)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Yesterday section */}
-        <div className="text-xs font-semibold mb-3">Yesterday</div>
-        <div className="space-y-4">
-          {yesterdayItems.map(renderItem)}
-        </div>
+            <div className="my-4 border-t border-[#f0e6e5]" />
+          </>
+        )}
+
+        {/* Regular Notifications Section */}
+        {adminNotifsSorted.length === 0 && (
+          <>
+            {/* New section */}
+            <div className="text-xs font-semibold mb-3">New</div>
+            <div className="space-y-4">{newItems.map(renderItem)}</div>
+
+            <div className="mt-4 border-t border-[#f0e6e5] pt-4" />
+
+            {/* Yesterday section */}
+            <div className="text-xs font-semibold mb-3">Yesterday</div>
+            <div className="space-y-4">
+              {yesterdayItems.map(renderItem)}
+            </div>
+          </>
+        )}
+
+        {adminNotifsSorted.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <p className="text-sm">No notifications yet</p>
+          </div>
+        )}
 
         <div className="mt-4 text-center">
           <button

@@ -9,7 +9,7 @@
  * **Feature: real-time-chat-system, Property 11: Media filter correctness**
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Message } from '@/lib/chat/types';
 import { filterMessagesByQuery } from '@/lib/chat/utils';
 import MessageBubble from './MessageBubble';
@@ -82,21 +82,30 @@ export default function MessageList({
     }
   }, []);
 
+  // Beige/cream background with subtle pattern
+  const bgStyle: React.CSSProperties = {
+    backgroundColor: '#F5E6D3',
+    backgroundImage: `
+      radial-gradient(circle at 20% 30%, rgba(215, 186, 131, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(215, 186, 131, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(215, 186, 131, 0.1) 0%, transparent 70%)
+    `,
+    minHeight: '100%',
+  };
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="h-full overflow-hidden" style={{ backgroundColor: '#F5E6D3' }}>
       {/* Messages Container */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4"
-        style={{
-          background: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'><rect fill=\'%23f0f2f5\' width=\'100\' height=\'100\'/><circle fill=\'%23e4e6eb\' cx=\'50\' cy=\'50\' r=\'1\'/></svg>")',
-        }}
+        className="h-full overflow-y-auto px-4 py-4"
+        style={bgStyle}
       >
         {/* Date indicator */}
         <div className="flex justify-center mb-4">
-          <div className="px-3 py-1 rounded-lg text-xs font-medium bg-white text-gray-600 shadow-sm">
-            اليوم
+          <div className="px-3 py-1 rounded-lg text-xs font-medium bg-white/80 text-gray-600 shadow-sm">
+            Today
           </div>
         </div>
 
@@ -115,12 +124,12 @@ export default function MessageList({
             {searchQuery || isMediaFilterActive ? (
               <>
                 <span className="text-4xl mb-2">🔍</span>
-                <p className="text-sm">لا توجد نتائج</p>
+                <p className="text-sm">No results found</p>
               </>
             ) : (
               <>
                 <span className="text-4xl mb-2">💬</span>
-                <p className="text-sm">ابدأ المحادثة</p>
+                <p className="text-sm">Start a conversation</p>
               </>
             )}
           </div>

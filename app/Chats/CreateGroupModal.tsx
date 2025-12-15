@@ -10,41 +10,86 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users } from 'lucide-react';
 import { User } from '@/lib/chat/types';
-import { chatAPI } from '@/lib/chat/api';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.18:9001';
+
+/**
+ * Gets the authentication token from localStorage
+ * Checks multiple possible keys for compatibility
+ */
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  // Try different possible token keys
+  const token = localStorage.getItem('access_token') 
+    || localStorage.getItem('token')
+    || localStorage.getItem('jwt')
+    || localStorage.getItem('authToken');
+  
+  console.log('Auth token found:', token ? 'Yes' : 'No');
+  return token;
+}
 
 interface CreateGroupModalProps {
   isOpen: boolean;
   currentUserId: string;
   onClose: () => void;
-  onCreateGroup: (title: string, memberIds: string[]) => Promise<void>;
+  onGroupCreated?: (chatId: string) => void;
 }
 
 export default function CreateGroupModal({
   isOpen,
   currentUserId,
   onClose,
-  onCreateGroup,
+  onGroupCreated,
 }: CreateGroupModalProps) {
   const [title, setTitle] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load users when modal opens
   useEffect(() => {
     if (isOpen) {
+      setError(null);
       loadUsers();
     }
   }, [isOpen]);
 
   const loadUsers = async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setError('لم يتم العثور على رمز المصادقة. يرجى تسجيل الدخول مرة أخرى.');
+      console.error('No auth token found in localStorage');
+      return;
+    }
+
     setIsLoading(true);
+    setError(null);
     try {
-      const fetchedUsers = await chatAPI.searchUsers('');
-      setUsers(fetchedUsers.filter(u => u.id !== currentUserId));
+      const response = await fetch(`${API_BASE}/search/users?q=&limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('جلسة منتهية الصلاحية. يرجى تسجيل الدخول مرة أخرى.');
+          return;
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setUsers(data.users.filter((u: User) => u.id !== currentUserId));
+      } else {
+        setError(data.error || 'فشل تحميل المستخدمين');
+      }
     } catch (error) {
       console.error('Error loading users:', error);
+      setError('فشل تحميل المستخدمين');
     } finally {
       setIsLoading(false);
     }
@@ -70,16 +115,68 @@ export default function CreateGroupModal({
       return;
     }
 
+    const token = getAuthToken();
+    if (!token) {
+      alert('يرجى تسجيل الدخول أولاً');
+      console.error('No auth token found');
+      return;
+    }
+
     setIsCreating(true);
+    setError(null);
+    
     try {
-      await onCreateGroup(title.trim(), Array.from(selectedUserIds));
-      // Reset form
-      setTitle('');
-      setSelectedUserIds(new Set());
-      onClose();
+      console.log('Creating group with:', {
+        url: `${API_BASE}/chat/group/create`,
+        title: title.trim(),
+        member_ids: Array.from(selectedUserIds)
+      });
+
+      const response = await fetch(`${API_BASE}/chat/group/create`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          title: title.trim(), 
+          member_ids: Array.from(selectedUserIds) 
+        })
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert('جلسة منتهية الصلاحية. يرجى تسجيل الدخول مرة أخرى.');
+          return;
+        }
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Create group response:', data);
+
+      if (data.success) {
+        // Reset form
+        setTitle('');
+        setSelectedUserIds(new Set());
+        onClose();
+        
+        // Notify parent about the new group
+        if (onGroupCreated && data.chat_id) {
+          onGroupCreated(data.chat_id);
+        }
+        
+        alert('تم إنشاء المجموعة بنجاح');
+      } else {
+        alert('فشل إنشاء المجموعة: ' + (data.error || 'Unknown error'));
+      }
     } catch (error) {
       console.error('Error creating group:', error);
-      alert('فشل إنشاء المجموعة');
+      alert('حدث خطأ أثناء إنشاء المجموعة');
     } finally {
       setIsCreating(false);
     }
@@ -107,6 +204,13 @@ export default function CreateGroupModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
         {/* Group Name Input */}
         <div className="mb-4">
@@ -176,6 +280,12 @@ export default function CreateGroupModal({
           >
             إلغاء
           </button>
+        </div>
+
+        {/* Debug Info - Remove in production */}
+        <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-500">
+          <p>API: {API_BASE}</p>
+          <p>Token: {getAuthToken() ? '✓ Found' : '✗ Not found'}</p>
         </div>
       </div>
     </div>

@@ -8,7 +8,6 @@ import StartNewMessage from '@/app/user/start_new_message';
 import { ArrowBigRight } from 'lucide-react';
 
 const MessagesModal = dynamic(() => import('../../user/messages'), { ssr: false });
-const ChatPanel = dynamic(() => import('../../user/chat'), { ssr: false });
 
 type Fatwa = {
   id: number;
@@ -99,9 +98,7 @@ export default function Page() {
 
   // Messaging state (copied from user page)
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isStartOpen, setIsStartOpen] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   // Category search query (filter right-side categories)
   const [categoryQuery, setCategoryQuery] = useState('');
@@ -206,14 +203,12 @@ export default function Page() {
           </Button>
         </div>
 
-        {/* Messages modal (dynamic import from app/user/messages) */}
+        {/* Messages modal - chat opens inline within the modal */}
         <MessagesModal
           isOpen={isMessagesOpen}
           onClose={() => setIsMessagesOpen(false)}
-          onOpenChat={(item: Contact) => {
-            setSelectedContact({ id: item.id, name: item.name, avatar: item.avatar ?? 'https://i.pravatar.cc/80?img=1' });
-            setIsChatOpen(true);
-            setIsMessagesOpen(false);
+          onOpenChat={() => {
+            // Chat opens inline within MessagesModal, no separate ChatPanel needed
           }}
           onOpenStart={() => {
             setIsMessagesOpen(false);
@@ -226,21 +221,12 @@ export default function Page() {
           isOpen={isStartOpen}
           onClose={() => setIsStartOpen(false)}
           users={startUsers.map(u => ({ id: u.id, name: u.name, avatar: u.avatar ?? 'https://i.pravatar.cc/80?img=1' }))}
-          onSelect={(u) => {
-            setSelectedContact({ id: u.id, name: u.name, avatar: u.avatar ?? 'https://i.pravatar.cc/80?img=1' });
-            setIsChatOpen(true);
+          onSelect={() => {
+            // After selecting a user, open messages modal to start the chat
             setIsStartOpen(false);
+            setIsMessagesOpen(true);
           }}
         />
-
-        {/* Chat panel (dynamic import from app/user/chat) */}
-        {selectedContact && (
-          <ChatPanel
-            isOpen={isChatOpen}
-            onClose={() => setIsChatOpen(false)}
-            contact={selectedContact}
-          />
-        )}
       </main>
     </>
   );

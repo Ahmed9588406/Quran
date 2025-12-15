@@ -75,11 +75,12 @@ export interface ChatDetails extends Chat {
  * Represents a file attachment in a message
  */
 export interface Attachment {
-  type: 'image' | 'video' | 'audio' | 'file';
+  type: 'image' | 'video' | 'audio' | 'file' | 'document' | 'pdf';
   url: string;
   filename?: string;
   size?: number;
   mime_type?: string;
+  pageCount?: number; // For PDF documents
 }
 
 /**
@@ -91,7 +92,7 @@ export interface Message {
   sender_id: string;
   sender_name?: string;
   content: string;
-  type: 'text' | 'image' | 'video' | 'audio';
+  type: 'text' | 'image' | 'video' | 'audio' | 'document';
   // Attachments can be JSON string from backend or parsed array
   attachments?: Attachment[] | string;
   media_url?: string;
@@ -124,11 +125,16 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 're
  */
 export type WSMessageType = 
   | 'chat/receive'
+  | 'typing'
   | 'chat/typing'
   | 'chat/stop_typing'
   | 'chat/seen'
+  | 'chat/seen_all'
   | 'chat/message_deleted'
-  | 'presence';
+  | 'presence'
+  | 'notification'
+  | 'notification/ack'
+  | 'seen';
 
 /**
  * Base WebSocket message structure
@@ -189,6 +195,30 @@ export interface WSPresenceMessage extends WSMessage {
   data: {
     status: 'online' | 'offline';
   };
+}
+
+/**
+ * WebSocket message for notifications
+ */
+export interface WSNotificationMessage extends WSMessage {
+  type: 'notification';
+  data: {
+    id: string;
+    title: string;
+    body: string;
+    chat_id?: string;
+    sender_id?: string;
+    created_at: string;
+  };
+}
+
+/**
+ * WebSocket message for seen all messages
+ */
+export interface WSSeenAllMessage extends WSMessage {
+  type: 'chat/seen_all';
+  chat_id: string;
+  last_message_id: string;
 }
 
 // ============================================================================

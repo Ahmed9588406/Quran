@@ -805,6 +805,33 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
         work={userData.work}
         interests={userData.interests}
         reelsCount={userData.reels_count}
+        userId={userId}
+        onMessage={async () => {
+          // Create chat with this user and open messages modal
+          try {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+              window.location.href = "/";
+              return;
+            }
+            // Create chat with user (API will return existing chat if already exists)
+            const res = await fetch("/api/chats", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ user_id: userId }),
+            });
+            if (!res.ok) {
+              console.error("Failed to create chat:", res.status);
+            }
+          } catch (err) {
+            console.error("Error creating chat:", err);
+          }
+          // Open messages modal
+          setMessagesOpen(true);
+        }}
       />
       
       <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} isOwnProfile={isOwnProfile} />

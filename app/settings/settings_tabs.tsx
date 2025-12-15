@@ -20,6 +20,21 @@ export default function SettingsTabs() {
   });
   const [language, setLanguage] = useState<string>("English");
 
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+
   // apply theme based on darkMode on mount and when it changes
   useEffect(() => {
     try {
@@ -39,6 +54,80 @@ export default function SettingsTabs() {
       localStorage.setItem("theme", next ? "dark" : "light");
     } catch (e) {
       // ignore
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    // Reset messages
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    // Validation
+    if (!passwordData.currentPassword.trim()) {
+      setPasswordError('Please enter your current password');
+      return;
+    }
+
+    if (!passwordData.newPassword.trim()) {
+      setPasswordError('Please enter a new password');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New password and confirmation do not match');
+      return;
+    }
+
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setPasswordError('New password must be different from current password');
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+
+      if (!token) {
+        setPasswordError('Authentication token not found. Please log in again.');
+        return;
+      }
+
+      const response = await fetch('/settings/api', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          current_password: passwordData.currentPassword,
+          new_password: passwordData.newPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setPasswordSuccess('Password changed successfully!');
+        // Clear form
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+      } else {
+        setPasswordError(data.error || data.message || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Password change error:', error);
+      setPasswordError('Network error. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -132,7 +221,7 @@ export default function SettingsTabs() {
                       </label>
                       <input
                         placeholder="Please enter your full name"
-                        className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm"
+                        className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
                       />
                     </div>
 
@@ -142,7 +231,7 @@ export default function SettingsTabs() {
                       </label>
                       <input
                         placeholder="Please enter your email"
-                        className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm"
+                        className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
                       />
                     </div>
 
@@ -152,7 +241,7 @@ export default function SettingsTabs() {
                       </label>
                       <input
                         placeholder="Please enter your username"
-                        className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm"
+                        className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
                       />
                     </div>
 
@@ -166,7 +255,7 @@ export default function SettingsTabs() {
                         </span>
                         <input
                           placeholder="Please enter your phone number"
-                          className="flex-1 px-4 py-3 rounded-r-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm"
+                          className="flex-1 px-4 py-3 rounded-r-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
                         />
                       </div>
                     </div>
@@ -179,7 +268,7 @@ export default function SettingsTabs() {
                     <textarea
                       rows={4}
                       placeholder="Write your Bio here e.g your hobbies, interests ETC"
-                      className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm resize-none"
+                      className="w-full px-4 py-3 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm resize-none text-black"
                     />
                   </div>
 
@@ -267,134 +356,170 @@ export default function SettingsTabs() {
         {/* Login & Security Tab */}
         {activeTab === "security" && (
           <div className="bg-white rounded-b-2xl shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              Login & Security
+            {/* Change Password Section */}
+            <h2 className="text-base font-semibold text-gray-800 mb-4">
+              Change Password
             </h2>
 
-            {/* Password & 2FA in row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Password Section */}
-              <div>
-                <h3 className="text-base font-medium text-gray-700 mb-3">
-                  Change Password
-                </h3>
-                <div className="space-y-3">
-                  <input
-                    type="password"
-                    placeholder="Current password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a1233] focus:border-transparent outline-none text-sm"
-                  />
-                  <input
-                    type="password"
-                    placeholder="New password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a1233] focus:border-transparent outline-none text-sm"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Confirm new password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7a1233] focus:border-transparent outline-none text-sm"
-                  />
-                  <button className="px-4 py-2 bg-[#7a1233] text-white rounded-lg font-medium hover:bg-[#5a0d26] transition-colors text-sm">
-                    Update Password
-                  </button>
-                </div>
+            {/* Error/Success Messages */}
+            {passwordError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {passwordError}
               </div>
-
-              {/* Two-Factor Authentication */}
-              <div>
-                <h3 className="text-base font-medium text-gray-700 mb-3">
-                  Two-Factor Authentication
-                </h3>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-800 text-sm">2FA</p>
-                    <p className="text-xs text-gray-500">Extra security layer</p>
-                  </div>
-                  <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 transition-colors">
-                    <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
-                  </button>
-                </div>
+            )}
+            {passwordSuccess && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {passwordSuccess}
               </div>
-            </div>
+            )}
 
-            {/* Active Sessions */}
-            <div className="mb-6">
-              <h3 className="text-base font-medium text-gray-700 mb-3">
-                Active Sessions
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg
-                        className="w-4 h-4 text-green-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-800 text-sm">
-                        Windows PC - Chrome
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Cairo, Egypt • Current
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-green-600 font-medium">Active</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                      <svg
-                        className="w-4 h-4 text-gray-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-800 text-sm">
-                        iPhone 14 - Safari
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Cairo, Egypt • 2 days ago
-                      </p>
-                    </div>
-                  </div>
-                  <button className="text-xs text-red-600 font-medium hover:text-red-700">
-                    Sign out
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Danger Zone */}
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center justify-between p-3 border border-red-200 rounded-lg bg-red-50">
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">Delete Account</p>
-                  <p className="text-xs text-gray-500">Permanently delete your account</p>
-                </div>
-                <button className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition-colors">
-                  Delete
+            {/* Old Password */}
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-2">
+                Old Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPasswords.current ? "text" : "password"}
+                  placeholder="Please enter your old password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                  className="w-full md:w-1/2 px-4 py-3 pr-12 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                  className="absolute left-1/2 md:left-[calc(50%-1rem)] top-1/2 -translate-y-1/2 p-0 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  {showPasswords.current ? (
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
                 </button>
               </div>
+            </div>
+
+            {/* New Password & Confirm New Password - side by side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswords.new ? "text" : "password"}
+                    placeholder="Please enter your New Password"
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                    className="w-full px-4 py-3 pr-12 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    {showPasswords.new ? (
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswords.confirm ? "text" : "password"}
+                    placeholder="Please Confirm your New Password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="w-full px-4 py-3 pr-12 rounded-md bg-[#fff6f3] border border-[#f3d9c9] outline-none text-sm text-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    {showPasswords.confirm ? (
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Logout & Add Existing Account */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Logout & Add Exiting Account
+              </h3>
+              <div className="flex items-center gap-4">
+                <button className="px-5 py-2.5 bg-[#7a1233] text-white rounded-md text-sm font-medium hover:bg-[#5a0d26] transition-colors flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Log out
+                </button>
+                <button className="px-5 py-2.5 border border-[#7a1233] text-[#7a1233] rounded-md text-sm font-medium hover:bg-[#fff6f3] transition-colors flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Switch Account
+                </button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-[#ecd6c9] my-6"></div>
+
+            {/* Update Profile & Reset */}
+            <div className="flex items-center gap-6">
+              <button 
+                onClick={handlePasswordChange}
+                disabled={isChangingPassword}
+                className="px-6 py-3 bg-[#7a1233] text-white rounded-md text-sm font-medium hover:bg-[#5a0d26] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Changing Password...
+                  </>
+                ) : (
+                  'Update Password'
+                )}
+              </button>
+              <button 
+                onClick={() => {
+                  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  setShowPasswords({ current: false, new: false, confirm: false });
+                  setPasswordError(null);
+                  setPasswordSuccess(null);
+                }}
+                className="text-[#d19a62] text-sm font-medium hover:underline"
+              >
+                Reset
+              </button>
             </div>
           </div>
         )}

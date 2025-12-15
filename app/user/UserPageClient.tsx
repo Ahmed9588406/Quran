@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import NavBar from "./navbar";
 import StoriesBar from "./storybar";
@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import StartNewMessage from "./start_new_message";
 import LeftSide from "./leftside";
 import QRScanModal from "../qr/qr_scan";
+import CreatePostCard from "@/app/user-profile/CreatePostCard";
 import { useRouter } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth-helpers";
 import SuggestedUsersRow from "@/components/ui/SuggestedUsersRow";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const MessagesModal = dynamic(() => import("./messages"), { ssr: false });
-const ChatPanel = dynamic(() => import("./chat"), { ssr: false });
 
 interface UserPageClientProps {
   userId: string;
@@ -32,10 +34,8 @@ interface UserPageClientProps {
 export default function UserPageClient({ userId, initialUserData }: UserPageClientProps) {
   const [isLeftOpen, setIsLeftOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [activeView, setActiveView] = useState<string>("home");
   const [currentUser, setCurrentUser] = useState<any>(initialUserData || null);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
@@ -182,7 +182,17 @@ export default function UserPageClient({ userId, initialUserData }: UserPageClie
               <StoriesBar />
             </div>
             <div className="flex flex-col items-center space-y-6 mt-0 w-full">
-              {/* Suggested Users Row - appears at the top of feed */}
+              {/* Create Post Card - appears at the top of feed */}
+              <div className="w-full">
+                <CreatePostCard
+                  currentUserAvatar={currentUser?.avatar_url || "/icons/settings/profile.png"}
+                  currentUserName={currentUser?.display_name || currentUser?.username || "You"}
+                  onPostCreated={() => {
+                    window.location.reload();
+                  }}
+                />
+              </div>
+              {/* Suggested Users Row - appears below create post */}
               <div className="w-full">
                 <SuggestedUsersRow />
               </div>
@@ -303,13 +313,12 @@ export default function UserPageClient({ userId, initialUserData }: UserPageClie
         </Button>
       </div>
 
-      {/* Messages modal */}
+      {/* Messages modal - chat opens inline within the modal */}
       <MessagesModal
         isOpen={isMessagesOpen}
         onClose={() => setIsMessagesOpen(false)}
-        onOpenChat={(item) => {
-          setSelectedContact({ id: item.id, name: item.name, avatar: item.avatar });
-          setIsChatOpen(true);
+        onOpenChat={() => {
+          // Chat opens inline within MessagesModal, no separate ChatPanel needed
         }}
         onOpenStart={() => {
           setIsMessagesOpen(false);
@@ -322,22 +331,28 @@ export default function UserPageClient({ userId, initialUserData }: UserPageClie
         isOpen={isStartOpen}
         onClose={() => setIsStartOpen(false)}
         users={startUsers}
-        onSelect={(u) => {
-          setSelectedContact({ id: u.id, name: u.name, avatar: u.avatar });
-          setIsChatOpen(true);
+        onSelect={() => {
+          // After selecting a user, open messages modal to start the chat
           setIsStartOpen(false);
+          setIsMessagesOpen(true);
         }}
-      />
-
-      {/* Chat panel */}
-      <ChatPanel
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        contact={selectedContact}
       />
 
       {/* QR Scan modal */}
       <QRScanModal isOpen={isScanOpen} onClose={() => setIsScanOpen(false)} />
+
+      {/* Toast notifications */}
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </div>
   );
 }

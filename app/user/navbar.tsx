@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Menu, Moon, MessageCircle, Search } from "lucide-react";
+import { Bell, Menu, Moon, MessageCircle, Search, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useNotifications } from "../components/NotificationProvider";
 const NotificationPanel = dynamic(() => import("./notification"), { ssr: false });
 const ProfileModal = dynamic(() => import("./profile_modal"), { ssr: false });
 const AskImamModal = dynamic(() => import("./askimam"), { ssr: false });
@@ -34,6 +35,9 @@ export default function NavBar({
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isAskOpen, setAskOpen] = useState(false);
   const [avatarSrc, setAvatarSrc] = useState<string>("/icons/settings/profile.png");
+
+  // Use global notification context
+  const { unreadCount, soundEnabled, toggleSound } = useNotifications();
 
   useEffect(() => {
     if (currentUser && currentUser.avatar_url) {
@@ -111,20 +115,34 @@ export default function NavBar({
               <span>Ask Imam ?</span>
             </button>
 
+            {/* Sound toggle - hidden on very small screens */}
+            <button 
+              aria-label="Toggle notification sound" 
+              className="hidden sm:flex p-2 rounded-full text-gray-600 hover:bg-gray-100" 
+              onClick={toggleSound}
+              title={soundEnabled ? "Mute notifications" : "Unmute notifications"}
+            >
+              {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            </button>
+
             {/* Dark mode - hidden on very small screens */}
             <button aria-label="Toggle theme" className="hidden sm:flex p-2 rounded-full text-gray-600 hover:bg-gray-100" onClick={toggleTheme}>
               <Moon className="w-5 h-5" />
             </button>
 
-            {/* Messages - hidden on mobile (use floating button) */}
-            <button aria-label="Messages" className="hidden md:flex p-2 rounded-full text-gray-600 hover:bg-gray-100" onClick={() => onOpenMessages?.()}>
+            {/* Messages - links to full Chats page */}
+            <Link href="/Chats" aria-label="Messages" className="hidden md:flex p-2 rounded-full text-gray-600 hover:bg-gray-100">
               <MessageCircle className="w-5 h-5" />
-            </button>
+            </Link>
 
             {/* Notifications */}
             <button aria-label="Notifications" onClick={() => setNotifOpen((s) => !s)} className="relative p-2 rounded-full text-gray-600 hover:bg-gray-100" type="button">
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-[#ff6b6b] rounded-full">3</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-[#ff6b6b] rounded-full">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
 
             <div className="absolute right-0 top-12 sm:top-14 z-50">

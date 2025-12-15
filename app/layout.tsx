@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { NotificationProvider } from "./components/NotificationProvider";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -15,7 +16,9 @@ export default function RootLayout({
     // add suppressHydrationWarning to allow small client-only mutations (dev tools/extensions)
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning className={`antialiased`}>
-        {children}
+        <NotificationProvider>
+          {children}
+        </NotificationProvider>
       </body>
     </html>
   );

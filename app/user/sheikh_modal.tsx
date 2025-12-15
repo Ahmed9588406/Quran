@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
+import { getAuthToken } from '@/lib/auth';
 
 type Sheikh = {
     id: string;
@@ -10,15 +10,12 @@ type Sheikh = {
     avatar?: string;
 };
 
-const MOCK_SHEIKHS: Sheikh[] = [
-    { id: 's1', name: 'Sheikh Ahmad', title: 'Mufti', avatar: '/icons/sheikh1.png' },
-    { id: 's2', name: 'Sheikh Omar', title: 'Scholar', avatar: '/icons/sheikh2.png' },
-    { id: 's3', name: 'Sheikh Zaid', title: 'Judge', avatar: '/icons/sheikh3.png' },
-];
-
 export default function SheikhModal() {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sheikhs, setSheikhs] = useState<Sheikh[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const onOpen = () => setIsOpen(true);
@@ -39,6 +36,85 @@ export default function SheikhModal() {
         };
     }, []);
 
+    // fetch when modal opens
+    useEffect(() => {
+        const controller = new AbortController();
+        const url = '/user/api?size=10&page=0';
+
+        async function load() {
+            setLoading(true);
+            setError(null);
+            try {
+                // Get auth token from logged-in user (now returns access_token correctly)
+                const token = getAuthToken();
+                const headers: Record<string, string> = {};
+                
+                if (token) {
+                    headers.Authorization = `Bearer ${token}`;
+                    console.log('[MODAL] Sending auth token');
+                } else {
+                    console.warn('[MODAL] No auth token found — attempting without auth');
+                }
+
+                const res = await fetch(url, { signal: controller.signal, headers });
+                // read text once and parse
+                const text = await res.text();
+                let parsed: any;
+                try {
+                    parsed = JSON.parse(text);
+                } catch {
+                    parsed = text;
+                }
+
+                if (!res.ok) {
+                    // upstream/proxy returned non-ok — show details
+                    const detail =
+                        typeof parsed === 'string' ? parsed : JSON.stringify(parsed, Object.keys(parsed).slice(0, 10));
+                    throw new Error(`Proxy error (${res.status}): ${detail}`);
+                }
+
+                const data: {
+                    content: Array<{
+                        id: string;
+                        username: string;
+                        displayName?: string;
+                        avatarUrl?: string;
+                        bio?: string;
+                        isVerified?: boolean;
+                    }>;
+                    // ...other pagination fields ignored
+                } = parsed;
+
+                const mapped: Sheikh[] = (data.content || []).map(p => ({
+                    id: p.id,
+                    name: p.displayName ?? p.username,
+                    title: p.bio ? (p.bio.length > 80 ? p.bio.slice(0, 80) + '...' : p.bio) : undefined,
+                    avatar: p.avatarUrl,
+                }));
+
+                setSheikhs(mapped);
+            } catch (err: any) {
+                if (err.name !== 'AbortError') {
+                    // surface meaningful message
+                    setError(err.message ?? 'Failed to load preachers');
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (isOpen) {
+            load();
+        } else {
+            // clear previous results when closed (optional)
+            setSheikhs([]);
+            setError(null);
+            setLoading(false);
+        }
+
+        return () => controller.abort();
+    }, [isOpen]);
+
     useEffect(() => {
         document.body.style.overflow = isOpen ? 'hidden' : '';
         return () => {
@@ -48,7 +124,7 @@ export default function SheikhModal() {
 
     if (!isOpen) return null;
 
-    const filteredSheikhs = MOCK_SHEIKHS.filter(s =>
+    const filteredSheikhs = sheikhs.filter(s =>
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (s.title && s.title.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -84,10 +160,17 @@ export default function SheikhModal() {
                 </div>
 
                 <div className="px-4 pb-4 space-y-3 max-h-[60vh] overflow-auto">
+                    {loading && <div className="text-center text-sm text-gray-500">Loading...</div>}
+                    {error && <div className="text-center text-sm text-red-500">Error: {error}</div>}
+                    {!loading && !error && filteredSheikhs.length === 0 && (
+                        <div className="text-center text-sm text-gray-500">No sheikhs found.</div>
+                    )}
+
                     {filteredSheikhs.map((s) => (
                         <div key={s.id} className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-50">
                             <div className="w-10 h-10 rounded-full overflow-hidden relative bg-gray-100">
-                                <Image src={s.avatar ?? '/icons/settings/profile.png'} alt={s.name} fill style={{ objectFit: 'cover' }} />
+                                {/* use img to avoid Next/Image external domain config */}
+                                <img src={s.avatar ?? '/icons/settings/profile.png'} alt={s.name} style={{ width: '40px', height: '40px', objectFit: 'cover' }} />
                             </div>
                             <div className="flex-1">
                                 <div className="text-sm font-medium text-gray-800">{s.name}</div>

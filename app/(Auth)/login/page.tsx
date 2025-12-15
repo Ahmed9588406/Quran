@@ -10,6 +10,7 @@ import Image from "next/image";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { extractUserId, getPostLoginRoute } from "@/lib/auth-helpers";
+import { setAuthToken, setRefreshToken } from "@/lib/auth";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -76,9 +77,15 @@ export default function Login() {
 			// Requirements: 1.1, 1.2
 			const userId = extractUserId(root);
 
-			// persist tokens and user
-			if (access) localStorage.setItem("access_token", access);
-			if (refresh) localStorage.setItem("refresh_token", refresh);
+			// persist tokens using auth helpers
+			if (access) {
+				localStorage.setItem("access_token", access);
+				setAuthToken(access);
+			}
+			if (refresh) {
+				localStorage.setItem("refresh_token", refresh);
+				setRefreshToken(refresh);
+			}
 			if (user) {
 				// Store user object with ID for subsequent navigation
 				// Requirements: 1.2

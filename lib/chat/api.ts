@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Chat API Service
  * 
@@ -20,6 +21,7 @@ import {
   CreateChatResponse,
   CreateGroupResponse,
   APIError,
+  Attachment, // <-- added
 } from './types';
 
 // Backend API base URL - matches the working backend
@@ -251,17 +253,18 @@ export class ChatAPI {
   }
 
   /**
-   * Sends a media file (image, video, audio) to a chat.
+   * Sends a media file (image, video, audio, document) to a chat.
    * Backend endpoint: POST /chat/:chat_id/message/:type (image, video, audio)
+   * Documents are sent via the 'image' endpoint as the backend handles all file types there.
    * 
    * Requirements: 6.1
    * 
    * @param chatId - ID of the chat
    * @param file - File to upload
-   * @param type - Type of media ('image', 'video', 'audio')
+   * @param type - Type of media ('image', 'video', 'audio', 'document')
    * @returns Promise resolving to the created Message object
    */
-  async sendMedia(chatId: string, file: File, type: 'image' | 'video' | 'audio'): Promise<Message> {
+  async sendMedia(chatId: string, file: File, type: 'image' | 'video' | 'audio' | 'document'): Promise<Message> {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -273,21 +276,52 @@ export class ChatAPI {
     }
     
     // Backend uses /chat/:chat_id/message/:type for media uploads
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message/${type}`, {
+    // Documents use 'image' endpoint as backend doesn't have dedicated document endpoint
+    const endpointType = type === 'document' ? 'image' : type;
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message/${endpointType}`, {
       method: 'POST',
       headers,
       body: formData,
     });
     
-    const data = await handleResponse<{ success: boolean; message_id?: string; media_url?: string }>(response);
+    const data = await handleResponse<{ 
+      success: boolean; 
+      message_id?: string; 
+      media_url?: string;
+      attachments?: any; // keep as any from server
+    }>(response);
+    
+    // Build attachments array - always include file metadata for proper display
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    // Narrow attachmentType to the allowed literal union
+    let attachmentType: 'image' | 'video' | 'audio' | 'document' | 'pdf';
+    if (type === 'document') {
+      attachmentType = isPdf ? 'pdf' : 'document';
+    } else {
+      // type is one of 'image'|'video'|'audio' so assign directly
+      attachmentType = type;
+    }
+
+    // Ensure attachments conforms to Attachment[] | undefined
+    const attachments: Attachment[] | undefined = data.attachments
+      ? (data.attachments as Attachment[])
+      : (data.media_url ? [{
+          type: attachmentType,
+          url: data.media_url,
+          filename: file.name,
+          size: file.size,
+          mime_type: file.type,
+        } as Attachment] : undefined);
     
     return {
       id: data.message_id || '',
       chat_id: chatId,
       sender_id: '',
       content: '',
-      type,
+      type: type === 'document' ? 'document' : type,
       media_url: data.media_url,
+      attachments,
       created_at: new Date().toISOString(),
       is_read: false,
     };
@@ -311,6 +345,85 @@ export class ChatAPI {
     await handleResponse<{ success: boolean }>(response);
   }
 
+  // ============================================================================
+  // Typing Indicator
+  // ============================================================================
+
+  /**
+   * Sends typing indicator to a chat via REST API.
+   * Frontend endpoint: POST /api/chats/:chatId/typing
+   * Backend endpoint: POST /chat/:chat_id/typing
+   * Body: { "is_typing": true/false }
+   * 
+   * Requirements: 4.1
+   * 
+   * @param chatId - ID of the chat where user is typing
+   * @param isTyping - Whether user is typing (default: true)
+   * @returns Promise resolving when typing indicator is sent
+   */
+  async sendTyping(chatId: string, isTyping: boolean = true): Promise<void> {
+    try {
+      // Use frontend API route which proxies to backend
+      const response = await fetch(`/api/chats/${chatId}/typing`, {
+        method: 'POST',
+        headers: createHeaders('application/json'),
+        body: JSON.stringify({ is_typing: isTyping }),
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Failed to send typing indicator:', response.status, text);
+        throw new ChatAPIError(
+          'Failed to send typing indicator',
+          response.status,
+          'TYPING_ERROR'
+        );
+      }
+      
+      await handleResponse<{ success: boolean }>(response);
+    } catch (error) {
+      console.error('Error sending typing indicator:', error);
+      // Don't throw - typing indicator is not critical
+    }
+  }
+
+  /**
+   * Marks messages as seen in a chat via REST API.
+   * Frontend endpoint: POST /api/chats/:chatId/seen
+   * Backend endpoint: POST /chat/:chat_id/seen
+   * 
+   * @param chatId - ID of the chat
+   * @param messageId - Optional specific message ID to mark as seen
+   * @returns Promise resolving when seen status is sent
+   */
+  async markAsSeen(chatId: string, messageId?: string): Promise<void> {
+    try {
+      // Use frontend API route which proxies to backend
+      const body = messageId ? { message_id: messageId } : {};
+      
+      const response = await fetch(`/api/chats/${chatId}/seen`, {
+        method: 'POST',
+        headers: createHeaders('application/json'),
+        body: JSON.stringify(body),
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Failed to mark as seen:', response.status, text);
+        throw new ChatAPIError(
+          'Failed to mark messages as seen',
+          response.status,
+          'SEEN_ERROR'
+        );
+      }
+      
+      await handleResponse<{ success: boolean }>(response);
+    } catch (error) {
+      console.error('Error marking messages as seen:', error);
+      // Don't throw - seen status is not critical
+    }
+  }
+
 
   // ============================================================================
   // Group Operations
@@ -318,7 +431,8 @@ export class ChatAPI {
 
   /**
    * Creates a new group chat.
-   * Backend endpoint: POST /chat/group/create
+   * Backend endpoint: POST /chat/group
+   * Body: { "title": "Group Name", "members": ["USER_ID_1", "USER_ID_2"] }
    * 
    * Requirements: 8.1
    * 
@@ -327,14 +441,47 @@ export class ChatAPI {
    * @returns Promise resolving to CreateGroupResponse with chat_id
    */
   async createGroup(title: string, memberIds: string[]): Promise<CreateGroupResponse> {
-    const response = await fetch(`${this.baseUrl}/chat/group/create`, {
-      method: 'POST',
-      headers: createHeaders('application/json'),
-      body: JSON.stringify({ title, member_ids: memberIds }),
+    const requestBody = { title, members: memberIds };
+    
+    console.log('Creating group with:', {
+      url: `${this.baseUrl}/chat/group`,
+      body: requestBody,
     });
     
-    const data = await handleResponse<{ success: boolean; chat_id: string }>(response);
-    return { chat_id: data.chat_id };
+    const response = await fetch(`${this.baseUrl}/chat/group`, {
+      method: 'POST',
+      headers: createHeaders('application/json'),
+      body: JSON.stringify(requestBody),
+    });
+    
+    // Log response for debugging
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Group creation failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      
+      // Try to parse as JSON for better error message
+      try {
+        const errorData = JSON.parse(errorText);
+        throw new ChatAPIError(
+          errorData.message || errorData.error || 'Failed to create group',
+          response.status,
+          errorData.error || 'GROUP_CREATE_ERROR'
+        );
+      } catch (e) {
+        if (e instanceof ChatAPIError) throw e;
+        throw new ChatAPIError(errorText || 'Failed to create group', response.status, 'GROUP_CREATE_ERROR');
+      }
+    }
+    
+    const data = await response.json();
+    console.log('Group created successfully:', data);
+    
+    // Handle different response formats
+    return { chat_id: data.chat_id || data.id || data.group_id };
   }
 
   /**

@@ -2,39 +2,51 @@
 
 /**
  * ReelsFeed Component
- * 
+ *
  * Main feed component with swipe/scroll navigation for browsing reels.
  * Integrates ReelViewer, ReelActions, and ReelInfo components.
- * 
+ * Layout matches Instagram-style design with centered video, side actions, and navigation.
+ *
  * Requirements: 1.3, 1.4, 1.5
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Volume2, VolumeX } from 'lucide-react';
-import { Reel } from '@/lib/reels/types';
-import { useReelsFeed } from '@/lib/reels/useReelsFeed';
-import { useReelInteractions } from '@/lib/reels/useReelInteractions';
-import { reelsAPI } from '@/lib/reels/api';
-import ReelViewer from './ReelViewer';
-import ReelActions from './ReelActions';
-import ReelInfo from './ReelInfo';
-import ShareModal from './ShareModal';
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { Volume2, VolumeX, ChevronUp, ChevronDown } from "lucide-react";
+import { Reel } from "@/lib/reels/types";
+import { useReelsFeed } from "@/lib/reels/useReelsFeed";
+import { useReelInteractions } from "@/lib/reels/useReelInteractions";
+import { reelsAPI } from "@/lib/reels/api";
+import ReelViewer from "./ReelViewer";
+import ShareModal from "./ShareModal";
+import CommentsModal from "./CommentsModal";
+
+const BASE_URL = "http://192.168.1.18:9001";
 
 // Swipe threshold in pixels
 const SWIPE_THRESHOLD = 50;
 
+function normalizeUrl(url?: string | null): string {
+  if (!url) return "/icons/settings/profile.png";
+  if (url.startsWith("http")) return url;
+  return `${BASE_URL}${url}`;
+}
+
+function formatCount(count: number): string {
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1)}M`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}k`;
+  }
+  return count.toString();
+}
+
 export interface ReelsFeedProps {
-  /** Initial reels to display (optional, will fetch if not provided) */
   initialReels?: Reel[];
-  /** Current user ID for determining follow button visibility */
   currentUserId?: string;
-  /** Callback when load more is triggered */
   onLoadMore?: () => Promise<Reel[]>;
 }
 
-/**
- * Individual Reel Item with all interactions
- */
 interface ReelItemProps {
   reel: Reel;
   isActive: boolean;
@@ -42,20 +54,25 @@ interface ReelItemProps {
   currentUserId?: string;
   onToggleMute: () => void;
   onShare: (reel: Reel) => void;
+  onComment: (reel: Reel) => void;
 }
 
-function ReelItem({ reel, isActive, isMuted, currentUserId, onToggleMute, onShare }: ReelItemProps) {
-  const {
-    isLiked,
-    isSaved,
-    likeCount,
-    toggleLike,
-    toggleSave,
-  } = useReelInteractions(reel.id, {
-    initialIsLiked: reel.is_liked ?? false,
-    initialIsSaved: reel.is_saved ?? false,
-    initialLikeCount: reel.likes_count,
-  });
+
+function ReelItem({
+  reel,
+  isActive,
+  isMuted,
+  currentUserId,
+  onToggleMute,
+  onShare,
+  onComment,
+}: ReelItemProps) {
+  const { isLiked, isSaved, likeCount, toggleLike, toggleSave } =
+    useReelInteractions(reel.id, {
+      initialIsLiked: reel.is_liked ?? false,
+      initialIsSaved: reel.is_saved ?? false,
+      initialLikeCount: reel.likes_count,
+    });
 
   const [isFollowing, setIsFollowing] = useState(reel.is_following ?? false);
   const isCurrentUser = currentUserId === reel.user_id;
@@ -65,22 +82,12 @@ function ReelItem({ reel, isActive, isMuted, currentUserId, onToggleMute, onShar
       await reelsAPI.followUser(reel.user_id);
       setIsFollowing(true);
     } catch (error) {
-      console.error('Failed to follow user:', error);
+      console.error("Failed to follow user:", error);
     }
   }, [reel.user_id]);
 
-  const handleShare = useCallback(() => {
-    // Open ShareModal - Requirements: 7.1
-    onShare(reel);
-  }, [reel, onShare]);
-
-  const handleComment = useCallback(() => {
-    // Comment functionality - placeholder for now
-    console.log('Open comments for reel:', reel.id);
-  }, [reel.id]);
-
   return (
-    <div className="relative w-full h-full" data-testid="reel-item">
+    <div className="relative w-full h-full rounded-2xl overflow-hidden" data-testid="reel-item">
       {/* Video Player */}
       <ReelViewer
         reel={reel}
@@ -89,42 +96,114 @@ function ReelItem({ reel, isActive, isMuted, currentUserId, onToggleMute, onShar
         onToggleMute={onToggleMute}
       />
 
-      {/* User Info - Bottom Left */}
-      <div className="absolute bottom-0 left-0 right-20 p-4 pb-6 z-20 pointer-events-auto">
-        <ReelInfo
-          reel={reel}
-          isFollowing={isFollowing}
-          isCurrentUser={isCurrentUser}
-          onFollow={handleFollow}
-        />
+      {/* Gradient overlay for text visibility */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+      {/* User Info Overlay - Bottom of video */}
+      <div className="absolute bottom-4 left-4 right-16 z-20">
+        <div className="flex items-center gap-3 mb-2">
+          <img
+            src={normalizeUrl(reel.user_avatar)}
+            alt={reel.username}
+            className="w-10 h-10 rounded-full border-2 border-white object-cover"
+          />
+          <span className="text-white font-semibold text-sm">{reel.username}</span>
+          {!isCurrentUser && !isFollowing && (
+            <button
+              onClick={handleFollow}
+              className="px-4 py-1.5 bg-white/20 backdrop-blur-sm border border-white/40 rounded-full text-white text-xs font-medium hover:bg-white/30 transition-colors"
+            >
+              Follow
+            </button>
+          )}
+        </div>
+        <p className="text-white text-sm line-clamp-2 leading-relaxed">
+          {reel.content}
+        </p>
+        {reel.content && reel.content.length > 100 && (
+          <button className="text-white/70 text-xs mt-1 hover:text-white">
+            ...See More
+          </button>
+        )}
       </div>
 
-      {/* Actions - Right Side */}
-      <div className="absolute bottom-32 right-3 z-20 pointer-events-auto">
-        <ReelActions
-          reel={reel}
-          isLiked={isLiked}
-          isSaved={isSaved}
-          likeCount={likeCount}
-          onLike={toggleLike}
-          onSave={toggleSave}
-          onShare={handleShare}
-          onComment={handleComment}
-        />
+      {/* Right Side Actions */}
+      <div className="absolute right-3 bottom-20 z-20 flex flex-col items-center gap-5">
+        {/* User Avatar */}
+        <div className="relative">
+          <img
+            src={normalizeUrl(reel.user_avatar)}
+            alt={reel.username}
+            className="w-11 h-11 rounded-full border-2 border-white object-cover"
+          />
+        </div>
+
+        {/* Like Button */}
+        <button
+          onClick={toggleLike}
+          className="flex flex-col items-center gap-1"
+          aria-label={isLiked ? "Unlike" : "Like"}
+        >
+          <svg
+            className={`w-7 h-7 ${isLiked ? "fill-red-500 text-red-500" : "text-white"}`}
+            viewBox="0 0 24 24"
+            fill={isLiked ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+          </svg>
+          <span className="text-white text-xs font-medium">{formatCount(likeCount)}</span>
+        </button>
+
+        {/* Comment Button */}
+        <button
+          onClick={() => onComment(reel)}
+          className="flex flex-col items-center gap-1"
+          aria-label="Comments"
+        >
+          <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+          </svg>
+          <span className="text-white text-xs font-medium">{formatCount(reel.comments_count)}</span>
+        </button>
+
+        {/* Share Button */}
+        <button
+          onClick={() => onShare(reel)}
+          className="flex flex-col items-center gap-1"
+          aria-label="Share"
+        >
+          <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+          </svg>
+          <span className="text-white text-xs font-medium">7114</span>
+        </button>
+
+        {/* Save Button */}
+        <button
+          onClick={toggleSave}
+          className="flex flex-col items-center gap-1"
+          aria-label={isSaved ? "Unsave" : "Save"}
+        >
+          <svg
+            className={`w-7 h-7 ${isSaved ? "fill-white text-white" : "text-white"}`}
+            viewBox="0 0 24 24"
+            fill={isSaved ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+          </svg>
+          <span className="text-white text-xs font-medium">12.8</span>
+        </button>
       </div>
     </div>
   );
 }
 
 
-/**
- * ReelsFeed - Main feed component with swipe navigation
- * 
- * - Implements touch/mouse swipe handlers (Requirements: 1.3, 1.4)
- * - Integrates ReelViewer, ReelActions, ReelInfo
- * - Auto-loads more reels when reaching end (Requirements: 1.5)
- */
-export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeedProps) {
+export function ReelsFeed({ initialReels, currentUserId }: ReelsFeedProps) {
   const {
     reels,
     currentIndex,
@@ -133,11 +212,9 @@ export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeed
     hasMore,
     goToNext,
     goToPrevious,
-    loadMore,
     refresh,
   } = useReelsFeed({ autoLoad: !initialReels });
 
-  // Use initial reels if provided, otherwise use fetched reels
   const displayReels = initialReels && initialReels.length > 0 ? initialReels : reels;
 
   const [isMuted, setIsMuted] = useState(true);
@@ -146,110 +223,114 @@ export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeed
   const [dragOffset, setDragOffset] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Share modal state - Requirements: 7.1
+  // Share modal state
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareReel, setShareReel] = useState<Reel | null>(null);
 
+  // Comments modal state
+  const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false);
+  const [commentReel, setCommentReel] = useState<Reel | null>(null);
+
   const currentReel = displayReels[currentIndex];
 
-  // Toggle mute for all reels
   const handleToggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
+    setIsMuted((prev) => !prev);
   }, []);
 
-  /**
-   * Open share modal for a reel
-   * Requirements: 7.1 - Display sharing options
-   */
   const handleOpenShareModal = useCallback((reel: Reel) => {
     setShareReel(reel);
     setIsShareModalOpen(true);
   }, []);
 
-  /**
-   * Close share modal
-   */
   const handleCloseShareModal = useCallback(() => {
     setIsShareModalOpen(false);
     setShareReel(null);
   }, []);
 
-  /**
-   * Handle share to chat
-   * Requirements: 7.2 - Send to chat option
-   */
   const handleShareToChat = useCallback((reel: Reel, userId: string) => {
-    // In a real implementation, this would send the reel to the chat
-    console.log('Sharing reel', reel.id, 'to user', userId);
-    // Could integrate with chat API here
+    console.log("Sharing reel", reel.id, "to user", userId);
   }, []);
 
-  /**
-   * Touch event handlers for swipe navigation
-   * Requirements: 1.3 (swipe up), 1.4 (swipe down)
-   */
+  const handleOpenCommentsModal = useCallback((reel: Reel) => {
+    setCommentReel(reel);
+    setIsCommentsModalOpen(true);
+  }, []);
+
+  const handleCloseCommentsModal = useCallback(() => {
+    setIsCommentsModalOpen(false);
+    setCommentReel(null);
+  }, []);
+
+  // Touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     setStartY(e.touches[0].clientY);
     setIsDragging(true);
     setDragOffset(0);
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const currentY = e.touches[0].clientY;
-    const diff = startY - currentY;
-    setDragOffset(diff);
-  }, [isDragging, startY]);
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isDragging) return;
+      const currentY = e.touches[0].clientY;
+      const diff = startY - currentY;
+      setDragOffset(diff);
+    },
+    [isDragging, startY]
+  );
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const endY = e.changedTouches[0].clientY;
-    const diff = startY - endY;
-    setIsDragging(false);
-    setDragOffset(0);
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isDragging) return;
+      const endY = e.changedTouches[0].clientY;
+      const diff = startY - endY;
+      setIsDragging(false);
+      setDragOffset(0);
 
-    // Swipe threshold check
-    if (Math.abs(diff) > SWIPE_THRESHOLD) {
-      if (diff > 0) {
-        // Swipe up -> next reel (Requirements: 1.3)
-        goToNext();
-      } else {
-        // Swipe down -> previous reel (Requirements: 1.4)
-        goToPrevious();
+      if (Math.abs(diff) > SWIPE_THRESHOLD) {
+        if (diff > 0) {
+          goToNext();
+        } else {
+          goToPrevious();
+        }
       }
-    }
-  }, [isDragging, startY, goToNext, goToPrevious]);
+    },
+    [isDragging, startY, goToNext, goToPrevious]
+  );
 
-  /**
-   * Mouse event handlers for desktop swipe navigation
-   */
+  // Mouse handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setStartY(e.clientY);
     setIsDragging(true);
     setDragOffset(0);
   }, []);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const diff = startY - e.clientY;
-    setDragOffset(diff);
-  }, [isDragging, startY]);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging) return;
+      const diff = startY - e.clientY;
+      setDragOffset(diff);
+    },
+    [isDragging, startY]
+  );
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const endY = e.clientY;
-    const diff = startY - endY;
-    setIsDragging(false);
-    setDragOffset(0);
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging) return;
+      const endY = e.clientY;
+      const diff = startY - endY;
+      setIsDragging(false);
+      setDragOffset(0);
 
-    if (Math.abs(diff) > SWIPE_THRESHOLD) {
-      if (diff > 0) {
-        goToNext();
-      } else {
-        goToPrevious();
+      if (Math.abs(diff) > SWIPE_THRESHOLD) {
+        if (diff > 0) {
+          goToNext();
+        } else {
+          goToPrevious();
+        }
       }
-    }
-  }, [isDragging, startY, goToNext, goToPrevious]);
+    },
+    [isDragging, startY, goToNext, goToPrevious]
+  );
 
   const handleMouseLeave = useCallback(() => {
     if (isDragging) {
@@ -258,98 +339,47 @@ export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeed
     }
   }, [isDragging]);
 
-  /**
-   * Keyboard navigation support
-   */
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp' || e.key === 'k') {
+      if (e.key === "ArrowUp" || e.key === "k") {
         goToPrevious();
-      } else if (e.key === 'ArrowDown' || e.key === 'j') {
+      } else if (e.key === "ArrowDown" || e.key === "j") {
         goToNext();
-      } else if (e.key === 'm') {
-        setIsMuted(prev => !prev);
+      } else if (e.key === "m") {
+        setIsMuted((prev) => !prev);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [goToNext, goToPrevious]);
 
-  /**
-   * Loading State - Requirements: 10.1
-   * Display loading spinner during initial fetch
-   */
+  // Loading state
   if (isLoading && displayReels.length === 0) {
     return (
-      <div 
-        className="w-full h-screen flex items-center justify-center bg-black"
-        data-testid="reels-feed-loading"
-      >
+      <div className="w-full h-screen flex items-center justify-center bg-[#fff6f3]">
         <div className="flex flex-col items-center gap-4">
-          {/* Loading Spinner */}
-          <div 
-            className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin"
-            data-testid="loading-spinner"
-          />
-          <p className="text-white/70 text-sm">Loading reels...</p>
+          <div className="w-12 h-12 border-4 border-[#8A1538]/30 border-t-[#8A1538] rounded-full animate-spin" />
+          <p className="text-[#8A1538]/70 text-sm">Loading reels...</p>
         </div>
       </div>
     );
   }
 
-  /**
-   * Error State - Requirements: 10.3
-   * Display error message with retry option
-   */
+  // Error state
   if (error && displayReels.length === 0) {
     return (
-      <div 
-        className="w-full h-screen flex items-center justify-center bg-black"
-        data-testid="reels-feed-error"
-      >
+      <div className="w-full h-screen flex items-center justify-center bg-[#fff6f3]">
         <div className="flex flex-col items-center gap-4 text-center px-4">
-          {/* Error Icon */}
-          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
-            <svg 
-              className="w-8 h-8 text-red-500" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
-              />
+          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <div>
-            <p className="text-white text-lg font-medium mb-1">Something went wrong</p>
-            <p className="text-white/60 text-sm mb-4" data-testid="error-message">
-              {error.message || 'Failed to load reels'}
-            </p>
-          </div>
-          {/* Retry Button */}
-          <button
-            onClick={refresh}
-            className="px-6 py-2.5 bg-white text-black rounded-full font-medium hover:bg-white/90 transition-colors flex items-center gap-2"
-            data-testid="retry-button"
-          >
-            <svg 
-              className="w-4 h-4" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-              />
-            </svg>
+          <p className="text-gray-800 text-lg font-medium">Something went wrong</p>
+          <p className="text-gray-500 text-sm mb-2">{error.message || "Failed to load reels"}</p>
+          <button onClick={refresh} className="px-6 py-2.5 bg-[#8A1538] text-white rounded-full font-medium hover:bg-[#6d1029] transition-colors">
             Try Again
           </button>
         </div>
@@ -357,19 +387,13 @@ export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeed
     );
   }
 
-  // Handle empty state
+  // Empty state
   if (!isLoading && displayReels.length === 0 && !error) {
     return (
-      <div 
-        className="w-full h-screen flex items-center justify-center bg-black"
-        data-testid="reels-feed-empty"
-      >
-        <div className="text-center text-white">
-          <p className="text-lg mb-2">No reels available</p>
-          <button
-            onClick={refresh}
-            className="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-          >
+      <div className="w-full h-screen flex items-center justify-center bg-[#fff6f3]">
+        <div className="text-center">
+          <p className="text-gray-600 text-lg mb-2">No reels available</p>
+          <button onClick={refresh} className="px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors">
             Refresh
           </button>
         </div>
@@ -377,71 +401,71 @@ export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeed
     );
   }
 
+
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-screen overflow-hidden flex items-center justify-center select-none bg-black"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      data-testid="reels-feed"
-    >
-      {/* Main Reel Container */}
-      <div 
-        className="relative w-full max-w-[500px] h-full"
-        style={{
-          transform: isDragging ? `translateY(${-dragOffset * 0.3}px)` : 'none',
-          transition: isDragging ? 'none' : 'transform 0.3s ease-out',
-        }}
-      >
-        {/* Current Reel */}
+    <div className="w-full min-h-screen bg-[#fff6f3] flex">
+      {/* Left Sidebar - User Info */}
+      <div className="hidden lg:flex flex-col justify-end w-72 p-6 pb-32">
         {currentReel && (
-          <ReelItem
-            reel={currentReel}
-            isActive={true}
-            isMuted={isMuted}
-            currentUserId={currentUserId}
-            onToggleMute={handleToggleMute}
-            onShare={handleOpenShareModal}
-          />
-        )}
-
-        {/* Progress bar at top - show current reel index */}
-        <div className="absolute top-2 left-4 right-4 flex gap-1 z-30">
-          {displayReels.slice(0, Math.min(displayReels.length, 10)).map((_, idx) => (
-            <div 
-              key={idx} 
-              className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden"
-            >
-              <div 
-                className={`h-full transition-all duration-300 ${
-                  idx === currentIndex 
-                    ? 'w-full bg-white' 
-                    : idx < currentIndex 
-                      ? 'w-full bg-white/60' 
-                      : 'w-0 bg-white'
-                }`} 
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <img
+                src={normalizeUrl(currentReel.user_avatar)}
+                alt={currentReel.username}
+                className="w-12 h-12 rounded-full object-cover border-2 border-[#8A1538]/20"
               />
+              <div>
+                <p className="font-semibold text-gray-900">{currentReel.username}</p>
+                {currentUserId !== currentReel.user_id && (
+                  <button className="mt-1 px-4 py-1 bg-[#8A1538] text-white text-xs font-medium rounded-full hover:bg-[#6d1029] transition-colors">
+                    Follow
+                  </button>
+                )}
+              </div>
             </div>
-          ))}
-          {displayReels.length > 10 && (
-            <span className="text-white/60 text-xs ml-1">
-              +{displayReels.length - 10}
-            </span>
-          )}
-        </div>
+            <p className="text-gray-700 text-sm leading-relaxed line-clamp-3">
+              {currentReel.content}
+            </p>
+          </div>
+        )}
+      </div>
 
-        {/* Volume Control - Bottom Left */}
-        <div className="absolute bottom-6 left-4 z-30">
-          <button 
+      {/* Center - Video Container */}
+      <div
+        ref={containerRef}
+        className="flex-1 flex items-center justify-center py-4 px-4"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div
+          className="relative w-full max-w-[400px] h-[calc(100vh-120px)] max-h-[700px]"
+          style={{
+            transform: isDragging ? `translateY(${-dragOffset * 0.3}px)` : "none",
+            transition: isDragging ? "none" : "transform 0.3s ease-out",
+          }}
+        >
+          {currentReel && (
+            <ReelItem
+              reel={currentReel}
+              isActive={true}
+              isMuted={isMuted}
+              currentUserId={currentUserId}
+              onToggleMute={handleToggleMute}
+              onShare={handleOpenShareModal}
+              onComment={handleOpenCommentsModal}
+            />
+          )}
+
+          {/* Mute Button */}
+          <button
             onClick={handleToggleMute}
-            className="bg-black/40 backdrop-blur-sm p-2 rounded-full"
+            className="absolute bottom-4 left-4 z-30 bg-black/40 backdrop-blur-sm p-2 rounded-full"
             aria-label={isMuted ? "Unmute" : "Mute"}
-            data-testid="mute-button"
           >
             {isMuted ? (
               <VolumeX className="w-5 h-5 text-white" />
@@ -450,68 +474,74 @@ export function ReelsFeed({ initialReels, currentUserId, onLoadMore }: ReelsFeed
             )}
           </button>
         </div>
-
-        {/* Navigation hints */}
-        <div className="absolute top-1/2 right-2 transform -translate-y-1/2 z-30 flex flex-col gap-2 opacity-50">
-          {currentIndex > 0 && (
-            <button
-              onClick={goToPrevious}
-              className="p-2 bg-black/30 rounded-full"
-              aria-label="Previous reel"
-              data-testid="prev-button"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
-            </button>
-          )}
-          {currentIndex < displayReels.length - 1 && (
-            <button
-              onClick={goToNext}
-              className="p-2 bg-black/30 rounded-full"
-              aria-label="Next reel"
-              data-testid="next-button"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        {/* Loading More Indicator - Requirements: 10.1 */}
-        {isLoading && displayReels.length > 0 && (
-          <div 
-            className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-30"
-            data-testid="loading-more-indicator"
-          >
-            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span className="text-white/80 text-xs">Loading more...</span>
-            </div>
-          </div>
-        )}
-
-        {/* End of Feed Indicator */}
-        {!hasMore && displayReels.length > 0 && currentIndex === displayReels.length - 1 && (
-          <div 
-            className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-30"
-            data-testid="end-of-feed"
-          >
-            <div className="bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
-              <span className="text-white/60 text-xs">You've seen all reels</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Share Modal - Requirements: 7.1, 7.2 */}
+      {/* Right Side - Navigation Arrows */}
+      <div className="hidden md:flex flex-col items-center justify-center w-20 gap-4">
+        {/* Up Arrow */}
+        <button
+          onClick={goToPrevious}
+          disabled={currentIndex === 0}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+            currentIndex === 0
+              ? "bg-[#C9A96E]/30 text-[#C9A96E]/50 cursor-not-allowed"
+              : "bg-[#C9A96E] text-white hover:bg-[#b8985d] shadow-lg"
+          }`}
+          aria-label="Previous reel"
+        >
+          <ChevronUp className="w-6 h-6" />
+        </button>
+
+        {/* Down Arrow */}
+        <button
+          onClick={goToNext}
+          disabled={currentIndex >= displayReels.length - 1}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+            currentIndex >= displayReels.length - 1
+              ? "bg-[#C9A96E]/30 text-[#C9A96E]/50 cursor-not-allowed"
+              : "bg-[#C9A96E] text-white hover:bg-[#b8985d] shadow-lg"
+          }`}
+          aria-label="Next reel"
+        >
+          <ChevronDown className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Share Modal */}
       <ShareModal
         isOpen={isShareModalOpen}
         reel={shareReel}
         onClose={handleCloseShareModal}
         onShareToChat={handleShareToChat}
       />
+
+      {/* Comments Modal */}
+      {commentReel && (
+        <CommentsModal
+          isOpen={isCommentsModalOpen}
+          onClose={handleCloseCommentsModal}
+          reelId={commentReel.id}
+        />
+      )}
+
+      {/* Loading More Indicator */}
+      {isLoading && displayReels.length > 0 && (
+        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-30">
+          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
+            <div className="w-4 h-4 border-2 border-[#8A1538]/30 border-t-[#8A1538] rounded-full animate-spin" />
+            <span className="text-gray-600 text-xs">Loading more...</span>
+          </div>
+        </div>
+      )}
+
+      {/* End of Feed */}
+      {!hasMore && displayReels.length > 0 && currentIndex === displayReels.length - 1 && (
+        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-30">
+          <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
+            <span className="text-gray-500 text-xs">You've seen all reels</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

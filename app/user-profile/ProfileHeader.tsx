@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import Image from "next/image";
-import { Settings, MapPin, Briefcase, GraduationCap } from "lucide-react";
+import { Settings, MapPin, Briefcase, GraduationCap, MessageCircle } from "lucide-react";
 
 const BASE_URL = "http://192.168.1.18:9001"; // same backend host used by the proxy
 
@@ -31,6 +31,8 @@ interface ProfileHeaderProps {
   work?: string | null;
   interests?: string | null;
   reelsCount?: number;
+  userId?: string; // User ID for messaging
+  onMessage?: () => void; // Callback when message button is clicked
 }
 
 export default function ProfileHeader({
@@ -52,6 +54,8 @@ export default function ProfileHeader({
   work,
   interests,
   reelsCount = 0,
+  userId,
+  onMessage,
 }: ProfileHeaderProps) {
   // prefer avatar then avatar_url; normalize relative paths; fallback to local asset
   const avatarSrc = normalizeUrl(avatar ?? avatar_url) ?? "/default-avatar.png";
@@ -136,13 +140,15 @@ export default function ProfileHeader({
                         {isFollowing ? "Following" : "Follow"}
                       </button>
                       <button
-                        className="px-5 py-1.5 text-[#D7BA83] rounded-full hover:bg-gray-50 transition-colors"
+                        onClick={onMessage}
+                        className="px-5 py-1.5 text-[#D7BA83] rounded-full hover:bg-gray-50 transition-colors flex items-center gap-2"
                         style={{
                           border: "1.5px solid var(--Tinted-Muted-Gold-1, #D7BA83)",
                           fontWeight: 600,
                           fontSize: "14px",
                         }}
                       >
+                        <MessageCircle className="w-4 h-4" />
                         Message
                       </button>
                     </div>
