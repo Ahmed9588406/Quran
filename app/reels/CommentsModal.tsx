@@ -12,7 +12,7 @@ import { X, Send, Heart, Trash2, Loader2 } from 'lucide-react';
 import { ReelComment } from '@/lib/reels/types';
 import { reelsAPI } from '@/lib/reels/api';
 
-const BASE_URL = 'http://192.168.1.18:9001';
+const BASE_URL = 'http://apisoapp.twingroups.com';
 
 interface CommentsModalProps {
   isOpen: boolean;

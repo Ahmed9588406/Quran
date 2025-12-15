@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://192.168.1.18:9001";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://apisoapp.twingroups.com";
 
 export default function Index() {
   const [showPassword, setShowPassword] = useState(false);

@@ -1,7 +1,7 @@
 /**
  * Chat API Integration Tests
  * 
- * Tests the chat API integration with the backend at http://192.168.1.18:9001
+ * Tests the chat API integration with the backend at http://apisoapp.twingroups.com
  * Run with: npx vitest run lib/chat/api.test.ts
  */
 
@@ -325,7 +325,7 @@ describe('ChatAPI', () => {
 
 describe('API Endpoints Match Backend', () => {
   it('should use correct base URL', () => {
-    expect(API_BASE_URL).toBe('http://192.168.1.18:9001');
+    expect(API_BASE_URL).toBe('http://apisoapp.twingroups.com');
   });
 
   it('should have all required endpoints configured', () => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BASE_URL = "http://apisoapp.twingroups.com";
 
 export async function GET(
   request: NextRequest,

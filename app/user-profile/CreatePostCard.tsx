@@ -87,7 +87,7 @@ export default function CreatePostCard({
         formData.append("files", file.file);
       });
 
-      const response = await fetch("http://192.168.1.18:9001/posts", {
+      const response = await fetch("http://apisoapp.twingroups.com/posts", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

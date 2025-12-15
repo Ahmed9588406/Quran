@@ -30,7 +30,7 @@ export default function ChatListItem({
   const rawAvatarUrl = getChatAvatarUrl(chat, currentUserId);
   // Ensure avatar URL has the correct base URL
   const avatarUrl = rawAvatarUrl 
-    ? (rawAvatarUrl.startsWith('http') ? rawAvatarUrl : `http://192.168.1.18:9001${rawAvatarUrl}`)
+    ? (rawAvatarUrl.startsWith('http') ? rawAvatarUrl : `http://apisoapp.twingroups.com${rawAvatarUrl}`)
     : undefined;
   const lastMessage = truncateText(chat.last_message || 'Start a new conversation', 35);
   const time = formatTime(chat.last_message_at || chat.created_at);

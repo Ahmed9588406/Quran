@@ -138,6 +138,174 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  // Connect to WebSocket for real-time notifications
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    
+    if (!token) {
+      console.log('[NotificationProvider] No token found, skipping WebSocket connection');
+      return;
+    }
+
+    console.log('[NotificationProvider] Connecting to WebSocket...');
+    
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isIntentionallyClosed = false;
+
+    const connect = () => {
+      try {
+        const wsUrl = `ws://soap-websocket.twingroups.com?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log('[NotificationProvider] WebSocket connected');
+        };
+
+        ws.onmessage = (event) => {
+          console.log('[NotificationProvider] WebSocket message received:', event.data);
+          try {
+            const message = JSON.parse(event.data);
+            console.log('[NotificationProvider] Parsed message:', message);
+
+            // Handle notification messages
+            if (message.type === 'notification' && message.data) {
+              const notifData = message.data;
+              const newNotification: GlobalNotification = {
+                id: notifData.id || `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                title: notifData.title || 'Notification',
+                message: notifData.body || notifData.message || '',
+                type: notifData.type || 'system_alert',
+                timestamp: Date.now(),
+                read: false,
+              };
+
+              console.log('[NotificationProvider] Adding notification:', newNotification);
+
+              setNotifications((prev) => {
+                const updated = [newNotification, ...prev].slice(0, MAX_NOTIFICATIONS);
+                localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(updated));
+                return updated;
+              });
+
+              // Show toast
+              setToasts((prev) => [...prev, newNotification]);
+
+              // Play sound
+              if (soundEnabled) {
+                playNotificationSound();
+              }
+
+              // Show browser notification
+              if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(newNotification.title, {
+                  body: newNotification.message,
+                  icon: "/figma-assets/logo_wesal.png",
+                  tag: newNotification.id,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('[NotificationProvider] Failed to parse message:', error);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('[NotificationProvider] WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          console.log('[NotificationProvider] WebSocket disconnected');
+          if (!isIntentionallyClosed) {
+            // Reconnect after 5 seconds
+            reconnectTimeout = setTimeout(() => {
+              console.log('[NotificationProvider] Attempting to reconnect...');
+              connect();
+            }, 5000);
+          }
+        };
+      } catch (error) {
+        console.error('[NotificationProvider] Failed to connect:', error);
+      }
+    };
+
+    connect();
+
+    return () => {
+      isIntentionallyClosed = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [soundEnabled]);
+
+  // Listen for WebSocket notifications
+  useEffect(() => {
+    const handleWebSocketNotification = (event: Event) => {
+      console.log('[NotificationProvider] Received websocket-notification event:', event);
+      const customEvent = event as CustomEvent;
+      const notification = customEvent.detail;
+      
+      console.log('[NotificationProvider] Notification detail:', notification);
+      
+      if (notification && notification.title) {
+        console.log('[NotificationProvider] Creating new notification:', notification);
+        const newNotification: GlobalNotification = {
+          id: notification.id || `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: notification.title,
+          message: notification.message || notification.body || '',
+          type: notification.type || 'system_alert',
+          timestamp: Date.now(),
+          read: false,
+        };
+
+        console.log('[NotificationProvider] Adding notification to state:', newNotification);
+
+        setNotifications((prev) => {
+          const updated = [newNotification, ...prev].slice(0, MAX_NOTIFICATIONS);
+          localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(updated));
+          console.log('[NotificationProvider] Updated notifications:', updated);
+          return updated;
+        });
+
+        // Show toast
+        setToasts((prev) => {
+          const updated = [...prev, newNotification];
+          console.log('[NotificationProvider] Updated toasts:', updated);
+          return updated;
+        });
+
+        // Play sound
+        if (soundEnabled) {
+          console.log('[NotificationProvider] Playing notification sound');
+          playNotificationSound();
+        }
+
+        // Show browser notification
+        if ("Notification" in window && Notification.permission === "granted") {
+          console.log('[NotificationProvider] Showing browser notification');
+          new Notification(newNotification.title, {
+            body: newNotification.message,
+            icon: "/figma-assets/logo_wesal.png",
+            tag: newNotification.id,
+          });
+        }
+      } else {
+        console.warn('[NotificationProvider] Invalid notification received:', notification);
+      }
+    };
+
+    console.log('[NotificationProvider] Setting up websocket-notification listener');
+    window.addEventListener('websocket-notification', handleWebSocketNotification);
+    return () => {
+      console.log('[NotificationProvider] Removing websocket-notification listener');
+      window.removeEventListener('websocket-notification', handleWebSocketNotification);
+    };
+  }, [soundEnabled]);
+
   // Listen for storage changes (cross-tab sync)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {

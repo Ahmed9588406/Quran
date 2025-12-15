@@ -4,7 +4,7 @@
 
 A complete, production-ready post creation feature with:
 - **Beautiful UI** matching your design mockup
-- **Full API integration** with your backend at `http://192.168.1.18:9001`
+- **Full API integration** with your backend at `http://apisoapp.twingroups.com`
 - **Media upload** support (images and videos)
 - **Visibility controls** (public, friends, private)
 - **Error handling** and user feedback
@@ -41,7 +41,7 @@ Handles POST and GET requests for posts:
 - **POST /api/posts** - Creates new post with media
 - **GET /api/posts** - Fetches posts with pagination
 
-Forwards requests to: `http://192.168.1.18:9001/posts`
+Forwards requests to: `http://apisoapp.twingroups.com/posts`
 
 ### 3. **Standalone Page**
 **Location:** `quran-app/app/create-post/page.tsx`
@@ -99,7 +99,7 @@ export default function YourPage() {
 
 ### Endpoint
 ```
-POST http://192.168.1.18:9001/posts
+POST http://apisoapp.twingroups.com/posts
 ```
 
 ### Request Format

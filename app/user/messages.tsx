@@ -16,7 +16,7 @@ type ChatItem = {
   isOnline?: boolean;
 };
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BASE_URL = "http://apisoapp.twingroups.com";
 
 // PDF utility functions (inline to avoid import issues)
 function formatFileSize(bytes: number): string {

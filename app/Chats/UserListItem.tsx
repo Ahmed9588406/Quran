@@ -21,7 +21,7 @@ export default function UserListItem({ user, onClick }: UserListItemProps) {
   
   // Ensure avatar URL has the correct base URL
   const avatarUrl = user.avatar_url 
-    ? (user.avatar_url.startsWith('http') ? user.avatar_url : `http://192.168.1.18:9001${user.avatar_url}`)
+    ? (user.avatar_url.startsWith('http') ? user.avatar_url : `http://apisoapp.twingroups.com${user.avatar_url}`)
     : undefined;
   
   // Log user data for debugging

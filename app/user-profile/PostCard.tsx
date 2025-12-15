@@ -123,14 +123,14 @@ function formatRelativeTime(dateString?: string): string {
 const normalizeAvatarUrl = (url?: string): string => {
   if (!url) return DEFAULT_AVATAR;
   if (url.startsWith("http")) return url;
-  return `http://192.168.1.18:9001${url}`;
+  return `http://apisoapp.twingroups.com${url}`;
 };
 
 // Helper to normalize media URLs
 const normalizeMediaUrl = (url?: string): string => {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  return `http://192.168.1.18:9001${url}`;
+  return `http://apisoapp.twingroups.com${url}`;
 };
 
 /**

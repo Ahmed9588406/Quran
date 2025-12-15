@@ -1,59 +1,65 @@
-import { NextRequest, NextResponse } from "next/server";
+/**
+ * Send Notification API Route
+ * POST - Send a notification to users
+ */
 
-export async function POST(request: NextRequest) {
+import { NextRequest, NextResponse } from 'next/server';
+
+const BASE_URL = 'http://apisoapp.twingroups.com';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+}
+
+export async function OPTIONS() {
+  return NextResponse.json(null, { status: 204, headers: corsHeaders() });
+}
+
+/**
+ * POST /api/notifications/send - Send a notification
+ */
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { target_user_id, title, message, type } = body;
+    const auth = req.headers.get('authorization') ?? '';
+    const body = await req.json();
 
-    // Validate required fields
-    if (!title || !message) {
-      return NextResponse.json(
-        { success: false, error: "Title and message are required" },
-        { status: 400 }
-      );
+    console.log('[Notifications API] Sending notification:', body);
+
+    // Try to send to backend
+    const response = await fetch(`${BASE_URL}/notifications/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth ? { Authorization: auth } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('[Notifications API] Backend error:', response.status, text);
+      return new NextResponse(text, {
+        status: response.status,
+        headers: corsHeaders(),
+      });
     }
 
-    // Get auth token from header
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { success: false, error: "Missing or invalid authorization header" },
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.slice(7);
-
-    // TODO: Validate token with your auth system
-    // For now, we'll accept any token (implement proper validation)
-
-    // Create notification object
-    const notification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      title,
-      message,
-      type: type || "system_alert",
-      timestamp: Date.now(),
-      read: false,
-      targetUserId: target_user_id || "ALL",
-    };
-
-    // TODO: Store notification in database
-    // For now, we're relying on localStorage sync via the frontend
-
-    // If you have a WebSocket or real-time system, broadcast here
-    // Example: await broadcastToUsers(notification);
-
-    return NextResponse.json({
-      success: true,
-      message: "Notification sent successfully",
-      notification,
+    const data = await response.json();
+    console.log('[Notifications API] Success:', data);
+    
+    return NextResponse.json(data, {
+      status: 200,
+      headers: corsHeaders(),
     });
   } catch (error) {
-    console.error("Notification send error:", error);
+    console.error('[Notifications API] Error:', error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
+      { error: 'Failed to send notification' },
+      { status: 500, headers: corsHeaders() }
     );
   }
 }

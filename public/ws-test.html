@@ -66,7 +66,7 @@
   </div>
 
   <script>
-    const WS_URL = 'ws://192.168.1.18:8080';
+    const WS_URL = 'ws://soap-websocket.twingroups.com';
     let ws = null;
 
     function log(msg, type = 'info') {
@@ -131,7 +131,7 @@
       log('📤 SENT: ' + msg, 'sent');
     }
 
-    const API_URL = 'http://192.168.1.18:9001';
+    const API_URL = 'http://apisoapp.twingroups.com';
 
     // REST API: Send typing indicator (is_typing: true)
     async function sendTypingREST() {

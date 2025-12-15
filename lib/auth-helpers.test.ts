@@ -359,7 +359,7 @@ describe('Property 4: Dynamic route data fetching', () => {
         fc.string({ minLength: 1 }).filter(s => s.trim().length > 0 && !s.includes('&') && !s.includes('?')),
         (userId) => {
           // Simulate the URL construction used in fetchUserProfile
-          const BASE_URL = "http://192.168.1.18:9001";
+          const BASE_URL = "http://apisoapp.twingroups.com";
           const url = `${BASE_URL}/api/user_profile?userId=${encodeURIComponent(userId)}`;
           
           // Verify URL is properly constructed

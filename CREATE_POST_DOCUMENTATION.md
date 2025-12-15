@@ -6,7 +6,7 @@ Complete post creation feature with UI matching your design, including:
 - Image and video upload
 - Visibility settings (public, friends, private)
 - Real-time file preview
-- Integration with backend API at `http://192.168.1.18:9001`
+- Integration with backend API at `http://apisoapp.twingroups.com`
 
 ## Files Created
 
@@ -47,7 +47,7 @@ Backend proxy for post creation and fetching.
 
 **POST /api/posts**
 - Creates a new post with optional media files
-- Forwards request to `http://192.168.1.18:9001/posts`
+- Forwards request to `http://apisoapp.twingroups.com/posts`
 - Requires Bearer token in Authorization header
 - Accepts FormData with:
   - `content`: Post text (string)
@@ -78,7 +78,7 @@ Examples showing how to integrate CreatePostCard into existing pages.
 
 ### Backend Endpoint
 ```
-POST http://192.168.1.18:9001/posts
+POST http://apisoapp.twingroups.com/posts
 ```
 
 **Request Headers:**

@@ -67,7 +67,7 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
           username: profile.username,
           display_name: profile.display_name || profile.username,
           bio: profile.bio,
-          avatar_url: profile.avatar_url?.startsWith("http") ? profile.avatar_url : profile.avatar_url ? `http://192.168.1.18:9001${profile.avatar_url}` : "/icons/settings/profile.png",
+          avatar_url: profile.avatar_url?.startsWith("http") ? profile.avatar_url : profile.avatar_url ? `http://apisoapp.twingroups.com${profile.avatar_url}` : "/icons/settings/profile.png",
           followers_count: profile.followers_count || 0,
           following_count: profile.following_count || 0,
           posts_count: profile.posts_count || 0,

@@ -26,7 +26,7 @@ import {
 } from './types';
 
 // API base URL - call backend directly for file uploads
-const BASE_URL = 'http://192.168.1.18:9001';
+const BASE_URL = 'http://apisoapp.twingroups.com';
 
 /**
  * Custom error class for Reels API errors

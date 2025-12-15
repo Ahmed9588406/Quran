@@ -270,7 +270,7 @@ Time:        2.345s
 4. Run tests with verbose output: `npm test -- --verbose`
 
 ### Manual Tests Failing
-1. Check if backend is running at `http://192.168.1.18:9001`
+1. Check if backend is running at `http://apisoapp.twingroups.com`
 2. Check if WebSocket server is running at `ws://192.168.1.18:8080`
 3. Check browser console for errors
 4. Check network requests in DevTools

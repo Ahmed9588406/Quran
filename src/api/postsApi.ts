@@ -21,7 +21,7 @@ export async function fetchUserPosts(
 	const page = options?.page ?? 1;
 	const token = options?.token;
 
-	const url = `http://192.168.1.18:9001/users/${encodeURIComponent(
+	const url = `http://apisoapp.twingroups.com/users/${encodeURIComponent(
 		String(userId)
 	)}/posts?limit=${limit}&page=${page}`;
 

@@ -50,7 +50,7 @@ export default function UserProfileWithCreatePost() {
         const token = localStorage.getItem("access_token");
         if (!token) return;
 
-        const response = await fetch("http://192.168.1.18:9001/user/profile", {
+        const response = await fetch("http://apisoapp.twingroups.com/user/profile", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -77,7 +77,7 @@ export default function UserProfileWithCreatePost() {
     try {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `http://192.168.1.18:9001/users/${profile.id}/posts`,
+        `http://apisoapp.twingroups.com/users/${profile.id}/posts`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }

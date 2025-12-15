@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = 'http://192.168.1.18:9001';
+const API_BASE_URL = 'http://apisoapp.twingroups.com';
 
 export async function PUT(request: NextRequest) {
   try {

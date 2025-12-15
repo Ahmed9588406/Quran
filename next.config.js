@@ -9,7 +9,7 @@ const nextConfig = {
       "cdn.jsdelivr.net",
       "images.unsplash.com",
       "picsum.photos",
-      "192.168.1.18",
+      "apisoapp.twingroups.com",
     ],
   },
 

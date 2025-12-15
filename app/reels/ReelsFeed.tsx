@@ -20,7 +20,7 @@ import ReelViewer from "./ReelViewer";
 import ShareModal from "./ShareModal";
 import CommentsModal from "./CommentsModal";
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BASE_URL = "http://apisoapp.twingroups.com";
 
 // Swipe threshold in pixels
 const SWIPE_THRESHOLD = 50;

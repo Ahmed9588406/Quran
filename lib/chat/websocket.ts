@@ -8,7 +8,7 @@
 
 import { ConnectionStatus, WSMessage } from './types';
 
-const WS_URL = 'ws://192.168.1.18:8080';
+const WS_URL = 'ws://soap-websocket.twingroups.com';
 const RECONNECT_DELAY = 3000; // 3 seconds
 
 type MessageHandler = (message: WSMessage) => void;

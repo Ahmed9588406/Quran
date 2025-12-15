@@ -48,7 +48,7 @@ Navigate to `/create-post` - it's ready to use!
 
 **POST** `http://localhost:3000/api/posts`
 
-Forwards to: `http://192.168.1.18:9001/posts`
+Forwards to: `http://apisoapp.twingroups.com/posts`
 
 **Headers:**
 ```

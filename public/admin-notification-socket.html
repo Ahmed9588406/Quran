@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Notification Sender - WebSocket</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      color: #1a73e8;
+      text-align: center;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 0.95em;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      margin-bottom: 25px;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.connected {
+      background: #28a745;
+    }
+
+    .status-dot.connecting {
+      background: #ffc107;
+    }
+
+    .status-dot.disconnected {
+      background: #dc3545;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .form-group {
+      margin-bottom: 25px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #444;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 15px;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    select:focus,
+    textarea:focus {
+      border-color: #1a73e8;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 16px 32px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #1a73e8;
+      color: white;
+      box-shadow: 0 4px 6px rgba(26,115,232,0.2);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #1557b0;
+      transform: translateY(-2px);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #e0e0e0;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .result {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 8px;
+      display: none;
+      text-align: center;
+      font-weight: 500;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .success {
+      background: #e6f4ea;
+      color: #137333;
+      border: 1px solid #ceead6;
+    }
+
+    .error {
+      background: #fce8e6;
+      color: #c5221f;
+      border: 1px solid #fad2cf;
+    }
+
+    .info {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border: 1px solid #d2e3fc;
+    }
+
+    .helper-text {
+      font-size: 0.85em;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      color: #1a73e8;
+      margin-bottom: 15px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-item {
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.85em;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #1a73e8;
+    }
+
+    .log-container {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+      margin-top: 15px;
+    }
+
+    .log-entry {
+      padding: 6px;
+      margin-bottom: 4px;
+      border-left: 3px solid #1a73e8;
+      padding-left: 10px;
+      color: #333;
+    }
+
+    .log-entry.error {
+      border-left-color: #dc3545;
+      color: #dc3545;
+    }
+
+    .log-entry.success {
+      border-left-color: #28a745;
+      color: #28a745;
+    }
+
+    .log-entry.warning {
+      border-left-color: #ffc107;
+      color: #856404;
+    }
+
+    .notification-type-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-radius: 20px;
+      font-size: 0.85em;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📢 Admin Notification Sender</h1>
+    <p class="subtitle">Send notifications via WebSocket to ws://soap-websocket.twingroups.com</p>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span class="status-dot disconnected" id="statusDot"></span>
+      <span id="statusText">Disconnected</span>
+      <span style="margin-left: auto; font-size: 0.9em; color: #666;">
+        Sent: <span id="sentCount" style="color: #1a73e8; font-weight: bold;">0</span>
+      </span>
+    </div>
+
+    <!-- Connection Section -->
+    <div class="card" style="margin-bottom: 25px;">
+      <h3>🔌 Connection Settings</h3>
+      <div class="form-group">
+        <label>Admin JWT Token</label>
+        <input type="password" id="token" placeholder="Paste your Bearer token here...">
+        <div class="helper-text">Required for authentication. Get from localStorage.getItem('access_token')</div>
+      </div>
+      <div class="button-group">
+        <button class="btn-primary" onclick="connectSocket()">Connect to Socket</button>
+        <button class="btn-secondary" onclick="disconnectSocket()">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Notification Form -->
+    <div class="form-group">
+      <label>Target Audience</label>
+      <select id="targetType" onchange="toggleTargetInput()">
+        <option value="ALL">🌍 Broadcast to ALL Users</option>
+        <option value="SPECIFIC">👤 Specific User</option>
+        <option value="SELF">🧪 Send to Me (Test)</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="specificUserGroup" style="display:none;">
+      <label>Target User ID (UUID)</label>
+      <input type="text" id="targetUserId" placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000">
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Notification Type</label>
+        <select id="notificationType">
+          <option value="system_alert">🚨 System Alert</option>
+          <option value="message">💬 Message</option>
+          <option value="follow">👤 Follow</option>
+          <option value="like">❤️ Like</option>
+          <option value="comment">💭 Comment</option>
+          <option value="custom">⭐ Custom</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Notification Title</label>
+        <input type="text" id="title" value="System Update" placeholder="Notification title">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Message Body</label>
+      <textarea id="message" placeholder="Type your message here...">We have updated our terms of service. Please review them.</textarea>
+    </div>
+
+    <button class="btn-primary" onclick="sendNotification()" style="width: 100%; font-size: 18px;">🚀 Send Notification</button>
+
+    <!-- Result Message -->
+    <div id="result" class="result"></div>
+
+    <!-- Logs -->
+    <div class="card" style="margin-top: 25px;">
+      <h3>📝 Activity Log</h3>
+      <div class="log-container" id="logContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let sentCount = 0;
+    const logs = [];
+
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      logs.push({ timestamp, message, type });
+
+      const logContainer = document.getElementById('logContainer');
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry ${type}`;
+      logEntry.textContent = `[${timestamp}] ${message}`;
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+
+      // Keep only last 50 logs
+      if (logs.length > 50) {
+        logs.shift();
+        logContainer.removeChild(logContainer.firstChild);
+      }
+    }
+
+    function updateStatus(status) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+
+      dot.className = `status-dot ${status}`;
+
+      const statusMap = {
+        'connected': '✅ Connected to WebSocket',
+        'connecting': '⏳ Connecting...',
+        'disconnected': '❌ Disconnected'
+      };
+
+      text.textContent = statusMap[status] || status;
+    }
+
+    function connectSocket() {
+      const token = document.getElementById('token').value.trim();
+
+      if (!token) {
+        showResult('Please enter your JWT token', 'error');
+        log('Error: Token is required', 'error');
+        return;
+      }
+
+      updateStatus('connecting');
+      log('Attempting to connect to WebSocket...', 'info');
+
+      try {
+        const wsUrl = `ws://soap-websocket.twingroups.com?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          updateStatus('connected');
+          log('✅ Successfully connected to WebSocket', 'success');
+          showResult('Connected to WebSocket successfully!', 'success');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            log(`📨 Received: ${JSON.stringify(data).substring(0, 80)}...`, 'info');
+          } catch (e) {
+            log(`📨 Received message: ${event.data.substring(0, 80)}...`, 'info');
+          }
+        };
+
+        ws.onerror = (error) => {
+          updateStatus('disconnected');
+          log(`❌ WebSocket error: ${error}`, 'error');
+          showResult('WebSocket connection error. Check console for details.', 'error');
+        };
+
+        ws.onclose = () => {
+          updateStatus('disconnected');
+          log('Connection closed', 'warning');
+        };
+      } catch (error) {
+        updateStatus('disconnected');
+        log(`❌ Connection error: ${error.message}`, 'error');
+        showResult(`Connection error: ${error.message}`, 'error');
+      }
+    }
+
+    function disconnectSocket() {
+      if (ws) {
+        ws.close();
+        ws = null;
+        updateStatus('disconnected');
+        log('Disconnected from WebSocket', 'info');
+        showResult('Disconnected from WebSocket', 'info');
+      }
+    }
+
+    function toggleTargetInput() {
+      const type = document.getElementById('targetType').value;
+      document.getElementById('specificUserGroup').style.display = (type === 'SPECIFIC') ? 'block' : 'none';
+    }
+
+    async function sendNotification() {
+      const token = document.getElementById('token').value.trim();
+      
+      if (!token) {
+        showResult('Please enter your JWT token', 'error');
+        return;
+      }
+
+      const targetType = document.getElementById('targetType').value;
+      const title = document.getElementById('title').value.trim();
+      const message = document.getElementById('message').value.trim();
+      const notificationType = document.getElementById('notificationType').value;
+
+      if (!title || !message) {
+        showResult('Please fill in title and message', 'error');
+        return;
+      }
+
+      let targetUserId = null;
+      if (targetType === 'ALL') {
+        targetUserId = 'ALL';
+      } else if (targetType === 'SPECIFIC') {
+        targetUserId = document.getElementById('targetUserId').value.trim();
+        if (!targetUserId) {
+          showResult('Please enter a target user ID', 'error');
+          return;
+        }
+      } else if (targetType === 'SELF') {
+        targetUserId = 'SELF';
+      }
+
+      // Build notification payload
+      const notification = {
+        target_user_id: targetUserId,
+        title: title,
+        message: message,
+        type: notificationType
+      };
+
+      // UI Feedback
+      const btn = document.querySelector('button[onclick="sendNotification()"]');
+      const originalText = btn.innerText;
+      btn.innerText = 'Sending...';
+      btn.disabled = true;
+
+      try {
+        console.log('Sending notification via API:', JSON.stringify(notification, null, 2));
+        
+        // Send via REST API to backend (using local proxy to avoid CORS)
+        const response = await fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(notification)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          sentCount++;
+          document.getElementById('sentCount').textContent = sentCount;
+          log(`✅ Notification sent to ${targetUserId}`, 'success');
+          showResult(`✅ Notification sent successfully to ${targetUserId}!`, 'success');
+
+          // Also send via WebSocket if connected
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            const wsNotification = {
+              type: 'notification',
+              data: {
+                id: `admin-${Date.now()}`,
+                title: title,
+                body: message,
+                type: notificationType,
+                target_user_id: targetUserId,
+                created_at: new Date().toISOString()
+              }
+            };
+            ws.send(JSON.stringify(wsNotification));
+            log('Also sent via WebSocket', 'info');
+          }
+
+          // Clear form
+          document.getElementById('title').value = 'System Update';
+          document.getElementById('message').value = 'We have updated our terms of service. Please review them.';
+        } else {
+          log(`❌ API Error: ${data.error || data.message || 'Unknown error'}`, 'error');
+          showResult(`❌ Error: ${data.error || data.message || 'Failed to send'}`, 'error');
+        }
+      } catch (error) {
+        log(`❌ Failed to send: ${error.message}`, 'error');
+        showResult(`❌ Error: ${error.message}`, 'error');
+      } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    function showResult(message, type) {
+      const resultDiv = document.getElementById('result');
+      resultDiv.textContent = message;
+      resultDiv.className = `result ${type}`;
+      resultDiv.style.display = 'block';
+
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        resultDiv.style.display = 'none';
+      }, 5000);
+    }
+
+    // Auto-fill token from localStorage if available
+    window.addEventListener('load', () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        document.getElementById('token').value = token;
+        log('✅ Token auto-filled from localStorage', 'success');
+      } else {
+        log('⚠️ No token found in localStorage', 'warning');
+      }
+    });
+  </script>
+</body>
+</html>

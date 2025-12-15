@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Users } from 'lucide-react';
 import { User } from '@/lib/chat/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.18:9001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://apisoapp.twingroups.com';
 
 /**
  * Gets the authentication token from localStorage
