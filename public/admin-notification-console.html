@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Notification Sender</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background-color: #f0f2f5;
+      color: #333;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    }
+    h1 {
+      color: #1a73e8;
+      text-align: center;
+      margin-bottom: 30px;
+      font-weight: 700;
+    }
+    .form-group {
+      margin-bottom: 25px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #444;
+    }
+    input[type="text"], select, textarea {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 15px;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus {
+      border-color: #1a73e8;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+    }
+    button {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 16px;
+      font-weight: 700;
+      transition: background 0.2s, transform 0.1s;
+      box-shadow: 0 4px 6px rgba(26,115,232,0.2);
+    }
+    button:hover {
+      background: #1557b0;
+    }
+    button:active {
+      transform: translateY(1px);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .result {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 8px;
+      display: none;
+      text-align: center;
+      font-weight: 500;
+    }
+    .success {
+      background: #e6f4ea;
+      color: #137333;
+      border: 1px solid #ceead6;
+    }
+    .error {
+      background: #fce8e6;
+      color: #c5221f;
+      border: 1px solid #fad2cf;
+    }
+    .helper-text {
+      font-size: 0.85em;
+      color: #666;
+      margin-top: 6px;
+    }
+    .notification-preview {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+    }
+    .notification-preview h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .preview-item {
+      padding: 12px;
+      background: white;
+      border-left: 4px solid #1a73e8;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    .preview-title {
+      font-weight: 600;
+      color: #1a73e8;
+    }
+    .preview-message {
+      color: #666;
+      margin-top: 4px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📢 Admin Notification Console</h1>
+    
+    <div class="form-group">
+      <label>Admin JWT Token</label>
+      <input type="text" id="token" placeholder="Paste your Bearer token here...">
+      <div class="helper-text">Required for authentication. Must be a valid user token.</div>
+    </div>
+
+    <div class="form-group">
+      <label>Target Audience</label>
+      <select id="targetType" onchange="toggleTargetInput()">
+        <option value="ALL">🌍 Broadcast to ALL Users</option>
+        <option value="SPECIFIC">👤 Specific User</option>
+        <option value="SELF">🧪 Send to Me (Test)</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="specificUserGroup" style="display:none;">
+      <label>Target User ID (UUID)</label>
+      <input type="text" id="targetUserId" placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000">
+    </div>
+
+    <div class="form-group">
+      <label>Notification Title</label>
+      <input type="text" id="title" value="System Update">
+    </div>
+
+    <div class="form-group">
+      <label>Message Body</label>
+      <textarea id="message" rows="4" placeholder="Type your message here...">We have updated our terms of service. Please review them.</textarea>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="enableSound" checked> Enable Sound Alert
+      </label>
+      <div class="helper-text">Users will hear a notification sound when this is enabled.</div>
+    </div>
+
+    <button onclick="sendNotification()">🚀 Send Notification</button>
+    <button onclick="testLocalNotification()" style="margin-top: 10px; background: #34a853;">🧪 Test Local (No Auth)</button>
+
+    <div id="result" class="result"></div>
+
+    <!-- Notification Preview -->
+    <div class="notification-preview">
+      <h3>📋 Preview (How it appears in navbar)</h3>
+      <div class="preview-item">
+        <div class="preview-title" id="previewTitle">System Update</div>
+        <div class="preview-message" id="previewMessage">We have updated our terms of service. Please review them.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-fill token from localStorage if available
+    const storedToken = localStorage.getItem('jwt_token');
+    if (storedToken) {
+      document.getElementById('token').value = storedToken;
+    }
+
+    // Update preview as user types
+    document.getElementById('title').addEventListener('input', (e) => {
+      document.getElementById('previewTitle').textContent = e.target.value || 'System Update';
+    });
+
+    document.getElementById('message').addEventListener('input', (e) => {
+      document.getElementById('previewMessage').textContent = e.target.value || 'Your message here...';
+    });
+
+    function toggleTargetInput() {
+      const type = document.getElementById('targetType').value;
+      document.getElementById('specificUserGroup').style.display = (type === 'SPECIFIC') ? 'block' : 'none';
+    }
+
+    async function sendNotification() {
+      const token = document.getElementById('token').value.trim();
+      const targetType = document.getElementById('targetType').value;
+      const title = document.getElementById('title').value.trim();
+      const message = document.getElementById('message').value.trim();
+      const enableSound = document.getElementById('enableSound').checked;
+      const resultDiv = document.getElementById('result');
+
+      if (!token) {
+        alert('Please enter your JWT Token');
+        return;
+      }
+
+      if (!title || !message) {
+        alert('Please enter both title and message');
+        return;
+      }
+
+      let targetUserId = null;
+      if (targetType === 'ALL') targetUserId = 'ALL';
+      if (targetType === 'SPECIFIC') targetUserId = document.getElementById('targetUserId').value.trim();
+
+      // UI Feedback
+      const btn = document.querySelector('button');
+      const originalText = btn.innerText;
+      btn.innerText = 'Sending...';
+      btn.disabled = true;
+      resultDiv.style.display = 'none';
+
+      try {
+        // Method 1: Try API endpoint
+        const response = await fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            target_user_id: targetType === 'SELF' ? 'SELF' : targetUserId,
+            title: title,
+            message: message,
+            type: 'system_alert',
+            soundEnabled: enableSound
+          })
+        });
+
+        const data = await response.json();
+        resultDiv.style.display = 'block';
+
+        if (data.success || response.ok) {
+          resultDiv.className = 'result success';
+          resultDiv.textContent = '✅ Notification sent successfully!';
+          
+          // Also broadcast to localStorage for immediate UI update
+          broadcastNotification({
+            title: title,
+            message: message,
+            type: 'system_alert',
+            soundEnabled: enableSound
+          });
+
+          // Clear form
+          setTimeout(() => {
+            document.getElementById('title').value = 'System Update';
+            document.getElementById('message').value = 'We have updated our terms of service. Please review them.';
+            document.getElementById('previewTitle').textContent = 'System Update';
+            document.getElementById('previewMessage').textContent = 'We have updated our terms of service. Please review them.';
+          }, 1500);
+        } else {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = '❌ Error: ' + (data.error || data.message || 'Unknown error');
+        }
+      } catch (e) {
+        resultDiv.style.display = 'block';
+        resultDiv.className = 'result error';
+        resultDiv.textContent = '❌ Network Error: ' + e.message;
+      } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    function broadcastNotification(notification) {
+      try {
+        const existing = JSON.parse(localStorage.getItem('admin_notifications') || '[]');
+        const newNotif = {
+          id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type || 'system_alert',
+          timestamp: Date.now(),
+          read: false,
+          soundEnabled: notification.soundEnabled !== false
+        };
+        
+        const updated = [newNotif, ...existing].slice(0, 50);
+        localStorage.setItem('admin_notifications', JSON.stringify(updated));
+        
+        // Trigger storage event for other tabs
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'admin_notifications',
+          newValue: JSON.stringify(updated),
+          oldValue: JSON.stringify(existing)
+        }));
+
+        // Play sound immediately if enabled
+        if (newNotif.soundEnabled) {
+          playNotificationSound();
+        }
+
+        // Show browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(newNotif.title, {
+            body: newNotif.message,
+            icon: '/figma-assets/logo_wesal.png',
+            tag: newNotif.id
+          });
+        }
+      } catch (error) {
+        console.error('Failed to broadcast notification:', error);
+      }
+    }
+
+    function playNotificationSound() {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        // First beep
+        oscillator.frequency.value = 800;
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+
+        // Second beep
+        setTimeout(() => {
+          const osc2 = audioContext.createOscillator();
+          const gain2 = audioContext.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioContext.destination);
+
+          osc2.frequency.value = 1000;
+          gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+          osc2.start(audioContext.currentTime);
+          osc2.stop(audioContext.currentTime + 0.1);
+        }, 150);
+      } catch (error) {
+        console.error('Failed to play sound:', error);
+      }
+    }
+
+    // Test notification locally without API (for testing)
+    function testLocalNotification() {
+      const title = document.getElementById('title').value.trim() || 'Test Notification';
+      const message = document.getElementById('message').value.trim() || 'This is a test notification';
+      const enableSound = document.getElementById('enableSound').checked;
+      
+      broadcastNotification({
+        title: title,
+        message: message,
+        type: 'system_alert',
+        soundEnabled: enableSound
+      });
+
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'result success';
+      resultDiv.textContent = '✅ Local notification sent! Check the app - you should see a toast and the navbar bell icon should update.';
+    }
+
+    // Request notification permission on page load
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  </script>
+</body>
+</html>

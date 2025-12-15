@@ -11,8 +11,11 @@ import { Button } from "@/components/ui/button";
 import StartNewMessage from "./start_new_message";
 import LeftSide from "./leftside";
 import QRScanModal from "../qr/qr_scan"; // import modal
+import CreatePostCard from "@/app/user-profile/CreatePostCard";
 import { useRouter } from "next/navigation";
 import { isAuthenticated, clearSession } from "@/lib/auth-helpers";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const MessagesModal = dynamic(() => import("./messages"), { ssr: false });
 
@@ -24,6 +27,7 @@ export default function UserPage() {
   const [activeView, setActiveView] = useState<string>('home');
   const [isSidebarOpen, setSidebarOpen] = useState(false); // for larger screens toggling (if used)
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const startUsers = [
     { id: "u1", name: "Aisha Noor", avatar: "https://i.pravatar.cc/80?img=21" },
@@ -165,11 +169,15 @@ export default function UserPage() {
 
     // run it
     fetchProfile();
+    setIsLoaded(true);
   }, [router]);
 
   // helper to render the main view based on activeView
   function renderMainView() {
-    switch (activeView) {
+    // Default to home view if activeView is empty or not set
+    const view = activeView || 'home';
+    
+    switch (view) {
       case "home":
         return (
           <>
@@ -177,6 +185,16 @@ export default function UserPage() {
               <StoriesBar />
             </div>
             <div className="flex flex-col items-center space-y-6 mt-0 w-full">
+              <div className="w-full">
+                <CreatePostCard
+                  currentUserAvatar={currentUser?.avatar_url || "/icons/settings/profile.png"}
+                  currentUserName={currentUser?.display_name || currentUser?.username || "You"}
+                  onPostCreated={() => {
+                    // Optionally refresh feed after post creation
+                    window.location.reload();
+                  }}
+                />
+              </div>
               <Feed perPage={10} />
             </div>
           </>
@@ -221,11 +239,25 @@ export default function UserPage() {
           );
         }
       default:
+        // Fallback to home view
         return (
-          <div className="w-full">
-            <h2 className="text-xl font-semibold mb-4">{activeView}</h2>
-            <div className="rounded-lg p-4 bg-white shadow-sm text-center">No view available for &quot;{activeView}&quot;</div>
-          </div>
+          <>
+            <div className="w-full mb-0">
+              <StoriesBar />
+            </div>
+            <div className="flex flex-col items-center space-y-6 mt-0 w-full">
+              <div className="w-full">
+                <CreatePostCard
+                  currentUserAvatar={currentUser?.avatar_url || "/icons/settings/profile.png"}
+                  currentUserName={currentUser?.display_name || currentUser?.username || "You"}
+                  onPostCreated={() => {
+                    window.location.reload();
+                  }}
+                />
+              </div>
+              <Feed perPage={10} />
+            </div>
+          </>
         );
     }
   }
@@ -329,6 +361,19 @@ export default function UserPage() {
 
       {/* QR Scan modal */}
       <QRScanModal isOpen={isScanOpen} onClose={() => setIsScanOpen(false)} />
+
+      {/* Toast notifications */}
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </div>
   );
 }

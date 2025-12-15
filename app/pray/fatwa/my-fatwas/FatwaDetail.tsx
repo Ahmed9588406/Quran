@@ -80,9 +80,9 @@ export function FatwaDetail({ fatwa, onClose }: { fatwa: any | null; onClose: ()
 
             {/* Answer Section */}
             {fatwa?.answer && (
-              <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 rounded-2xl p-6 shadow-sm border-2 border-green-100">
+              <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 rounded-2xl p-6 shadow-sm border-2 border-purple-100">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shrink-0 shadow-md">
+                  <div className="w-10 h-10 rounded-xl bg-[#CFAE70] to-pink-500 flex items-center justify-center shrink-0 shadow-md">
                     <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>

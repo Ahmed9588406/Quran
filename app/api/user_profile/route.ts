@@ -78,15 +78,36 @@ export async function GET(request: Request) {
 
       // Normalize URLs in posts and ensure user_id is present
       if (data?.posts && Array.isArray(data.posts)) {
-        data.posts = data.posts.map((post: any) => ({
-          ...post,
-          user_id: post.user_id || userId,
-          avatar_url: post.avatar_url?.startsWith('/') ? `${BASE_URL}${post.avatar_url}` : post.avatar_url,
-          media: Array.isArray(post.media) ? post.media.map((m: any) => ({
-            ...m,
-            url: m.url?.startsWith('/') ? `${BASE_URL}${m.url}` : m.url,
-          })) : [],
-        }));
+        data.posts = data.posts.map((post: any) => {
+          const normalized: any = {
+            ...post,
+            user_id: post.user_id || userId,
+            avatar_url: post.avatar_url?.startsWith('/') ? `${BASE_URL}${post.avatar_url}` : post.avatar_url,
+          };
+
+          // Handle media - convert string URLs to object format
+          if (Array.isArray(post.media)) {
+            normalized.media = post.media.map((m: any) => {
+              if (typeof m === 'string') {
+                // If media is just a string URL, convert to object format
+                const url = m.startsWith('/') ? `${BASE_URL}${m}` : m;
+                const mediaType = m.toLowerCase().endsWith('.mp4') || m.toLowerCase().endsWith('.webm') ? 'video/mp4' : 'image/jpeg';
+                return { url, media_type: mediaType };
+              } else if (typeof m === 'object' && m !== null) {
+                // If media is already an object, normalize the URL
+                return {
+                  ...m,
+                  url: m.url?.startsWith('/') ? `${BASE_URL}${m.url}` : m.url,
+                };
+              }
+              return m;
+            });
+          } else {
+            normalized.media = [];
+          }
+
+          return normalized;
+        });
       }
 
       return NextResponse.json(data, { status: 200, headers: corsHeaders() });
