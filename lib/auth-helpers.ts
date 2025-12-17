@@ -187,3 +187,50 @@ export function clearSession(): void {
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user');
 }
+
+/**
+ * Extracts preacher credentials (name and avatar) from the stored user object in localStorage.
+ * Handles various field name formats from different backend responses.
+ * 
+ * @returns Object with preacher name and avatar URL
+ * 
+ * Example return:
+ * {
+ *   name: "Ahmed Al-Mansouri",
+ *   avatar: "https://example.com/avatar.jpg"
+ * }
+ */
+export function getPreacherCredentials(): { name: string; avatar: string } {
+  if (typeof window === 'undefined') {
+    return { name: 'Preacher', avatar: '' };
+  }
+
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      return { name: 'Preacher', avatar: '' };
+    }
+
+    const user = JSON.parse(userStr);
+    
+    // Extract first name from various possible field names
+    const firstName = user.firstName || user.first_name || user.name?.split(' ')[0] || '';
+    
+    // Extract last name from various possible field names
+    const lastName = user.lastName || user.last_name || user.name?.split(' ').slice(1).join(' ') || '';
+    
+    // Extract avatar URL from various possible field names
+    const avatar = user.profilePictureUrl || user.profile_picture_url || user.avatar || user.avatar_url || '';
+    
+    // Combine first and last name
+    const fullName = `${firstName} ${lastName}`.trim() || 'Preacher';
+    
+    return {
+      name: fullName,
+      avatar: avatar
+    };
+  } catch (error) {
+    console.error('[Auth] Error extracting preacher credentials:', error);
+    return { name: 'Preacher', avatar: '' };
+  }
+}

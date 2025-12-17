@@ -98,8 +98,29 @@ export default function Login() {
 			if (user) {
 				// Store user object with ID and role for subsequent navigation
 				// Requirements: 1.2
-				const userWithId = { ...user, id: userId || user.id, role: userRole || user.role };
+				// Extract preacher credentials for display in fatwas page
+				const firstName = user.firstName || user.first_name || user.name?.split(' ')[0] || '';
+				const lastName = user.lastName || user.last_name || user.name?.split(' ').slice(1).join(' ') || '';
+				const profilePictureUrl = user.profilePictureUrl || user.profile_picture_url || user.avatar || user.avatar_url || '';
+				
+				const userWithId = {
+					...user,
+					id: userId || user.id,
+					role: userRole || user.role,
+					firstName: firstName,
+					lastName: lastName,
+					profilePictureUrl: profilePictureUrl
+				};
+				
 				localStorage.setItem("user", JSON.stringify(userWithId));
+				
+				// Log preacher credentials for debugging
+				console.log('[Login] ✓ Preacher credentials stored:', {
+					name: `${firstName} ${lastName}`.trim(),
+					hasAvatar: !!profilePictureUrl,
+					userId: userId || user.id,
+					role: userRole || user.role
+				});
 			}
 
 			toast.success("Logged in successfully");
