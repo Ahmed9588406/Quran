@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = 'http://apisoapp.twingroups.com';
+const BASE_URL = 'http://192.168.1.18:9001';
 const LOGIN_ENDPOINT = `${BASE_URL}/auth/login`;
 
 function corsHeaders() {

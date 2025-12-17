@@ -9,7 +9,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { extractUserId, getPostLoginRoute } from "@/lib/auth-helpers";
+import { extractUserId,  extractUserRole, getPostLoginRoute } from "@/lib/auth-helpers";
 import { setAuthToken, setRefreshToken } from "@/lib/auth";
 
 export default function Login() {
@@ -76,6 +76,9 @@ export default function Login() {
 			// Extract user ID using helper function (handles various response shapes)
 			// Requirements: 1.1, 1.2
 			const userId = extractUserId(root);
+			
+			// Extract user role for role-based routing
+			const userRole = extractUserRole(root);
 
 			// persist tokens using auth helpers
 			if (access) {
@@ -86,19 +89,27 @@ export default function Login() {
 				localStorage.setItem("refresh_token", refresh);
 				setRefreshToken(refresh);
 			}
+			
+			// Store user ID separately for quick access
+			if (userId) {
+				localStorage.setItem("user_id", userId);
+			}
+			
 			if (user) {
-				// Store user object with ID for subsequent navigation
+				// Store user object with ID and role for subsequent navigation
 				// Requirements: 1.2
-				const userWithId = { ...user, id: userId || user.id };
+				const userWithId = { ...user, id: userId || user.id, role: userRole || user.role };
 				localStorage.setItem("user", JSON.stringify(userWithId));
 			}
 
 			toast.success("Logged in successfully");
 			setLoading(false);
 
-			// Navigate to dynamic route using helper function
+			// Navigate to dynamic route using helper function with role-based routing
 			// Requirements: 1.1, 1.3
-			const targetRoute = getPostLoginRoute(userId);
+			const targetRoute = getPostLoginRoute(userId, userRole);
+			console.log('[Login] User role:', userRole);
+			console.log('[Login] Target route:', targetRoute);
 			setTimeout(() => {
 				router.push(targetRoute);
 			}, 700);

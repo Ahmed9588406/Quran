@@ -8,17 +8,21 @@
  */
 export interface AuthResponse {
   user_id?: string;
+  role?: string;
   data?: {
     user?: {
       id?: string;
+      role?: string;
     };
   };
   user?: {
     id?: string;
+    role?: string;
   };
   tokens?: {
     user?: {
       id?: string;
+      role?: string;
     };
   };
 }
@@ -59,14 +63,58 @@ export function extractUserId(response: AuthResponse | null | undefined): string
 }
 
 /**
- * Determines the navigation route after login based on user ID.
+ * Extracts user role from various authentication response shapes.
+ * Handles: role, data.user.role, user.role, tokens.user.role
+ * 
+ * @param response - The authentication response object
+ * @returns The user role string if found, null otherwise
+ */
+export function extractUserRole(response: AuthResponse | null | undefined): string | null {
+  if (!response) return null;
+  
+  // Check direct role field
+  if (response.role && typeof response.role === 'string') {
+    return response.role;
+  }
+  
+  // Check data.user.role path
+  if (response.data?.user?.role && typeof response.data.user.role === 'string') {
+    return response.data.user.role;
+  }
+  
+  // Check user.role path
+  if (response.user?.role && typeof response.user.role === 'string') {
+    return response.user.role;
+  }
+  
+  // Check tokens.user.role path
+  if (response.tokens?.user?.role && typeof response.tokens.user.role === 'string') {
+    return response.tokens.user.role;
+  }
+  
+  return null;
+}
+
+/**
+ * Determines the navigation route after login based on user ID and role.
  * 
  * @param userId - The extracted user ID (or null)
- * @returns The route to navigate to: `/user/${userId}` if ID exists, `/user` otherwise
+ * @param role - The extracted user role (or null)
+ * @returns The route to navigate to based on role and ID
  * 
  * Requirements: 1.1, 1.3
  */
-export function getPostLoginRoute(userId: string | null): string {
+export function getPostLoginRoute(userId: string | null, role?: string | null): string {
+  // If user has preacher role, navigate to dynamic khateb_Studio route with their ID
+  if (role && role.toLowerCase() === 'preacher') {
+    if (userId && userId.trim().length > 0) {
+      return `/khateb_Studio/${userId}`;
+    }
+    // Fallback to redirect page if no ID
+    return '/khateb_Studio';
+  }
+  
+  // Default routing based on user ID
   if (userId && userId.trim().length > 0) {
     return `/user/${userId}`;
   }
