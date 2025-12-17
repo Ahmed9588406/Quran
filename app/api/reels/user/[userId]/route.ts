@@ -1,69 +1,98 @@
 /**
  * User Reels API Route
  * 
- * GET /api/reels/user/[userId] - Fetch reels for a specific user (other user's profile)
- * 
- * Requirements: 3.1 - Fetch reels from another user's endpoint
+ * Proxies user reels requests to the external reels API.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
-}
+const BACKEND_BASE = 'http://apisoapp.twingroups.com';
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders() });
+/**
+ * Normalizes URLs to be absolute
+ */
+function normalizeUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${BACKEND_BASE}${url}`;
 }
 
 /**
- * GET /api/reels/user/[userId]
- * Fetches reels for a specific user (viewing another user's profile)
- * 
- * Requirements: 3.1 - Fetch reels from that user's endpoint (GET /reels/{user_id})
- * Requirements: 11.2 - Include Authorization header
+ * Transforms backend response to match frontend expectations
  */
+function transformUserReelsResponse(backendData: any, userId: string) {
+  const videos = backendData.videos || [];
+  
+  // Map backend fields to frontend Reel interface
+  const reels = videos.map((video: any) => ({
+    id: video.id,
+    user_id: video.author_id,
+    username: video.username,
+    user_avatar: normalizeUrl(video.avatar_url),
+    video_url: normalizeUrl(video.video_url),
+    thumbnail_url: normalizeUrl(video.thumbnail_url),
+    content: video.content,
+    visibility: 'public' as const,
+    likes_count: video.likes_count || 0,
+    comments_count: video.comments_count || 0,
+    is_liked: video.liked_by_current_user || false,
+    is_saved: false,
+    is_following: video.is_following || false,
+    created_at: video.created_at,
+  }));
+
+  return {
+    reels,
+    user_id: userId,
+    total_count: reels.length,
+  };
+}
+
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> }
+  request: NextRequest,
+  { params }: { params: { userId: string } }
 ) {
   try {
-    const { userId } = await params;
-    const authHeader = request.headers.get("Authorization");
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+    const { userId } = params;
+    const searchParams = request.nextUrl.searchParams;
+    const page = searchParams.get('page') || '1';
+    const limit = searchParams.get('limit') || '10';
+    const token = request.headers.get('authorization');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
     };
-    if (authHeader) {
-      headers["Authorization"] = authHeader;
+
+    if (token) {
+      headers['Authorization'] = token;
     }
 
-    const res = await fetch(`${BASE_URL}/reels/${userId}`, {
-      method: "GET",
-      headers,
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/users/${userId}/reels?page=${page}&limit=${limit}`,
+      {
+        method: 'GET',
+        headers,
+      }
+    );
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
+    if (!response.ok) {
+      const errorText = await response.text();
       return NextResponse.json(
-        { error: `Failed to fetch user reels: ${res.status} ${text}` },
-        { status: res.status, headers: corsHeaders() }
+        { error: 'Failed to fetch user reels' },
+        { status: response.status }
       );
     }
 
-    const data = await res.json();
-    return NextResponse.json(data, { headers: corsHeaders() });
+    const data = await response.json();
+    const transformed = transformUserReelsResponse(data, userId);
+    return NextResponse.json(transformed);
   } catch (error) {
-    console.error("Error fetching user reels:", error);
+    console.error('[User Reels API Proxy] Error:', error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500, headers: corsHeaders() }
+      { error: 'Internal server error' },
+      { status: 500 }
     );
   }
 }

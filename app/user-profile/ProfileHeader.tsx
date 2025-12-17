@@ -3,7 +3,7 @@ import React from "react";
 import Image from "next/image";
 import { Settings, MapPin, Briefcase, GraduationCap, MessageCircle } from "lucide-react";
 
-const BASE_URL = "http://192.168.1.18:9001"; // same backend host used by the proxy
+const BASE_URL = "http://apisoapp.twingroups.com"; // same backend host used by the proxy
 
 function normalizeUrl(url?: string | null) {
   if (!url) return null;

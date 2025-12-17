@@ -152,7 +152,7 @@ export default function UserPage() {
         // normalize avatar to absolute if needed (proxy may already have normalized)
         if (user && typeof user.avatar_url === "string" && user.avatar_url.startsWith("/")) {
           // keep backend base if available in env or fallback to same host
-          const base = (window as any).__BACKEND_BASE__ ?? "http://192.168.1.18:9001";
+          const base = (window as any).__BACKEND_BASE__ ?? "http://apisoapp.twingroups.com";
           user.avatar_url = `${base}${user.avatar_url}`;
         }
 

@@ -26,7 +26,7 @@ import {
 } from './types';
 
 // API base URL - call backend directly for file uploads
-const BASE_URL = 'http://192.168.1.18:9001';
+const BASE_URL = 'http://apisoapp.twingroups.com';
 
 /**
  * Custom error class for Reels API errors
@@ -185,7 +185,10 @@ export class ReelsAPI {
       limit: limit.toString(),
     });
     
-    const response = await fetch(`${this.baseUrl}/reels?${params}`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? '/api/reels' : `${this.baseUrl}/reels`;
+    
+    const response = await fetch(`${apiPath}?${params}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
@@ -213,7 +216,10 @@ export class ReelsAPI {
       limit: limit.toString(),
     });
     
-    const response = await fetch(`${this.baseUrl}/users/${userId}/reels?${params}`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/user/${userId}` : `${this.baseUrl}/users/${userId}/reels`;
+    
+    const response = await fetch(`${apiPath}?${params}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
@@ -230,7 +236,10 @@ export class ReelsAPI {
    * @returns Promise resolving to UserReelsResponse
    */
   async getOtherUserReels(userId: string): Promise<UserReelsResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${userId}`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/user/${userId}` : `${this.baseUrl}/reels/${userId}`;
+    
+    const response = await fetch(apiPath, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
@@ -343,7 +352,10 @@ export class ReelsAPI {
    * @returns Promise resolving to LikeResponse
    */
   async likeReel(reelId: string): Promise<LikeResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/like`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/like` : `${this.baseUrl}/reels/${reelId}/like`;
+    
+    const response = await fetch(apiPath, {
       method: 'POST',
       headers: createHeaders('application/json'),
     });
@@ -360,7 +372,10 @@ export class ReelsAPI {
    * @returns Promise resolving to LikeResponse
    */
   async unlikeReel(reelId: string): Promise<LikeResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/like`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/like` : `${this.baseUrl}/reels/${reelId}/like`;
+    
+    const response = await fetch(apiPath, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
     });
@@ -377,7 +392,10 @@ export class ReelsAPI {
    * @returns Promise resolving to SaveResponse
    */
   async saveReel(reelId: string): Promise<SaveResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/save`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/save` : `${this.baseUrl}/reels/${reelId}/save`;
+    
+    const response = await fetch(apiPath, {
       method: 'POST',
       headers: createHeaders('application/json'),
     });
@@ -394,7 +412,10 @@ export class ReelsAPI {
    * @returns Promise resolving to SaveResponse
    */
   async unsaveReel(reelId: string): Promise<SaveResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/save`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/save` : `${this.baseUrl}/reels/${reelId}/save`;
+    
+    const response = await fetch(apiPath, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
     });
@@ -415,7 +436,10 @@ export class ReelsAPI {
    * @returns Promise resolving to FollowResponse
    */
   async followUser(userId: string): Promise<FollowResponse> {
-    const response = await fetch(`${this.baseUrl}/follow`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? '/api/follow' : `${this.baseUrl}/follow`;
+    
+    const response = await fetch(apiPath, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ user_id: userId }),
@@ -431,7 +455,10 @@ export class ReelsAPI {
    * @returns Promise resolving to FollowResponse
    */
   async unfollowUser(userId: string): Promise<FollowResponse> {
-    const response = await fetch(`${this.baseUrl}/follow`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? '/api/follow' : `${this.baseUrl}/follow`;
+    
+    const response = await fetch(apiPath, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ user_id: userId }),
@@ -458,7 +485,10 @@ export class ReelsAPI {
       limit: limit.toString(),
     });
     
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments?${params}`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/comments` : `${this.baseUrl}/reels/${reelId}/comments`;
+    
+    const response = await fetch(`${apiPath}?${params}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
@@ -475,13 +505,30 @@ export class ReelsAPI {
    * @returns Promise resolving to CreateCommentResponse
    */
   async createComment(reelId: string, data: CreateCommentData): Promise<CreateCommentResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comment`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/comment` : `${this.baseUrl}/reels/${reelId}/comment`;
+    
+    console.log('[ReelsAPI] createComment called');
+    console.log('[ReelsAPI] reelId:', reelId);
+    console.log('[ReelsAPI] data:', data);
+    console.log('[ReelsAPI] apiPath:', apiPath);
+    
+    const headers = createHeaders('application/json');
+    console.log('[ReelsAPI] headers:', headers);
+    
+    const response = await fetch(apiPath, {
       method: 'POST',
-      headers: createHeaders('application/json'),
+      headers: headers,
       body: JSON.stringify(data),
     });
     
-    return handleResponse<CreateCommentResponse>(response);
+    console.log('[ReelsAPI] createComment response status:', response.status);
+    console.log('[ReelsAPI] createComment response ok:', response.ok);
+    
+    const result = await handleResponse<CreateCommentResponse>(response, 'createComment');
+    console.log('[ReelsAPI] createComment result:', result);
+    
+    return result;
   }
 
   /**
@@ -492,7 +539,10 @@ export class ReelsAPI {
    * @returns Promise resolving to success status
    */
   async deleteComment(reelId: string, commentId: string): Promise<{ success: boolean }> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments/${commentId}`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/comments/${commentId}` : `${this.baseUrl}/reels/${reelId}/comments/${commentId}`;
+    
+    const response = await fetch(apiPath, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
     });
@@ -508,7 +558,10 @@ export class ReelsAPI {
    * @returns Promise resolving to LikeResponse
    */
   async likeComment(reelId: string, commentId: string): Promise<LikeResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments/${commentId}/like`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/comments/${commentId}/like` : `${this.baseUrl}/reels/${reelId}/comments/${commentId}/like`;
+    
+    const response = await fetch(apiPath, {
       method: 'POST',
       headers: createHeaders('application/json'),
     });
@@ -524,7 +577,10 @@ export class ReelsAPI {
    * @returns Promise resolving to LikeResponse
    */
   async unlikeComment(reelId: string, commentId: string): Promise<LikeResponse> {
-    const response = await fetch(`${this.baseUrl}/reels/${reelId}/comments/${commentId}/like`, {
+    // Use Next.js API proxy to avoid CORS issues
+    const apiPath = typeof window !== 'undefined' ? `/api/reels/${reelId}/comments/${commentId}/like` : `${this.baseUrl}/reels/${reelId}/comments/${commentId}/like`;
+    
+    const response = await fetch(apiPath, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
     });

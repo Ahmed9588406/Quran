@@ -1,87 +1,117 @@
-import { NextResponse } from 'next/server';
+/**
+ * Follow API Route
+ * 
+ * Proxies follow/unfollow requests to the external API.
+ */
 
-const BASE_URL = 'http://192.168.1.18:9001';
+import { NextRequest, NextResponse } from 'next/server';
 
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-}
+const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders() });
-}
-
-// Follow a user
-export async function POST(request: Request) {
-  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
-
-  if (!authHeader) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders() });
-  }
-
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId } = body;
+    const token = request.headers.get('authorization');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400, headers: corsHeaders() });
+    if (token) {
+      headers['Authorization'] = token;
     }
 
-    const backendRes = await fetch(`${BASE_URL}/users/${userId}/follow`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/follow`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      }
+    );
 
-    const data = await backendRes.json().catch(() => null);
+    if (!response.ok) {
+      const errorText = await response.text();
+      return NextResponse.json(
+        { error: 'Failed to follow user' },
+        { status: response.status }
+      );
+    }
 
-    return NextResponse.json(data ?? { success: backendRes.ok }, {
-      status: backendRes.status,
-      headers: corsHeaders(),
-    });
-  } catch (err) {
-    console.error('Follow proxy error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 502, headers: corsHeaders() });
+    const text = await response.text();
+    let data = {};
+    
+    // Handle empty responses
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { success: true, is_following: true };
+      }
+    } else {
+      data = { success: true, is_following: true };
+    }
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('[Follow API Proxy] Error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
-// Unfollow a user
-export async function DELETE(request: Request) {
-  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
-
-  if (!authHeader) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders() });
-  }
-
+export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId } = body;
+    const token = request.headers.get('authorization');
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400, headers: corsHeaders() });
+    if (token) {
+      headers['Authorization'] = token;
     }
 
-    const backendRes = await fetch(`${BASE_URL}/users/${userId}/follow`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/follow`,
+      {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify(body),
+      }
+    );
 
-    const data = await backendRes.json().catch(() => null);
+    if (!response.ok) {
+      const errorText = await response.text();
+      return NextResponse.json(
+        { error: 'Failed to unfollow user' },
+        { status: response.status }
+      );
+    }
 
-    return NextResponse.json(data ?? { success: backendRes.ok }, {
-      status: backendRes.status,
-      headers: corsHeaders(),
-    });
-  } catch (err) {
-    console.error('Unfollow proxy error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 502, headers: corsHeaders() });
+    const text = await response.text();
+    let data = {};
+    
+    // Handle empty responses
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { success: true, is_following: false };
+      }
+    } else {
+      data = { success: true, is_following: false };
+    }
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('[Unfollow API Proxy] Error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

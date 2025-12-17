@@ -4,7 +4,7 @@
 
 ### URL
 ```
-POST http://192.168.1.18:9001/posts
+POST http://apisoapp.twingroups.com/posts
 ```
 
 ### Local Proxy
@@ -32,7 +32,7 @@ Content-Type: multipart/form-data
 
 ### Example Request (cURL)
 ```bash
-curl -X POST http://192.168.1.18:9001/posts \
+curl -X POST http://apisoapp.twingroups.com/posts \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
   -F "content=Check out this amazing post!" \
   -F "visibility=public" \
@@ -48,7 +48,7 @@ formData.append("visibility", "public");
 formData.append("files", imageFile1);
 formData.append("files", imageFile2);
 
-const response = await fetch("http://192.168.1.18:9001/posts", {
+const response = await fetch("http://apisoapp.twingroups.com/posts", {
   method: "POST",
   headers: {
     Authorization: `Bearer ${token}`,
@@ -216,7 +216,7 @@ export async function createPost(
     });
   }
 
-  const response = await fetch("http://192.168.1.18:9001/posts", {
+  const response = await fetch("http://apisoapp.twingroups.com/posts", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -263,7 +263,7 @@ Typical rate limits (verify with backend):
 
 ### Query Parameters
 ```
-GET http://192.168.1.18:9001/posts?limit=10&offset=0
+GET http://apisoapp.twingroups.com/posts?limit=10&offset=0
 ```
 
 | Parameter | Type | Default | Description |
@@ -306,7 +306,7 @@ If token expires, refresh using your auth endpoint and update localStorage.
 
 ```javascript
 try {
-  const response = await fetch("http://192.168.1.18:9001/posts", {
+  const response = await fetch("http://apisoapp.twingroups.com/posts", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -335,7 +335,7 @@ try {
 ## Testing with Postman
 
 1. **Create new POST request**
-   - URL: `http://192.168.1.18:9001/posts`
+   - URL: `http://apisoapp.twingroups.com/posts`
 
 2. **Set Headers**
    - Authorization: `Bearer YOUR_TOKEN`
@@ -375,31 +375,31 @@ try {
 
 ### Get User Posts
 ```
-GET http://192.168.1.18:9001/users/{userId}/posts
+GET http://apisoapp.twingroups.com/users/{userId}/posts
 ```
 
 ### Get Post Details
 ```
-GET http://192.168.1.18:9001/posts/{postId}
+GET http://apisoapp.twingroups.com/posts/{postId}
 ```
 
 ### Delete Post
 ```
-DELETE http://192.168.1.18:9001/posts/{postId}
+DELETE http://apisoapp.twingroups.com/posts/{postId}
 ```
 
 ### Like Post
 ```
-POST http://192.168.1.18:9001/posts/{postId}/like
+POST http://apisoapp.twingroups.com/posts/{postId}/like
 ```
 
 ### Comment on Post
 ```
-POST http://192.168.1.18:9001/posts/{postId}/comments
+POST http://apisoapp.twingroups.com/posts/{postId}/comments
 ```
 
 ---
 
-**Base URL:** `http://192.168.1.18:9001`
+**Base URL:** `http://apisoapp.twingroups.com`
 **Local Proxy:** `http://localhost:3000/api`
 **Last Updated:** December 14, 2025

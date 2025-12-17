@@ -118,7 +118,7 @@ Authorization: Bearer {token}
 | Issue | Solution |
 |-------|----------|
 | Tests fail | Run `npm install` first |
-| Backend errors | Check if backend is running at `http://192.168.1.18:9001` |
+| Backend errors | Check if backend is running at `http://apisoapp.twingroups.com` |
 | WebSocket errors | Check if WebSocket server is running at `ws://192.168.1.18:8080` |
 | Authorization errors | Check if token is in localStorage |
 | CORS errors | Check if backend allows CORS |

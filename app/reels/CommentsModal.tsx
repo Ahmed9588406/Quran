@@ -12,13 +12,14 @@ import { X, Send, Heart, Trash2, Loader2 } from 'lucide-react';
 import { ReelComment } from '@/lib/reels/types';
 import { reelsAPI } from '@/lib/reels/api';
 
-const BASE_URL = 'http://192.168.1.18:9001';
+const BASE_URL = 'http://apisoapp.twingroups.com';
 
 interface CommentsModalProps {
   isOpen: boolean;
   onClose: () => void;
   reelId: string;
   onCommentAdded?: () => void;
+  onCommentPosted?: () => void;
 }
 
 function normalizeUrl(url?: string | null): string {
@@ -43,7 +44,7 @@ function formatTimeAgo(dateString: string): string {
   return date.toLocaleDateString();
 }
 
-export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded }: CommentsModalProps) {
+export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onCommentPosted }: CommentsModalProps) {
   const [comments, setComments] = useState<ReelComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -55,19 +56,29 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded }: Comme
   const listRef = useRef<HTMLDivElement>(null);
 
 
-  // Get current user ID from localStorage
-  const getCurrentUserId = (): string | null => {
-    if (typeof window === 'undefined') return null;
+  // Get current user data from localStorage
+  const getCurrentUser = (): { id: string; username: string; avatar: string } => {
+    if (typeof window === 'undefined') return { id: '', username: '', avatar: '' };
     try {
       const userStr = localStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        return user.id || user.user_id || null;
+        return {
+          id: user.id || user.user_id || '',
+          username: user.username || user.name || 'You',
+          avatar: user.avatar || user.profile_picture || '',
+        };
       }
-      return localStorage.getItem('user_id');
+      return { id: '', username: '', avatar: '' };
     } catch {
-      return null;
+      return { id: '', username: '', avatar: '' };
     }
+  };
+
+  // Get current user ID from localStorage (for compatibility)
+  const getCurrentUserId = (): string | null => {
+    const user = getCurrentUser();
+    return user.id || null;
   };
 
   // Fetch comments
@@ -103,22 +114,134 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded }: Comme
   // Handle submit comment
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || isSubmitting) return;
+    const commentText = newComment.trim();
+    const currentUser = getCurrentUser();
+    
+    console.log('[CommentsModal] handleSubmit called');
+    console.log('[CommentsModal] Comment text:', commentText);
+    console.log('[CommentsModal] Current user:', currentUser);
+    console.log('[CommentsModal] isSubmitting:', isSubmitting);
+    console.log('[CommentsModal] reelId:', reelId);
+    
+    if (!commentText || isSubmitting) {
+      console.log('[CommentsModal] Skipping - empty comment or already submitting');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
+    
     try {
-      const response = await reelsAPI.createComment(reelId, { content: newComment.trim() });
-      if (response.success && response.comment) {
-        setComments(prev => [response.comment, ...prev]);
+      console.log('[CommentsModal] Sending comment to API...');
+      
+      // Create headers with user data
+      const headers = new Headers({
+        'Content-Type': 'application/json',
+        'x-user-data': JSON.stringify({
+          id: currentUser.id,
+          username: currentUser.username,
+          avatar: currentUser.avatar,
+        }),
+      });
+      
+      // Get auth token
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      
+      const response = await fetch(`/api/reels/${reelId}/comment`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ content: commentText }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to post comment: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log('[CommentsModal] API Response:', data);
+      console.log('[CommentsModal] Response.success:', data.success);
+      console.log('[CommentsModal] Response.comment:', data.comment);
+      
+      // Handle different response formats
+      if (data.success) {
+        console.log('[CommentsModal] Comment posted successfully');
+        
+        // If backend returns the comment object
+        if (data.comment) {
+          console.log('[CommentsModal] Adding returned comment to list:', data.comment);
+          const commentToAdd = data.comment;
+          
+          // Ensure all required fields are present
+          const completeComment: ReelComment = {
+            id: commentToAdd.id || `temp_${Date.now()}`,
+            reel_id: commentToAdd.reel_id || reelId,
+            user_id: commentToAdd.user_id || currentUser.id || '',
+            username: commentToAdd.username || currentUser.username || 'You',
+            user_avatar: commentToAdd.user_avatar || currentUser.avatar || '',
+            content: commentToAdd.content || commentText,
+            created_at: commentToAdd.created_at || new Date().toISOString(),
+            likes_count: commentToAdd.likes_count || 0,
+            is_liked: commentToAdd.is_liked || false,
+          };
+          
+          console.log('[CommentsModal] Complete comment object:', completeComment);
+          setComments(prev => {
+            const updated = [completeComment, ...prev];
+            console.log('[CommentsModal] Updated comments list:', updated);
+            return updated;
+          });
+        } else {
+          // If backend just returns success, create a local comment object
+          console.log('[CommentsModal] Creating local comment object');
+          const newCommentObj: ReelComment = {
+            id: `temp_${Date.now()}`,
+            reel_id: reelId,
+            user_id: currentUser.id || '',
+            username: currentUser.username || 'You',
+            user_avatar: currentUser.avatar || '',
+            content: commentText,
+            created_at: new Date().toISOString(),
+            likes_count: 0,
+            is_liked: false,
+          };
+          console.log('[CommentsModal] Local comment object:', newCommentObj);
+          setComments(prev => {
+            const updated = [newCommentObj, ...prev];
+            console.log('[CommentsModal] Updated comments list:', updated);
+            return updated;
+          });
+        }
         setNewComment('');
+        
+        // Call the callback to notify parent component that comment was posted
+        console.log('[CommentsModal] Calling onCommentPosted callback');
+        onCommentPosted?.();
+        
+        // Also call the legacy callback
+        console.log('[CommentsModal] Calling onCommentAdded callback');
         onCommentAdded?.();
+        
+        // Refresh comments to get updated count
+        console.log('[CommentsModal] Refreshing comments list...');
+        await fetchComments(1);
+        
+        console.log('[CommentsModal] Comment state updated, input cleared');
+      } else {
+        console.warn('[CommentsModal] Response success is false:', data);
+        setError('Failed to post comment - server returned success: false');
       }
     } catch (err: any) {
       console.error('[CommentsModal] Failed to create comment:', err);
+      console.error('[CommentsModal] Error message:', err.message);
+      console.error('[CommentsModal] Error stack:', err.stack);
       setError(err.message || 'Failed to post comment');
     } finally {
       setIsSubmitting(false);
+      console.log('[CommentsModal] handleSubmit completed');
     }
   };
 

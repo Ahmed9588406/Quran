@@ -34,7 +34,7 @@ export default function ChatHeader({
   const rawAvatarUrl = getChatAvatarUrl(chat, currentUserId);
   // Ensure avatar URL has the correct base URL
   const avatarUrl = rawAvatarUrl 
-    ? (rawAvatarUrl.startsWith('http') ? rawAvatarUrl : `http://192.168.1.18:9001${rawAvatarUrl}`)
+    ? (rawAvatarUrl.startsWith('http') ? rawAvatarUrl : `http://apisoapp.twingroups.com${rawAvatarUrl}`)
     : undefined;
   const isOnline = isChatOnline(chat, currentUserId);
   const initial = displayName.charAt(0).toUpperCase();

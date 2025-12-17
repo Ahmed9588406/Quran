@@ -28,7 +28,7 @@ Fixed the typing indicator and mark seen functionality in the chat system by cre
 ### 1. `/app/api/chats/[chatId]/typing/route.ts`
 ```typescript
 // POST /api/chats/[chatId]/typing
-// Proxies to: POST http://192.168.1.18:9001/chat/:chat_id/typing
+// Proxies to: POST http://apisoapp.twingroups.com/chat/:chat_id/typing
 // Body: { "is_typing": true/false }
 ```
 
@@ -41,7 +41,7 @@ Fixed the typing indicator and mark seen functionality in the chat system by cre
 ### 2. `/app/api/chats/[chatId]/seen/route.ts`
 ```typescript
 // POST /api/chats/[chatId]/seen
-// Proxies to: POST http://192.168.1.18:9001/chat/:chat_id/seen
+// Proxies to: POST http://apisoapp.twingroups.com/chat/:chat_id/seen
 // Body: { "message_id": "optional_message_id" }
 ```
 
@@ -57,13 +57,13 @@ Fixed the typing indicator and mark seen functionality in the chat system by cre
 
 **Updated `sendTyping()` method**:
 - Changed from direct backend call to REST API endpoint
-- Uses `/api/chats/:chatId/typing` instead of `http://192.168.1.18:9001/chat/:chat_id/typing`
+- Uses `/api/chats/:chatId/typing` instead of `http://apisoapp.twingroups.com/chat/:chat_id/typing`
 - Added error handling (non-critical, doesn't throw)
 - Logs errors to console for debugging
 
 **Updated `markAsSeen()` method**:
 - Changed from direct backend call to REST API endpoint
-- Uses `/api/chats/:chatId/seen` instead of `http://192.168.1.18:9001/chat/:chat_id/seen`
+- Uses `/api/chats/:chatId/seen` instead of `http://apisoapp.twingroups.com/chat/:chat_id/seen`
 - Added error handling (non-critical, doesn't throw)
 - Logs errors to console for debugging
 

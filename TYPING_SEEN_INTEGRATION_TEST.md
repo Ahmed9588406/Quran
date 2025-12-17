@@ -43,7 +43,7 @@ npm test -- --coverage
 
 **Setup:**
 - Open two browser windows with the same chat
-- Have the backend running at `http://192.168.1.18:9001`
+- Have the backend running at `http://apisoapp.twingroups.com`
 - Have the WebSocket server running at `ws://192.168.1.18:8080`
 
 **Steps:**
@@ -85,7 +85,7 @@ Authorization: Bearer {token}
 **Setup:**
 - Open two browser windows with different users
 - User A and User B
-- Have the backend running at `http://192.168.1.18:9001`
+- Have the backend running at `http://apisoapp.twingroups.com`
 - Have the WebSocket server running at `ws://192.168.1.18:8080`
 
 **Steps:**
@@ -344,7 +344,7 @@ if (DEBUG) {
 
 ### Typing Indicator Not Appearing
 1. Check if WebSocket is connected (should show "connected" in UI)
-2. Check if backend is running at `http://192.168.1.18:9001`
+2. Check if backend is running at `http://apisoapp.twingroups.com`
 3. Check if WebSocket server is running at `ws://192.168.1.18:8080`
 4. Check console for errors
 5. Check network requests for 500 errors

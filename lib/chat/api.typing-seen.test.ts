@@ -43,7 +43,7 @@ describe('ChatAPI - Typing Indicator and Mark Seen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
-    chatAPI = new ChatAPI('http://192.168.1.18:9001');
+    chatAPI = new ChatAPI('http://apisoapp.twingroups.com');
   });
 
   describe('sendTyping()', () => {

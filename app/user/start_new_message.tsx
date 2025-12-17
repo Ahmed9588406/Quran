@@ -5,7 +5,7 @@ import { User as ChatUser } from "@/lib/chat/types";
 
 type User = { id: string; name: string; avatar: string; isOnline?: boolean };
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BASE_URL = "http://apisoapp.twingroups.com";
 
 function normalizeUrl(url?: string | null): string {
   if (!url) return "/icons/settings/profile.png";

@@ -1,7 +1,7 @@
 "use client";
 import { MoreHorizontal } from "lucide-react";
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BASE_URL = "http://apisoapp.twingroups.com";
 
 function normalizeUrl(url?: string | null): string | null {
   if (!url) return null;

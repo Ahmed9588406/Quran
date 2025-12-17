@@ -25,7 +25,7 @@ import {
 } from './types';
 
 // Backend API base URL - matches the working backend
-export const API_BASE_URL = 'http://192.168.1.18:9001';
+export const API_BASE_URL = 'http://apisoapp.twingroups.com';
 
 /**
  * Custom error class for API errors
@@ -100,12 +100,15 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * Chat API Service Class
  * 
  * Provides all REST API methods for the chat system.
- * Endpoints match the working backend at http://192.168.1.18:9001
+ * Uses local Next.js API proxy routes to avoid CORS issues.
+ * Proxy routes forward to backend at http://apisoapp.twingroups.com
  */
 export class ChatAPI {
   private baseUrl: string;
 
-  constructor(baseUrl: string = API_BASE_URL) {
+  constructor(baseUrl: string = '/api/chats') {
+    // Use local proxy routes by default to avoid CORS issues
+    // Only use direct backend URL if explicitly provided
     this.baseUrl = baseUrl;
   }
 
@@ -115,28 +118,28 @@ export class ChatAPI {
 
   /**
    * Lists all chats for the current user.
-   * Backend endpoint: GET /chat/list
+   * Proxy endpoint: GET /api/chats
    * 
    * Requirements: 1.1
    * 
    * @returns Promise resolving to array of Chat objects
    */
   async listChats(): Promise<Chat[]> {
-    const response = await fetch(`${this.baseUrl}/chat/list`, {
+    const response = await fetch(`${this.baseUrl}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ success: boolean; chats: Chat[] }>(response);
+    const data = await handleResponse<Chat[]>(response);
     
-    // Backend returns { success: true, chats: [...] }
-    return data.chats || [];
+    // Proxy returns array of chats directly
+    return Array.isArray(data) ? data : [];
   }
 
   /**
    * Creates a new direct chat with another user.
    * If a chat already exists, returns the existing chat ID.
-   * Backend endpoint: POST /chat/create
+   * Proxy endpoint: POST /api/chats
    * 
    * Requirements: 2.2
    * 
@@ -144,31 +147,31 @@ export class ChatAPI {
    * @returns Promise resolving to CreateChatResponse with chat_id
    */
   async createChat(targetUserId: string): Promise<CreateChatResponse> {
-    const response = await fetch(`${this.baseUrl}/chat/create`, {
+    const response = await fetch(`${this.baseUrl}`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ target_user_id: targetUserId }),
     });
     
-    const data = await handleResponse<{ success: boolean; chat_id: string }>(response);
-    return { chat_id: data.chat_id };
+    const data = await handleResponse<any>(response);
+    return { chat_id: data.chat_id || data.id };
   }
 
   /**
    * Gets detailed information about a specific chat.
-   * Backend endpoint: GET /chat/:chatId
+   * Proxy endpoint: GET /api/chats/:chatId
    * 
    * @param chatId - ID of the chat to retrieve
    * @returns Promise resolving to ChatDetails object
    */
   async getChatDetails(chatId: string): Promise<ChatDetails> {
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}`, {
+    const response = await fetch(`${this.baseUrl}/${chatId}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ success: boolean; chat: ChatDetails; participants: any[] }>(response);
-    return { ...data.chat, participants: data.participants };
+    const data = await handleResponse<any>(response);
+    return data.chat || data;
   }
 
 
@@ -178,7 +181,7 @@ export class ChatAPI {
 
   /**
    * Gets messages for a specific chat.
-   * Backend endpoint: GET /chat/:chat_id/messages?limit=50
+   * Proxy endpoint: GET /api/chats/:chatId/messages?limit=50
    * 
    * Requirements: 3.1
    * 
@@ -205,20 +208,20 @@ export class ChatAPI {
       params.append('after', options.after);
     }
     
-    const url = `${this.baseUrl}/chat/${chatId}/messages?${params.toString()}`;
+    const url = `${this.baseUrl}/${chatId}/messages?${params.toString()}`;
     
     const response = await fetch(url, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ success: boolean; messages: Message[] }>(response);
-    return data.messages || [];
+    const data = await handleResponse<Message[]>(response);
+    return Array.isArray(data) ? data : [];
   }
 
   /**
    * Sends a text message to a chat.
-   * Backend endpoint: POST /chat/:chat_id/message
+   * Proxy endpoint: POST /api/chats/:chatId/messages
    * 
    * Requirements: 3.1
    * 
@@ -227,13 +230,13 @@ export class ChatAPI {
    * @returns Promise resolving to the created Message object
    */
   async sendMessage(chatId: string, content: string): Promise<Message> {
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message`, {
+    const response = await fetch(`${this.baseUrl}/${chatId}/messages`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ content }),
     });
     
-    const data = await handleResponse<{ success: boolean; message_id?: string; message?: Message }>(response);
+    const data = await handleResponse<any>(response);
     
     // Return a message object - backend may return message_id or full message
     if (data.message) {
@@ -242,9 +245,9 @@ export class ChatAPI {
     
     // Construct message from response
     return {
-      id: data.message_id || '',
+      id: data.message_id || data.id || '',
       chat_id: chatId,
-      sender_id: '', // Will be filled by caller
+      sender_id: data.sender_id || '', // Will be filled by caller
       content,
       type: 'text',
       created_at: new Date().toISOString(),
@@ -275,10 +278,10 @@ export class ChatAPI {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
-    // Backend uses /chat/:chat_id/message/:type for media uploads
+    // Proxy uses /api/chats/:chatId/messages for media uploads
     // Documents use 'image' endpoint as backend doesn't have dedicated document endpoint
     const endpointType = type === 'document' ? 'image' : type;
-    const response = await fetch(`${this.baseUrl}/chat/${chatId}/message/${endpointType}`, {
+    const response = await fetch(`${this.baseUrl}/${chatId}/messages?type=${endpointType}`, {
       method: 'POST',
       headers,
       body: formData,
@@ -329,7 +332,7 @@ export class ChatAPI {
 
   /**
    * Deletes a message.
-   * Backend endpoint: DELETE /chat/message/:messageId
+   * Proxy endpoint: DELETE /api/chats/messages/:messageId
    * 
    * Requirements: 9.2
    * 
@@ -337,12 +340,12 @@ export class ChatAPI {
    * @returns Promise resolving when deletion is complete
    */
   async deleteMessage(messageId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/chat/message/${messageId}`, {
+    const response = await fetch(`/api/chats/messages/${messageId}`, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
     });
     
-    await handleResponse<{ success: boolean }>(response);
+    await handleResponse<any>(response);
   }
 
   // ============================================================================
@@ -431,7 +434,7 @@ export class ChatAPI {
 
   /**
    * Creates a new group chat.
-   * Backend endpoint: POST /chat/group
+   * Proxy endpoint: POST /api/chats/group
    * Body: { "title": "Group Name", "members": ["USER_ID_1", "USER_ID_2"] }
    * 
    * Requirements: 8.1
@@ -444,11 +447,11 @@ export class ChatAPI {
     const requestBody = { title, members: memberIds };
     
     console.log('Creating group with:', {
-      url: `${this.baseUrl}/chat/group`,
+      url: `/api/chats/group`,
       body: requestBody,
     });
     
-    const response = await fetch(`${this.baseUrl}/chat/group`, {
+    const response = await fetch(`/api/chats/group`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify(requestBody),
@@ -486,7 +489,7 @@ export class ChatAPI {
 
   /**
    * Adds a member to a group chat.
-   * Backend endpoint: POST /chat/group/:chatId/add
+   * Proxy endpoint: POST /api/chats/group/:chatId/add
    * 
    * Requirements: 8.4
    * 
@@ -495,18 +498,18 @@ export class ChatAPI {
    * @returns Promise resolving when member is added
    */
   async addMember(chatId: string, userId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/chat/group/${chatId}/add`, {
+    const response = await fetch(`/api/chats/group/${chatId}/add`, {
       method: 'POST',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ user_id: userId }),
     });
     
-    await handleResponse<{ success: boolean }>(response);
+    await handleResponse<any>(response);
   }
 
   /**
    * Removes a member from a group chat.
-   * Backend endpoint: DELETE /chat/group/:chatId/remove
+   * Proxy endpoint: DELETE /api/chats/group/:chatId/remove
    * 
    * Requirements: 8.5
    * 
@@ -515,13 +518,13 @@ export class ChatAPI {
    * @returns Promise resolving when member is removed
    */
   async removeMember(chatId: string, userId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/chat/group/${chatId}/remove`, {
+    const response = await fetch(`/api/chats/group/${chatId}/remove`, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
       body: JSON.stringify({ user_id: userId }),
     });
     
-    await handleResponse<{ success: boolean }>(response);
+    await handleResponse<any>(response);
   }
 
   // ============================================================================
@@ -530,7 +533,7 @@ export class ChatAPI {
 
   /**
    * Searches for users by query string.
-   * Backend endpoint: GET /search/users?q=&limit=100
+   * Proxy endpoint: GET /api/users/search?q=&limit=100
    * 
    * Requirements: 2.1
    * 
@@ -541,13 +544,13 @@ export class ChatAPI {
   async searchUsers(query: string, limit: number = 100): Promise<User[]> {
     const params = new URLSearchParams({ q: query, limit: limit.toString() });
     
-    const response = await fetch(`${this.baseUrl}/search/users?${params}`, {
+    const response = await fetch(`/api/users/search?${params}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ success: boolean; users: User[] }>(response);
-    return data.users || [];
+    const data = await handleResponse<User[]>(response);
+    return Array.isArray(data) ? data : [];
   }
 
   /**
@@ -567,29 +570,29 @@ export class ChatAPI {
    * @returns Promise resolving to User object
    */
   async getUser(userId: string): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/users/${userId}`, {
+    const response = await fetch(`/api/users/${userId}`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ success: boolean; user: User }>(response);
-    return data.user;
+    const data = await handleResponse<any>(response);
+    return data.user || data;
   }
 
   /**
    * Gets the current user's profile.
-   * Backend endpoint: GET /profile
+   * Proxy endpoint: GET /api/auth/profile
    * 
    * @returns Promise resolving to User object
    */
   async getProfile(): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/profile`, {
+    const response = await fetch(`/api/auth/profile`, {
       method: 'GET',
       headers: createHeaders('application/json'),
     });
     
-    const data = await handleResponse<{ user: User }>(response);
-    return data.user;
+    const data = await handleResponse<any>(response);
+    return data.user || data.data?.user || data;
   }
 }
 

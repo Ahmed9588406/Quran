@@ -23,7 +23,7 @@ export default function CreatePostPage() {
           return;
         }
 
-        const response = await fetch("http://192.168.1.18:9001/user/profile", {
+        const response = await fetch("http://apisoapp.twingroups.com/user/profile", {
           headers: {
             Authorization: `Bearer ${token}`,
           },

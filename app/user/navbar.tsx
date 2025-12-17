@@ -41,7 +41,7 @@ export default function NavBar({
 
   useEffect(() => {
     if (currentUser && currentUser.avatar_url) {
-      setAvatarSrc(currentUser.avatar_url.startsWith("http") ? currentUser.avatar_url : `http://192.168.1.18:9001${currentUser.avatar_url}`);
+      setAvatarSrc(currentUser.avatar_url.startsWith("http") ? currentUser.avatar_url : `http://apisoapp.twingroups.com${currentUser.avatar_url}`);
       return;
     }
     try {
@@ -50,7 +50,7 @@ export default function NavBar({
       const parsed = JSON.parse(raw);
       const avatar = parsed?.avatar_url;
       if (!avatar) return;
-      const BACKEND_BASE = "http://192.168.1.18:9001";
+      const BACKEND_BASE = "http://apisoapp.twingroups.com";
       const src = avatar.startsWith("http") ? avatar : `${BACKEND_BASE}${avatar}`;
       setAvatarSrc(src);
     } catch (e) { /* ignore */ }

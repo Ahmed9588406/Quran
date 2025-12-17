@@ -46,7 +46,7 @@ describe('Typing Indicator API Route', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://192.168.1.18:9001/chat/chat-123/typing',
+        'http://apisoapp.twingroups.com/chat/chat-123/typing',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -76,7 +76,7 @@ describe('Typing Indicator API Route', () => {
 
       expect(response.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://192.168.1.18:9001/chat/chat-456/typing',
+        'http://apisoapp.twingroups.com/chat/chat-456/typing',
         expect.any(Object)
       );
     });

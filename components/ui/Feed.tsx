@@ -100,14 +100,14 @@ function formatRelativeTime(dateString?: string): string {
 const normalizeAvatarUrl = (url?: string): string => {
 	if (!url) return DEFAULT_AVATAR;
 	if (url.startsWith("http")) return url;
-	return `http://192.168.1.18:9001${url}`;
+	return `http://apisoapp.twingroups.com${url}`;
 };
 
 // Helper to normalize media URLs
 const normalizeMediaUrl = (url?: string): string => {
 	if (!url) return "";
 	if (url.startsWith("http")) return url;
-	return `http://192.168.1.18:9001${url}`;
+	return `http://apisoapp.twingroups.com${url}`;
 };
 
 /**
@@ -1008,7 +1008,7 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 }
 
 /**
- * Main Feed Component
+ * Main Feed Component with Infinite Scroll
  */
 export default function Feed({ initialPage = 1, perPage = 10 }: FeedProps) {
 	const [posts, setPosts] = useState<FeedPost[]>([]);
@@ -1018,6 +1018,7 @@ export default function Feed({ initialPage = 1, perPage = 10 }: FeedProps) {
 	const [hasMore, setHasMore] = useState(true);
 	const [currentUserAvatar, setCurrentUserAvatar] = useState(DEFAULT_AVATAR);
 	const [currentUserName, setCurrentUserName] = useState("You");
+	const loadMoreRef = React.useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		// Get current user info from localStorage
@@ -1033,6 +1034,7 @@ export default function Feed({ initialPage = 1, perPage = 10 }: FeedProps) {
 		}
 	}, []);
 
+	// Load initial posts
 	useEffect(() => {
 		let cancelled = false;
 		async function load() {
@@ -1040,10 +1042,11 @@ export default function Feed({ initialPage = 1, perPage = 10 }: FeedProps) {
 			setError(null);
 			try {
 				const token = typeof window !== "undefined" ? localStorage.getItem("access_token") ?? undefined : undefined;
-				const resp = await fetchFeed(page, perPage, token);
+				const resp = await fetchFeed(1, perPage, token);
 				if (cancelled) return;
 				setPosts(resp.posts ?? []);
 				setHasMore((resp.posts?.length ?? 0) >= perPage);
+				setPage(1);
 			} catch (err: unknown) {
 				if (cancelled) return;
 				setError(err instanceof Error ? err.message : String(err));
@@ -1056,40 +1059,74 @@ export default function Feed({ initialPage = 1, perPage = 10 }: FeedProps) {
 		return () => {
 			cancelled = true;
 		};
+	}, [perPage]);
+
+	// Load more posts when scrolling to bottom
+	useEffect(() => {
+		const observer = new IntersectionObserver(
+			async (entries) => {
+				if (entries[0].isIntersecting && hasMore && !loading) {
+					setPage((prev) => prev + 1);
+				}
+			},
+			{ threshold: 0.1 }
+		);
+
+		if (loadMoreRef.current) {
+			observer.observe(loadMoreRef.current);
+		}
+
+		return () => {
+			if (loadMoreRef.current) {
+				observer.unobserve(loadMoreRef.current);
+			}
+		};
+	}, [hasMore, loading]);
+
+	// Fetch more posts when page changes
+	useEffect(() => {
+		if (page === 1) return; // Skip initial page
+
+		let cancelled = false;
+		async function loadMore() {
+			setLoading(true);
+			try {
+				const token = typeof window !== "undefined" ? localStorage.getItem("access_token") ?? undefined : undefined;
+				const resp = await fetchFeed(page, perPage, token);
+				if (cancelled) return;
+				
+				const newPosts = resp.posts ?? [];
+				setPosts((prev) => [...prev, ...newPosts]);
+				setHasMore(newPosts.length >= perPage);
+			} catch (err: unknown) {
+				if (cancelled) return;
+				console.error("Error loading more posts:", err);
+			} finally {
+				if (!cancelled) setLoading(false);
+			}
+		}
+		loadMore();
+		return () => {
+			cancelled = true;
+		};
 	}, [page, perPage]);
 
 	return (
 		<div className="w-full">
-			{loading && <div className="text-sm text-gray-600 text-center py-4">Loading feed...</div>}
 			{error && <div className="text-sm text-red-500 text-center py-4">Error: {error}</div>}
-			{!loading && !error && posts.length === 0 && <div className="text-sm text-gray-600 text-center py-4">No posts yet.</div>}
+			{posts.length === 0 && !loading && <div className="text-sm text-gray-600 text-center py-4">No posts yet.</div>}
 
 			<div className="flex flex-col gap-6">
-				{posts.map((post) => (
-					<FeedPostCard key={post.id} post={post} currentUserAvatar={currentUserAvatar} currentUserName={currentUserName} />
+				{posts.map((post, index) => (
+					<FeedPostCard key={post.id || `post-${index}`} post={post} currentUserAvatar={currentUserAvatar} currentUserName={currentUserName} />
 				))}
 			</div>
 
-			{/* Pagination */}
-			{posts.length > 0 && (
-				<div className="mt-6 flex items-center justify-center gap-4">
-					<button
-						onClick={() => setPage((s) => Math.max(1, s - 1))}
-						disabled={page <= 1 || loading}
-						className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
-					>
-						Previous
-					</button>
-					<span className="text-sm text-gray-600">Page {page}</span>
-					<button
-						onClick={() => setPage((s) => s + 1)}
-						disabled={!hasMore || loading}
-						className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
-					>
-						Next
-					</button>
-				</div>
-			)}
+			{/* Infinite scroll trigger */}
+			<div ref={loadMoreRef} className="w-full py-8 flex justify-center">
+				{loading && <div className="text-sm text-gray-600">Loading more posts...</div>}
+				{!hasMore && posts.length > 0 && <div className="text-sm text-gray-500">No more posts</div>}
+			</div>
 		</div>
 	);
 }

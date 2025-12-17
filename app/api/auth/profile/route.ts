@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 
-const BASE_URL = "http://192.168.1.18:9001";
+const BASE_URL = "http://apisoapp.twingroups.com";
 const ENDPOINTS = [`${BASE_URL}/auth/me`, `${BASE_URL}/auth/profile`, `${BASE_URL}/user/profile`];
 
 function corsHeaders() {

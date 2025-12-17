@@ -46,7 +46,7 @@ describe('Mark Seen API Route', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://192.168.1.18:9001/chat/chat-123/seen',
+        'http://apisoapp.twingroups.com/chat/chat-123/seen',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -76,7 +76,7 @@ describe('Mark Seen API Route', () => {
 
       expect(response.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://192.168.1.18:9001/chat/chat-123/seen',
+        'http://apisoapp.twingroups.com/chat/chat-123/seen',
         expect.objectContaining({
           body: JSON.stringify({ message_id: 'msg-456' }),
         })
@@ -154,7 +154,7 @@ describe('Mark Seen API Route', () => {
       const response = await POST(req, { params });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://192.168.1.18:9001/chat/chat-999/seen',
+        'http://apisoapp.twingroups.com/chat/chat-999/seen',
         expect.any(Object)
       );
     });
