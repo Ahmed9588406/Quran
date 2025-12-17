@@ -1,7 +1,8 @@
 /**
- * User Reels API Route
+ * Get Reel by ID API Route
  * 
- * Proxies user reels requests to the external reels API.
+ * Proxies get reel by ID requests to the external reels API.
+ * Endpoint: GET /reels/{reel_id}
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,13 +21,12 @@ function normalizeUrl(url?: string | null): string {
 }
 
 /**
- * Transforms backend response to match frontend expectations
+ * Transforms backend reel response to match frontend expectations
  */
-function transformUserReelsResponse(backendData: any, userId: string) {
-  const videos = backendData.videos || [];
+function transformReelResponse(backendData: any) {
+  const video = backendData;
   
-  // Map backend fields to frontend Reel interface
-  const reels = videos.map((video: any) => ({
+  return {
     id: video.id,
     user_id: video.author_id,
     username: video.username,
@@ -41,24 +41,15 @@ function transformUserReelsResponse(backendData: any, userId: string) {
     is_saved: false,
     is_following: video.is_following || false,
     created_at: video.created_at,
-  }));
-
-  return {
-    reels,
-    user_id: userId,
-    total_count: reels.length,
   };
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: { reelId: string } }
 ) {
   try {
-    const { userId } = params;
-    const searchParams = request.nextUrl.searchParams;
-    const page = searchParams.get('page') || '1';
-    const limit = searchParams.get('limit') || '10';
+    const { reelId } = params;
     const token = request.headers.get('authorization');
     
     const headers: HeadersInit = {
@@ -69,8 +60,10 @@ export async function GET(
       headers['Authorization'] = token;
     }
 
+    console.log('[Get Reel API] Fetching reel:', reelId);
+
     const response = await fetch(
-      `${BACKEND_URL}/users/${userId}/reels?page=${page}&limit=${limit}`,
+      `${BACKEND_URL}/reels/${reelId}`,
       {
         method: 'GET',
         headers,
@@ -79,17 +72,23 @@ export async function GET(
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('[Get Reel API] Backend error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      
       return NextResponse.json(
-        { error: 'Failed to fetch user reels' },
+        { error: 'Failed to fetch reel' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    const transformed = transformUserReelsResponse(data, userId);
+    const transformed = transformReelResponse(data);
     return NextResponse.json(transformed);
   } catch (error) {
-    console.error('[User Reels API Proxy] Error:', error);
+    console.error('[Get Reel API Proxy] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

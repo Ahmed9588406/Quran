@@ -67,11 +67,22 @@ export function useVideoPlayer(
   const play = useCallback(() => {
     const video = videoRef.current;
     if (video) {
-      video.play().catch(err => {
-        console.error('Failed to play video:', err);
-        setState(prev => ({ ...prev, isPlaying: false }));
-      });
-      setState(prev => ({ ...prev, isPlaying: true }));
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setState(prev => ({ ...prev, isPlaying: true }));
+          })
+          .catch(err => {
+            // Ignore AbortError - it means another play request was made
+            if (err.name !== 'AbortError') {
+              console.error('Failed to play video:', err);
+              setState(prev => ({ ...prev, isPlaying: false }));
+            }
+          });
+      } else {
+        setState(prev => ({ ...prev, isPlaying: true }));
+      }
     }
   }, [videoRef]);
 
@@ -170,10 +181,20 @@ export function useVideoPlayer(
 
     // Auto-play if enabled
     if (autoPlay) {
-      video.play().catch(err => {
-        console.error('Auto-play failed:', err);
-        setState(prev => ({ ...prev, isPlaying: false }));
-      });
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setState(prev => ({ ...prev, isPlaying: true }));
+          })
+          .catch(err => {
+            // Ignore AbortError - it means another play request was made
+            if (err.name !== 'AbortError') {
+              console.error('Auto-play failed:', err);
+              setState(prev => ({ ...prev, isPlaying: false }));
+            }
+          });
+      }
     }
 
     return () => {

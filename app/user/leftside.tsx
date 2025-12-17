@@ -117,7 +117,7 @@ export default function LeftSide({
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-40 bg-[#fff6f3] border-r border-[#f0e6e5] flex flex-col items-center py-4 transition-all duration-300 ${
+        className={`fixed top-16 left-0 bottom-0 z-40 bg-[#fff6f3] border-r border-[#f0e6e5] flex flex-col items-center py-4 transition-all duration-300 ${
           isOpen ? "w-56" : "w-14"
         }`}
       >

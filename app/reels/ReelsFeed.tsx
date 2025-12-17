@@ -75,7 +75,17 @@ function ReelItem({
     });
 
   const [isFollowing, setIsFollowing] = useState(reel.is_following ?? false);
+  const [commentCount, setCommentCount] = useState(reel.comments_count);
   const isCurrentUser = currentUserId === reel.user_id;
+
+  const handleCommentClick = useCallback(() => {
+    onComment(reel);
+  }, [reel, onComment]);
+
+  // Update comment count when reel changes
+  useEffect(() => {
+    setCommentCount(reel.comments_count);
+  }, [reel.id]);
 
   const handleFollow = useCallback(async () => {
     try {
@@ -158,14 +168,14 @@ function ReelItem({
 
         {/* Comment Button */}
         <button
-          onClick={() => onComment(reel)}
+          onClick={handleCommentClick}
           className="flex flex-col items-center gap-1"
           aria-label="Comments"
         >
           <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
           </svg>
-          <span className="text-white text-xs font-medium">{formatCount(reel.comments_count)}</span>
+          <span className="text-white text-xs font-medium">{formatCount(commentCount)}</span>
         </button>
 
         {/* Share Button */}
@@ -260,6 +270,12 @@ export function ReelsFeed({ initialReels, currentUserId }: ReelsFeedProps) {
     setIsCommentsModalOpen(false);
     setCommentReel(null);
   }, []);
+
+  const handleCommentPosted = useCallback(() => {
+    // Comment count will be updated by the CommentsModal
+  }, []);
+
+
 
   // Touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -405,25 +421,25 @@ export function ReelsFeed({ initialReels, currentUserId }: ReelsFeedProps) {
   return (
     <div className="w-full min-h-screen bg-[#fff6f3] flex">
       {/* Left Sidebar - User Info */}
-      <div className="hidden lg:flex flex-col justify-end w-72 p-6 pb-32">
+      <div className="hidden lg:flex flex-col justify-end w-72 p-6 pb-32 flex-shrink-0">
         {currentReel && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
+          <div className="space-y-3 pr-4 ml-10">
+            <div className="flex items-start gap-3">
               <img
                 src={normalizeUrl(currentReel.user_avatar)}
                 alt={currentReel.username}
-                className="w-12 h-12 rounded-full object-cover border-2 border-[#8A1538]/20"
+                className="w-12 h-12 rounded-full object-cover border-2 border-[#8A1538]/20 flex-shrink-0"
               />
-              <div>
-                <p className="font-semibold text-gray-900">{currentReel.username}</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 truncate">{currentReel.username}</p>
                 {currentUserId !== currentReel.user_id && (
-                  <button className="mt-1 px-4 py-1 bg-[#8A1538] text-white text-xs font-medium rounded-full hover:bg-[#6d1029] transition-colors">
+                  <button className="mt-1 px-3 py-1 bg-[#8A1538] text-white text-xs font-medium rounded-full hover:bg-[#6d1029] transition-colors whitespace-nowrap">
                     Follow
                   </button>
                 )}
               </div>
             </div>
-            <p className="text-gray-700 text-sm leading-relaxed line-clamp-3">
+            <p className="text-gray-700 text-sm leading-relaxed line-clamp-4 break-words ml-5">
               {currentReel.content}
             </p>
           </div>
@@ -521,6 +537,7 @@ export function ReelsFeed({ initialReels, currentUserId }: ReelsFeedProps) {
           isOpen={isCommentsModalOpen}
           onClose={handleCloseCommentsModal}
           reelId={commentReel.id}
+          onCommentPosted={handleCommentPosted}
         />
       )}
 
