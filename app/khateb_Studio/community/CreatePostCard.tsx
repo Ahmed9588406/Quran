@@ -45,15 +45,11 @@ export default function CreatePostCard({
       const reader = new FileReader();
       reader.onload = (event) => {
         const preview = event.target?.result as string;
-        setSelectedFiles((prev) => [
-          ...prev,
-          { file, preview, type },
-        ]);
+        setSelectedFiles((prev) => [...prev, { file, preview, type }]);
       };
       reader.readAsDataURL(file);
     });
 
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (videoInputRef.current) videoInputRef.current.value = "";
   };
@@ -86,13 +82,14 @@ export default function CreatePostCard({
       console.log("Visibility:", visibility);
       console.log("Number of files:", selectedFiles.length);
       
-      // Append content and visibility
+      // Append content and visibility (required fields)
       if (content.trim()) {
         formData.append("content", content.trim());
       }
       formData.append("visibility", visibility);
 
-      // Add files with explicit filename (matching Postman format)
+      // Append each file with the key "file" (matching Postman format)
+      // Each file is appended separately with the same key name "file"
       for (const selectedFile of selectedFiles) {
         console.log("Adding file:", selectedFile.file.name, "Type:", selectedFile.file.type, "Size:", selectedFile.file.size);
         formData.append("file", selectedFile.file, selectedFile.file.name);
@@ -129,13 +126,23 @@ export default function CreatePostCard({
       if (!response.ok) {
         throw new Error(responseData.message || responseData.error || `Failed to create post: ${response.status}`);
       }
-      
+
+      const createdPostId = responseData?.post_id as string | undefined;
+      if (createdPostId) {
+        console.log("Created post id:", createdPostId);
+      }
+
       toast.success("Post created successfully!");
       setContent("");
       setSelectedFiles([]);
       setVisibility("public");
       
+      // Trigger parent refresh (reloads /api/feed)
       onPostCreated?.();
+
+      // Optional: force a short delayed refresh to allow backend to attach media
+      // Some backends return media in the feed only after async processing.
+      setTimeout(() => onPostCreated?.(), 900);
     } catch (error) {
       console.error("Error creating post:", error);
       toast.error(error instanceof Error ? error.message : "Failed to create post");
@@ -145,7 +152,7 @@ export default function CreatePostCard({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-[#f0e6e5] overflow-hidden mb-6">
+    <div className="bg-white rounded-lg border border-[#f0e6e5] overflow-hidden">
       {/* Header with Avatar */}
       <div className="p-4 pb-3">
         <div className="flex items-center gap-3">
@@ -161,13 +168,12 @@ export default function CreatePostCard({
             />
           </div>
           
-          {/* Content Input */}
           <input
             type="text"
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Write here..."
-            className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7b2030] focus:ring-opacity-50"
+            placeholder="Share your thoughts with the community..."
+            className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8A1538] focus:ring-opacity-50"
           />
         </div>
       </div>
@@ -180,16 +186,9 @@ export default function CreatePostCard({
               <div key={index} className="relative group">
                 <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
                   {file.type === "image" ? (
-                    <img
-                      src={file.preview}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={file.preview} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
                   ) : (
-                    <video
-                      src={file.preview}
-                      className="w-full h-full object-cover"
-                    />
+                    <video src={file.preview} className="w-full h-full object-cover" />
                   )}
                 </div>
                 <button
@@ -210,10 +209,10 @@ export default function CreatePostCard({
         <select
           value={visibility}
           onChange={(e) => setVisibility(e.target.value as "public" | "friends" | "private")}
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#7b2030]"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#8A1538]"
         >
           <option value="public">Public</option>
-          <option value="friends">Friends Only</option>
+          <option value="friends">Followers Only</option>
           <option value="private">Private</option>
         </select>
       </div>
@@ -221,27 +220,24 @@ export default function CreatePostCard({
       {/* Action Buttons */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
         <div className="flex items-center gap-4">
-          {/* Add Media Button */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading}
-            className="flex items-center gap-2 text-[#7b2030] hover:text-[#5e0e27] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 text-[#8A1538] hover:text-[#6d1029] disabled:opacity-50 transition-colors"
           >
             <ImageIcon className="w-5 h-5" />
             <span className="text-sm font-medium">Add media</span>
           </button>
 
-          {/* Add Reel Button */}
           <button
             onClick={() => videoInputRef.current?.click()}
             disabled={isLoading}
-            className="flex items-center gap-2 text-[#7b2030] hover:text-[#5e0e27] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 text-[#8A1538] hover:text-[#6d1029] disabled:opacity-50 transition-colors"
           >
             <Video className="w-5 h-5" />
             <span className="text-sm font-medium">Add reel</span>
           </button>
 
-          {/* Hidden File Inputs */}
           <input
             ref={fileInputRef}
             type="file"
@@ -260,11 +256,10 @@ export default function CreatePostCard({
           />
         </div>
 
-        {/* Post Button */}
         <button
           onClick={handleCreatePost}
           disabled={isLoading || (!content.trim() && selectedFiles.length === 0)}
-          className="flex items-center gap-2 bg-[#7b2030] hover:bg-[#5e0e27] disabled:bg-gray-300 text-white px-6 py-2 rounded-lg font-medium text-sm transition-colors"
+          className="flex items-center gap-2 bg-[#8A1538] hover:bg-[#6d1029] disabled:bg-gray-300 text-white px-6 py-2 rounded-lg font-medium text-sm transition-colors"
         >
           <Send className="w-4 h-4" />
           <span>{isLoading ? "Posting..." : "Post"}</span>

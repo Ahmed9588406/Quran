@@ -2,7 +2,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Users, Monitor, Video, FileText, BookOpen, BarChart2, Archive, MessageCircle, User, LogOut } from "lucide-react";
+import { Settings, Users, Monitor, Video, FileText, BookOpen, BarChart2, Archive, MessageCircle, User, LogOut, Film } from "lucide-react";
 import Link from "next/link";
 
 interface PreacherInfo {
@@ -100,8 +100,9 @@ export default function Sidebar({
 
   // menu items
   const menuItems = [
-    { id: "community", label: "Community", icon: <Users className="w-5 h-5" />, href: "/community" },
+    { id: "community", label: "Community", icon: <Users className="w-5 h-5" />, href: "/khateb_Studio/community" },
     { id: "studio", label: "Khateeb Studio", icon: <Monitor className="w-5 h-5" />, href: "/khateb_Studio", highlight: true },
+    { id: "reels", label: "Reels", icon: <Film className="w-5 h-5" />, href: "/khateb_Studio/reels" },
     { id: "go_live", label: "Go Live", icon: <Video className="w-5 h-5" />, href: "/go-live" },
     { id: "content", label: "Content", icon: <FileText className="w-5 h-5" />, href: "/content" },
     { id: "fatwas", label: "Fatwas", icon: <BookOpen className="w-5 h-5" />, href: "/khateb_Studio/fatwas" },

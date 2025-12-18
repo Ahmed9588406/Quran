@@ -31,27 +31,54 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const content = formData.get("content") as string;
     const visibility = (formData.get("visibility") as string) || "public";
-    const files = formData.getAll("files") as File[];
+    
+    // Get files - support both "files" and "file" field names
+    const filesFromFiles = formData.getAll("files") as File[];
+    const filesFromFile = formData.getAll("file") as File[];
+    const allFiles = [...filesFromFiles, ...filesFromFile];
 
-    // Validate content
-    if (!content || content.trim().length === 0) {
-      if (files.length === 0) {
-        return NextResponse.json(
-          { error: "Post must have content or media" },
-          { status: 400 }
-        );
-      }
+    // Log received data
+    console.log("=== RECEIVED POST DATA ===");
+    console.log("Content:", content);
+    console.log("Visibility:", visibility);
+    console.log("Files received:", allFiles.length);
+    allFiles.forEach((f, i) => {
+      console.log(`  File ${i + 1}: ${f.name} (${f.type}, ${f.size} bytes)`);
+    });
+    console.log("==========================");
+
+    // Validate content - allow posts with just media (no content)
+    if ((!content || content.trim().length === 0) && allFiles.length === 0) {
+      return NextResponse.json(
+        { error: "Post must have content or media" },
+        { status: 400 }
+      );
     }
 
-    // Create FormData for backend
+    // Create FormData for backend - match Postman format exactly
     const backendFormData = new FormData();
-    backendFormData.append("content", content || "");
+    
+    // Only append content if it exists
+    if (content && content.trim()) {
+      backendFormData.append("content", content.trim());
+    }
     backendFormData.append("visibility", visibility);
 
-    // Add files to backend FormData
-    for (const file of files) {
-      backendFormData.append("files", file);
+    // Add files to backend FormData - use "file" key (matching Postman)
+    for (const file of allFiles) {
+      backendFormData.append("file", file, file.name);
     }
+
+    // Log what we're sending to backend
+    console.log("=== SENDING TO BACKEND ===");
+    for (const [key, value] of backendFormData.entries()) {
+      if (value instanceof File) {
+        console.log(`${key}: [File] ${value.name} (${value.type}, ${value.size} bytes)`);
+      } else {
+        console.log(`${key}: ${value}`);
+      }
+    }
+    console.log("==========================");
 
     // Send to backend
     const response = await fetch(`${BASE_URL}/posts`, {
@@ -62,14 +89,22 @@ export async function POST(request: NextRequest) {
       body: backendFormData,
     });
 
+    const result = await response.json().catch(() => ({
+      error: `Backend returned ${response.status}`,
+    }));
+
+    // Log the backend response for debugging
+    console.log("=== BACKEND POST CREATION RESPONSE ===");
+    console.log("Backend Status:", response.status);
+    console.log("Backend Response:", JSON.stringify(result, null, 2));
+    console.log("Files sent:", allFiles.length, "files");
+    console.log("File names:", allFiles.map(f => f.name).join(", "));
+    console.log("======================================");
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        error: `Backend returned ${response.status}`,
-      }));
-      return NextResponse.json(errorData, { status: response.status });
+      return NextResponse.json(result, { status: response.status });
     }
 
-    const result = await response.json();
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Error creating post:", error);
