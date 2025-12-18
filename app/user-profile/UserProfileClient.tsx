@@ -505,7 +505,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                 userPosts.map((post) => {
                   // Normalize media URLs if needed
                   const normalizedMedia = post.media?.map((m) => ({
-                    url: m.url.startsWith("http") ? m.url : `http://apisoapp.twingroups.com${m.url}`,
+                    url: m.url ? (m.url.startsWith("http") ? m.url : `http://apisoapp.twingroups.com${m.url}`) : "",
                     media_type: m.media_type,
                   }));
                   // Normalize avatar URL
@@ -674,7 +674,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                   // Posts view - card layout
                   currentSavedItems.map((post) => {
                     const normalizedMedia = post.media?.map((m) => ({
-                      url: m.url.startsWith("http") ? m.url : `http://apisoapp.twingroups.com${m.url}`,
+                      url: m.url ? (m.url.startsWith("http") ? m.url : `http://apisoapp.twingroups.com${m.url}`) : "",
                       media_type: m.media_type,
                     }));
                     const normalizedAvatar = post.avatar_url?.startsWith("http")

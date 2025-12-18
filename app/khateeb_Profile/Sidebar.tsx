@@ -1,16 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { Settings, Users, Monitor, Video, FileText, BookOpen, BarChart2, Archive, MessageCircle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { Settings, Users, Monitor, Video, FileText, BookOpen, BarChart2, Archive, MessageCircle, User, LogOut } from "lucide-react";
 import Link from "next/link";
+
+interface PreacherInfo {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+}
 
 export default function Sidebar({
   isOpen = false,
   onClose,
   onNavigate,
   activeView,
-  onOpenScan,
 }: {
   isOpen?: boolean;
   onClose?: () => void;
@@ -18,61 +24,82 @@ export default function Sidebar({
   activeView?: string;
   onOpenScan?: () => void;
 }) {
-  // QR modal handler
-  const openQrModal = async () => {
-    onOpenScan?.();
-    onClose?.();
+  const router = useRouter();
+  const [preacherInfo, setPreacherInfo] = useState<PreacherInfo>({
+    id: "",
+    name: "Preacher",
+    avatar: "",
+    role: "preacher",
+  });
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Load preacher info from localStorage
+  useEffect(() => {
     try {
-      const { default: QRScanModal } = await import("../qr/qr_scan");
-      const containerId = "qr-scan-modal-root";
-      let container = document.getElementById(containerId);
-      if (!container) {
-        container = document.createElement("div");
-        container.id = containerId;
-        document.body.appendChild(container);
+      const userStr = localStorage.getItem("user");
+      const userId = localStorage.getItem("user_id");
+      
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const firstName = user.firstName || user.first_name || user.name?.split(' ')[0] || '';
+        const lastName = user.lastName || user.last_name || user.name?.split(' ').slice(1).join(' ') || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        const avatar = user.profilePictureUrl || user.profile_picture_url || user.avatar || user.avatar_url || '';
+        const role = user.role || 'preacher';
+        
+        setPreacherInfo({
+          id: userId || user.id || '',
+          name: fullName || user.username || "Preacher",
+          avatar: avatar,
+          role: role,
+        });
       }
-      let root = (container as any).__react_root as ReactDOM.Root | undefined;
-      if (!root) {
-        root = ReactDOM.createRoot(container);
-        (container as any).__react_root = root;
+    } catch (e) {
+      console.error("[Sidebar] Error parsing user data:", e);
+    }
+  }, []);
+
+  // Close modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        setShowProfileModal(false);
       }
-      const unmount = () => {
-        try { root!.unmount(); } catch { /* ignore */ }
-        try { container?.remove(); } catch { /* ignore */ }
-      };
-      root.render(<QRScanModal isOpen={true} onClose={unmount} />);
-    } catch (err) {
-      console.error("Failed to open QR modal", err);
+    };
+
+    if (showProfileModal) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showProfileModal]);
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("preacher_credentials");
+    router.push("/login");
+  };
+
+  // Handle view profile
+  const handleViewProfile = () => {
+    setShowProfileModal(false);
+    onClose?.();
+    if (preacherInfo.id) {
+      router.push(`/khateeb_Profile/${preacherInfo.id}`);
+    } else {
+      router.push("/khateeb_Profile");
     }
   };
 
-  const iconBtnBase = "flex items-center gap-3 rounded-lg transition-colors";
-
-  const IconBtn = ({
-    href,
-    onClick,
-    active,
-    children,
-    label,
-  }: {
-    href?: string;
-    onClick?: () => void;
-    active?: boolean;
-    children: React.ReactNode;
-    label: string;
-  }) => {
-    const cls = `${iconBtnBase} ${isOpen ? "w-full p-3" : "w-10 h-10 justify-center"} ${active ? "bg-[#f6e9e7] text-[#7b2030]" : "text-gray-600 hover:bg-gray-100"}`;
-    const btn = (
-      <button onClick={onClick} aria-label={label} title={label} className={cls}>
-        {children}
-        {isOpen && <span className="text-sm">{label}</span>}
-      </button>
-    );
-    return href ? <Link href={href} className={isOpen ? "w-full" : ""}>{btn}</Link> : btn;
-  };
-
-  // menu items matching screenshot order
-  const menuItems: { id: string; label: string; icon: React.ReactNode; href?: string; highlight?: boolean }[] = [
+  // menu items
+  const menuItems = [
     { id: "community", label: "Community", icon: <Users className="w-5 h-5" />, href: "/community" },
     { id: "studio", label: "Khateeb Studio", icon: <Monitor className="w-5 h-5" />, href: "/khateb_Studio", highlight: true },
     { id: "go_live", label: "Go Live", icon: <Video className="w-5 h-5" />, href: "/go-live" },
@@ -98,32 +125,115 @@ export default function Sidebar({
       <aside
         id="app-sidebar"
         aria-label="Main navigation"
-        className={`fixed top-14 left-0 bottom-0 z-40 bg-[#FFF9F3] border-r border-[#F7E9CF] flex flex-col justify-between py-4 transition-all duration-300 ${isOpen ? "w-72" : "w-16"}`} /* wider when open and slightly wider collapsed */
+        className={`fixed top-14 left-0 bottom-0 z-40 bg-[#FFF9F3] border-r border-[#F7E9CF] flex flex-col justify-between py-4 transition-all duration-300 ${isOpen ? "w-72" : "w-16"}`}
       >
-        {/* Header with close button (only when expanded) */}
-        
+        {/* Preacher Profile Section at Top */}
+        {isOpen && (
+          <div className="px-4 pb-4 border-b border-[#F7E9CF]" ref={modalRef}>
+            <button
+              onClick={() => setShowProfileModal(!showProfileModal)}
+              className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-[#F7E9CF] transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-[#8A1538]/20 flex-shrink-0">
+                {preacherInfo.avatar ? (
+                  <img
+                    src={preacherInfo.avatar}
+                    alt={preacherInfo.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/icons/settings/profile.png";
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-[#8A1538] flex items-center justify-center text-white font-semibold">
+                    {preacherInfo.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="font-semibold text-gray-900 truncate text-sm">{preacherInfo.name}</p>
+                <p className="text-xs text-[#8A1538] capitalize">{preacherInfo.role}</p>
+              </div>
+              <svg className={`w-4 h-4 text-gray-400 transition-transform ${showProfileModal ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Profile Dropdown */}
+            {showProfileModal && (
+              <div className="mt-2 bg-white rounded-lg shadow-lg border border-[#f0e6e5] overflow-hidden">
+                <button
+                  onClick={handleViewProfile}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-gray-700 hover:bg-[#FFF9F3] transition-colors"
+                >
+                  <User className="w-5 h-5 text-[#8A1538]" />
+                  <span className="text-sm font-medium">View Profile</span>
+                </button>
+                <div className="border-t border-[#f0e6e5]" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="text-sm font-medium">Log Out</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Collapsed state - show avatar only */}
+        {!isOpen && (
+          <div className="flex justify-center pb-4 border-b border-[#F7E9CF]">
+            <button
+              onClick={() => {
+                if (preacherInfo.id) {
+                  router.push(`/khateeb_Profile/${preacherInfo.id}`);
+                }
+              }}
+              className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-[#8A1538]/20 hover:ring-[#8A1538]/40 transition-all"
+              title={preacherInfo.name}
+            >
+              {preacherInfo.avatar ? (
+                <img
+                  src={preacherInfo.avatar}
+                  alt={preacherInfo.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "/icons/settings/profile.png";
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-[#8A1538] flex items-center justify-center text-white font-semibold text-sm">
+                  {preacherInfo.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Nav menu */}
-        <nav className={`flex flex-col gap-3 ${isOpen ? "w-full px-4" : "items-center"}`}> {/* increased gap and padding */}
+        <nav className={`flex-1 flex flex-col gap-3 mt-4 ${isOpen ? "w-full px-4" : "items-center"}`}>
           {menuItems.map((item) => {
             const active = activeView === item.id || activeView === item.href?.replace("/", "") || (item.id === "studio" && activeView === "khateb_Studio");
             const isHighlighted = item.highlight || active;
             const base = isOpen
-              ? `flex items-center justify-between w-full p-4 rounded-lg ${isHighlighted ? "bg-[#F7E9CF] text-[#8A1538]" : "text-[#4D4D4D] hover:bg-gray-100"}` /* larger padding */
-              : `w-12 h-12 flex items-center justify-center rounded-lg ${isHighlighted ? "bg-[#F7E9CF] text-[#8A1538]" : "text-gray-600 hover:bg-gray-100"}`; /* larger collapsed button */
+              ? `flex items-center justify-between w-full p-4 rounded-lg ${isHighlighted ? "bg-[#F7E9CF] text-[#8A1538]" : "text-[#4D4D4D] hover:bg-gray-100"}`
+              : `w-12 h-12 flex items-center justify-center rounded-lg ${isHighlighted ? "bg-[#F7E9CF] text-[#8A1538]" : "text-gray-600 hover:bg-gray-100"}`;
 
             return item.href ? (
-              <Link key={item.id} href={item.href} className={isOpen ? "" : ""} onClick={() => { onNavigate?.(item.id); if (!isOpen) onClose?.(); }}>
+              <Link key={item.id} href={item.href} onClick={() => { onNavigate?.(item.id); if (!isOpen) onClose?.(); }}>
                 <div className={base}>
                   <div className="flex items-center gap-3">
-                    <div className="w-6 h-6">{item.icon}</div> {/* bigger icon container */}
-                    {isOpen && <span className="text-sm font-medium">{item.label}</span>} {/* larger label */}
+                    <div className="w-6 h-6">{item.icon}</div>
+                    {isOpen && <span className="text-sm font-medium">{item.label}</span>}
                   </div>
                 </div>
               </Link>
             ) : (
               <button
                 key={item.id}
-                onClick={() => { if (item.id === "go_live") { onNavigate?.("go_live"); onClose?.(); } else { onNavigate?.(item.id); onClose?.(); } }}
+                onClick={() => { onNavigate?.(item.id); onClose?.(); }}
                 className={base}
                 aria-current={active ? "page" : undefined}
               >
@@ -134,33 +244,24 @@ export default function Sidebar({
               </button>
             );
           })}
-
-          {/* small divider */}
-          <div className={`w-full ${isOpen ? "border-t border-[#F7E9CF] mt-4 pt-4" : "mt-4"}`} />
-
-          
         </nav>
 
-        
         {/* Bottom: settings + feedback */}
         <div className={`flex flex-col gap-3 mb-3 ${isOpen ? "w-full px-4" : "items-center"}`}>
-          <IconBtn href="/settings" label="Sitting">
-            <Settings className="w-6 h-6" />
-          </IconBtn>
+          <Link href="/settings">
+            <div className={`flex items-center gap-3 rounded-lg transition-colors ${isOpen ? "w-full p-3" : "w-10 h-10 justify-center"} text-gray-600 hover:bg-gray-100`}>
+              <Settings className="w-6 h-6" />
+              {isOpen && <span className="text-sm">Settings</span>}
+            </div>
+          </Link>
 
-          {/* feedback line */}
-          {isOpen ? (
-            <button onClick={() => onNavigate?.("feedback")} className="w-full text-left text-sm font-medium text-[#4D4D4D] px-6 py-2 rounded-lg hover:bg-gray-100">
-              <div className="flex items-center gap-3">
-                <MessageCircle className="w-6 h-6" />
-                <span>Send feedback</span>
-              </div>
-            </button>
-          ) : (
-            <button onClick={() => onNavigate?.("feedback")} className="w-12 h-12 flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100">
-              <MessageCircle className="w-6 h-6" />
-            </button>
-          )}
+          <button 
+            onClick={() => onNavigate?.("feedback")} 
+            className={`flex items-center gap-3 rounded-lg transition-colors ${isOpen ? "w-full p-3" : "w-10 h-10 justify-center"} text-gray-600 hover:bg-gray-100`}
+          >
+            <MessageCircle className="w-6 h-6" />
+            {isOpen && <span className="text-sm">Send feedback</span>}
+          </button>
         </div>
       </aside>
     </>

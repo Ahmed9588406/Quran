@@ -104,8 +104,8 @@ const normalizeAvatarUrl = (url?: string): string => {
 };
 
 // Helper to normalize media URLs
-const normalizeMediaUrl = (url?: string): string => {
-	if (!url) return "";
+const normalizeMediaUrl = (url?: string): string | null => {
+	if (!url) return null;
 	if (url.startsWith("http")) return url;
 	return `http://apisoapp.twingroups.com${url}`;
 };
@@ -294,21 +294,24 @@ function CommentItem({ comment, postId, currentUserAvatar, currentUserName, onLi
 									<div className="text-xs text-gray-500">Loading replies...</div>
 								) : (
 									<>
-										{replies.map((reply, index) => (
-											<div key={reply.id || `reply-${index}`} className="flex gap-2">
-												<Avatar src={reply.author.avatar} alt={reply.author.name} size={24} />
-												<div className="flex-1">
-													<div className="bg-gray-100 rounded-xl px-3 py-1.5">
-														<span className="text-xs font-semibold text-gray-900">{reply.author.name}</span>
-														<p className="text-xs text-gray-700">{reply.content}</p>
-													</div>
-													<div className="flex items-center gap-3 mt-0.5 px-2">
-														<span className="text-xs text-gray-500">{formatRelativeTime(reply.created_at)}</span>
-														<button className="text-xs text-gray-500 hover:text-gray-700">Like</button>
+										{replies.map((reply, index) => {
+											const replyKey = reply.id ? `${reply.id}-${index}` : `reply-${index}`;
+											return (
+												<div key={replyKey} className="flex gap-2">
+													<Avatar src={reply.author.avatar} alt={reply.author.name} size={24} />
+													<div className="flex-1">
+														<div className="bg-gray-100 rounded-xl px-3 py-1.5">
+															<span className="text-xs font-semibold text-gray-900">{reply.author.name}</span>
+															<p className="text-xs text-gray-700">{reply.content}</p>
+														</div>
+														<div className="flex items-center gap-3 mt-0.5 px-2">
+															<span className="text-xs text-gray-500">{formatRelativeTime(reply.created_at)}</span>
+															<button className="text-xs text-gray-500 hover:text-gray-700">Like</button>
+														</div>
 													</div>
 												</div>
-											</div>
-										))}
+											);
+										})}
 										<button
 											onClick={() => setShowReplies(false)}
 											className="text-xs text-gray-500 hover:underline"
@@ -343,6 +346,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 		<>
 			{videoMedia.map((item, index) => {
 				const mediaUrl = normalizeMediaUrl(item.url);
+				if (!mediaUrl) return null;
 				return (
 					<div key={`video-${index}`} className="relative aspect-video bg-black">
 						<video src={mediaUrl} className="w-full h-full object-cover" controls preload="metadata" />
@@ -354,6 +358,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 
 	if (totalImages === 1) {
 		const mediaUrl = normalizeMediaUrl(imageMedia[0].url);
+		if (!mediaUrl) return <div className="mt-3">{renderVideos()}</div>;
 		return (
 			<div className="mt-3">
 				{renderVideos()}
@@ -379,6 +384,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 				<div className="grid grid-cols-2 gap-1">
 					{imageMedia.map((item, index) => {
 						const mediaUrl = normalizeMediaUrl(item.url);
+						if (!mediaUrl) return null;
 						return (
 							<div
 								key={index}
@@ -403,6 +409,8 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 	}
 
 	if (totalImages === 3) {
+		const firstMediaUrl = normalizeMediaUrl(imageMedia[0].url);
+		if (!firstMediaUrl) return <div className="mt-3">{renderVideos()}</div>;
 		return (
 			<div className="mt-3">
 				{renderVideos()}
@@ -412,7 +420,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 						onClick={() => onImageClick(0)}
 					>
 						<img
-							src={normalizeMediaUrl(imageMedia[0].url)}
+							src={firstMediaUrl}
 							alt="Post media 1"
 							className="w-full h-full object-cover hover:scale-105 transition-transform"
 							onError={(e) => {
@@ -424,6 +432,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 					<div className="grid grid-rows-2 gap-1">
 						{imageMedia.slice(1, 3).map((item, index) => {
 							const mediaUrl = normalizeMediaUrl(item.url);
+							if (!mediaUrl) return null;
 							return (
 								<div
 									key={index}
@@ -455,6 +464,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 				<div className="grid grid-cols-2 gap-1">
 					{imageMedia.map((item, index) => {
 						const mediaUrl = normalizeMediaUrl(item.url);
+						if (!mediaUrl) return null;
 						return (
 							<div
 								key={index}
@@ -485,6 +495,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 			<div className="grid grid-cols-2 gap-1">
 				{imageMedia.slice(0, 4).map((item, index) => {
 					const mediaUrl = normalizeMediaUrl(item.url);
+					if (!mediaUrl) return null;
 					const isLastVisible = index === 3 && remainingCount > 0;
 					return (
 						<div
@@ -528,6 +539,10 @@ interface LightboxProps {
 function Lightbox({ media, currentIndex, onClose, onPrev, onNext }: LightboxProps) {
 	const currentMedia = media[currentIndex];
 	const mediaUrl = normalizeMediaUrl(currentMedia?.url);
+
+	if (!mediaUrl) {
+		return null;
+	}
 
 	return (
 		<div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={onClose}>
@@ -976,17 +991,20 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 							<div className="text-center text-gray-500 text-sm py-4">No comments yet. Be the first to comment!</div>
 						) : (
 							<div className="space-y-4">
-								{comments.map((comment, index) => (
-									<CommentItem
-										key={comment.id || `comment-${index}`}
-										comment={comment}
-										postId={post.id}
-										currentUserAvatar={currentUserAvatar}
-										currentUserName={currentUserName}
-										onLikeComment={handleLikeComment}
-										onReplyToComment={handleReplyToComment}
-									/>
-								))}
+								{comments.map((comment, index) => {
+									const commentKey = comment.id ? `${comment.id}-${index}` : `comment-${index}`;
+									return (
+										<CommentItem
+											key={commentKey}
+											comment={comment}
+											postId={post.id}
+											currentUserAvatar={currentUserAvatar}
+											currentUserName={currentUserName}
+											onLikeComment={handleLikeComment}
+											onReplyToComment={handleReplyToComment}
+										/>
+									);
+								})}
 							</div>
 						)}
 					</div>
@@ -1117,9 +1135,18 @@ export default function Feed({ initialPage = 1, perPage = 10 }: FeedProps) {
 			{posts.length === 0 && !loading && <div className="text-sm text-gray-600 text-center py-4">No posts yet.</div>}
 
 			<div className="flex flex-col gap-6">
-				{posts.map((post, index) => (
-					<FeedPostCard key={post.id || `post-${index}`} post={post} currentUserAvatar={currentUserAvatar} currentUserName={currentUserName} />
-				))}
+				{posts.map((post, index) => {
+					// Create a unique key combining post ID with index to avoid duplicates
+					const uniqueKey = post.id ? `${post.id}-${index}` : `post-${index}`;
+					return (
+						<FeedPostCard 
+							key={uniqueKey} 
+							post={post} 
+							currentUserAvatar={currentUserAvatar} 
+							currentUserName={currentUserName} 
+						/>
+					);
+				})}
 			</div>
 
 			{/* Infinite scroll trigger */}
