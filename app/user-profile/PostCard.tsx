@@ -127,8 +127,8 @@ const normalizeAvatarUrl = (url?: string): string => {
 };
 
 // Helper to normalize media URLs
-const normalizeMediaUrl = (url?: string): string => {
-  if (!url) return "";
+const normalizeMediaUrl = (url?: string): string | null => {
+  if (!url) return null;
   if (url.startsWith("http")) return url;
   return `http://apisoapp.twingroups.com${url}`;
 };
@@ -376,6 +376,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
     <>
       {videoMedia.map((item, index) => {
         const mediaUrl = normalizeMediaUrl(item.url);
+        if (!mediaUrl) return null;
         return (
           <div key={`video-${index}`} className="relative aspect-video bg-black rounded-lg overflow-hidden mb-2">
             <video
@@ -404,6 +405,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
   // Single image - full width
   if (totalImages === 1) {
     const mediaUrl = normalizeMediaUrl(imageMedia[0].url);
+    if (!mediaUrl) return <div className="mt-3">{renderVideos()}</div>;
     return (
       <div className="mt-3">
         {renderVideos()}
@@ -433,6 +435,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
         <div className="grid grid-cols-2 gap-1">
           {imageMedia.map((item, index) => {
             const mediaUrl = normalizeMediaUrl(item.url);
+            if (!mediaUrl) return null;
             return (
               <div 
                 key={index} 
@@ -458,6 +461,8 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
 
   // Three images - one large on left, two stacked on right
   if (totalImages === 3) {
+    const firstMediaUrl = normalizeMediaUrl(imageMedia[0].url);
+    if (!firstMediaUrl) return <div className="mt-3">{renderVideos()}</div>;
     return (
       <div className="mt-3">
         {renderVideos()}
@@ -467,7 +472,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
             onClick={() => onImageClick(0)}
           >
             <img
-              src={normalizeMediaUrl(imageMedia[0].url)}
+              src={firstMediaUrl}
               alt="Post media 1"
               className="w-full h-full object-cover hover:scale-105 transition-transform"
               onError={(e) => {
@@ -479,6 +484,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
           <div className="grid grid-rows-2 gap-1">
             {imageMedia.slice(1, 3).map((item, index) => {
               const mediaUrl = normalizeMediaUrl(item.url);
+              if (!mediaUrl) return null;
               return (
                 <div 
                   key={index} 
@@ -511,6 +517,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
         <div className="grid grid-cols-2 gap-1">
           {imageMedia.map((item, index) => {
             const mediaUrl = normalizeMediaUrl(item.url);
+            if (!mediaUrl) return null;
             return (
               <div 
                 key={index} 
@@ -542,6 +549,7 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
       <div className="grid grid-cols-2 gap-1">
         {imageMedia.slice(0, 4).map((item, index) => {
           const mediaUrl = normalizeMediaUrl(item.url);
+          if (!mediaUrl) return null;
           const isLastVisible = index === 3 && remainingCount > 0;
           return (
             <div 
@@ -585,6 +593,10 @@ interface LightboxProps {
 function Lightbox({ media, currentIndex, onClose, onPrev, onNext }: LightboxProps) {
   const currentMedia = media[currentIndex];
   const mediaUrl = normalizeMediaUrl(currentMedia?.url);
+
+  if (!mediaUrl) {
+    return null;
+  }
 
   return (
     <div 
