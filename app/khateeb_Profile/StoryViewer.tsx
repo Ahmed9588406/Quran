@@ -186,45 +186,7 @@ export default function StoryViewer({ stories, initialIndex, onClose, onDelete }
         )}
 
         {/* Action buttons */}
-        <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-20">
-          <button
-            onClick={() => setIsLiked(!isLiked)}
-            className={`p-3 rounded-full transition ${
-              isLiked
-                ? 'bg-red-500 text-white'
-                : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30'
-            }`}
-          >
-            <Heart className={`w-6 h-6 ${isLiked ? 'fill-current' : ''}`} />
-          </button>
-
-          <button className="p-3 bg-white bg-opacity-20 text-white rounded-full hover:bg-opacity-30 transition">
-            <Share2 className="w-6 h-6" />
-          </button>
-
-          {onDelete && (
-            <div className="relative">
-              <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="p-3 bg-white bg-opacity-20 text-white rounded-full hover:bg-opacity-30 transition"
-              >
-                <MoreVertical className="w-6 h-6" />
-              </button>
-
-              {showMenu && (
-                <div className="absolute bottom-full right-0 mb-2 bg-gray-900 rounded-lg shadow-lg overflow-hidden">
-                  <button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="w-full px-4 py-2 text-red-400 hover:bg-gray-800 transition text-sm font-medium disabled:opacity-50"
-                  >
-                    {isDeleting ? 'Deleting...' : 'Delete Story'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        
       </div>
 
       {/* Click areas for navigation */}

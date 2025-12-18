@@ -427,30 +427,37 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
     );
   }
 
-  // Two images - side by side
-  if (totalImages === 2) {
+  // Two or more images - show only 2 side by side with +X badge for remaining
+  if (totalImages >= 2) {
+    const remainingCount = totalImages > 2 ? totalImages - 2 : 0;
     return (
       <div className="mt-3">
         {renderVideos()}
         <div className="grid grid-cols-2 gap-1">
-          {imageMedia.map((item, index) => {
+          {imageMedia.slice(0, 2).map((item, index) => {
             const mediaUrl = normalizeMediaUrl(item.url);
             if (!mediaUrl) return null;
+            const isLastVisible = index === 1 && remainingCount > 0;
             return (
               <div 
                 key={index} 
-                className="relative aspect-square cursor-pointer overflow-hidden"
+                className="relative aspect-square cursor-pointer overflow-hidden group"
                 onClick={() => onImageClick(index)}
               >
                 <img
                   src={mediaUrl}
                   alt={`Post media ${index + 1}`}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform"
+                  className="w-full h-full object-cover group-hover:brightness-95 transition-all"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
                   }}
                 />
+                {isLastVisible && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center group-hover:bg-black/70 transition-all">
+                    <span className="text-white text-4xl font-bold">+{remainingCount}</span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -459,95 +466,21 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
     );
   }
 
-  // Three images - one large on left, two stacked on right
-  if (totalImages === 3) {
-    const firstMediaUrl = normalizeMediaUrl(imageMedia[0].url);
-    if (!firstMediaUrl) return <div className="mt-3">{renderVideos()}</div>;
+  // Fallback for edge cases
+  if (totalImages === 0 && videoMedia.length > 0) {
     return (
       <div className="mt-3">
         {renderVideos()}
-        <div className="grid grid-cols-2 gap-1" style={{ height: '400px' }}>
-          <div 
-            className="relative cursor-pointer overflow-hidden row-span-2"
-            onClick={() => onImageClick(0)}
-          >
-            <img
-              src={firstMediaUrl}
-              alt="Post media 1"
-              className="w-full h-full object-cover hover:scale-105 transition-transform"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
-          </div>
-          <div className="grid grid-rows-2 gap-1">
-            {imageMedia.slice(1, 3).map((item, index) => {
-              const mediaUrl = normalizeMediaUrl(item.url);
-              if (!mediaUrl) return null;
-              return (
-                <div 
-                  key={index} 
-                  className="relative cursor-pointer overflow-hidden"
-                  onClick={() => onImageClick(index + 1)}
-                >
-                  <img
-                    src={mediaUrl}
-                    alt={`Post media ${index + 2}`}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
     );
   }
 
-  // Four images - 2x2 grid
-  if (totalImages === 4) {
-    return (
-      <div className="mt-3">
-        {renderVideos()}
-        <div className="grid grid-cols-2 gap-1">
-          {imageMedia.map((item, index) => {
-            const mediaUrl = normalizeMediaUrl(item.url);
-            if (!mediaUrl) return null;
-            return (
-              <div 
-                key={index} 
-                className="relative aspect-square cursor-pointer overflow-hidden"
-                onClick={() => onImageClick(index)}
-              >
-                <img
-                  src={mediaUrl}
-                  alt={`Post media ${index + 1}`}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Five or more images - show first 4 with "+X" overlay on the last one
-  const remainingCount = totalImages - 4;
+  // This line should never be reached but kept for safety
   return (
     <div className="mt-3">
       {renderVideos()}
       <div className="grid grid-cols-2 gap-1">
-        {imageMedia.slice(0, 4).map((item, index) => {
+        {imageMedia.slice(0, 2).map((item, index) => {
           const mediaUrl = normalizeMediaUrl(item.url);
           if (!mediaUrl) return null;
           const isLastVisible = index === 3 && remainingCount > 0;

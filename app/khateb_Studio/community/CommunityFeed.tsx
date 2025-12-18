@@ -124,10 +124,11 @@ const normalizeAvatarUrl = (url?: string): string => {
 };
 
 /**
- * MediaGrid component for displaying post media
+ * MediaGrid component for displaying post media - shows only 2 images with +X badge
  */
 function MediaGrid({ media }: { media: Media[] }) {
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
   
   const handleError = (url: string) => {
     console.error("Failed to load media:", url);
@@ -141,40 +142,147 @@ function MediaGrid({ media }: { media: Media[] }) {
   });
   
   if (validMedia.length === 0) return null;
-  
-  return (
-    <div className={`grid gap-2 ${validMedia.length === 1 ? 'grid-cols-1' : validMedia.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
-      {validMedia.map((m, idx) => {
-        const mediaUrl = normalizeMediaUrl(m);
-        if (!mediaUrl) return null;
-        
-        const isVideo = (m.media_type || "").toLowerCase().includes("video");
-        
-        return isVideo ? (
-          <video
-            key={`video-${idx}-${mediaUrl}`}
-            src={mediaUrl}
-            controls
-            playsInline
-            className="w-full max-h-[480px] rounded-lg bg-black object-contain"
-            onError={() => handleError(mediaUrl)}
-          />
-        ) : (
-          <div 
-            key={`image-${idx}-${mediaUrl}`} 
-            className={`relative rounded-lg overflow-hidden bg-gray-100 ${validMedia.length === 1 ? 'w-full min-h-[200px] max-h-[500px]' : 'aspect-square'}`}
-          >
-            <img
+
+  const renderMediaItem = (m: Media, idx: number, className: string, showOverlay?: number) => {
+    const mediaUrl = normalizeMediaUrl(m);
+    if (!mediaUrl) return null;
+    
+    const isVideo = (m.media_type || "").toLowerCase().includes("video");
+    
+    return (
+      <div
+        key={`media-${idx}-${mediaUrl}`}
+        className={`relative bg-gray-100 overflow-hidden cursor-pointer group rounded-lg ${className}`}
+        onClick={() => setSelectedMediaIndex(idx)}
+      >
+        {isVideo ? (
+          <>
+            <video
               src={mediaUrl}
-              alt={`Post media ${idx + 1}`}
               className="w-full h-full object-cover"
-              loading="lazy"
               onError={() => handleError(mediaUrl)}
             />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+              <div className="w-14 h-14 bg-black/60 rounded-full flex items-center justify-center">
+                <svg className="w-7 h-7 text-white fill-current ml-1" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+            </div>
+          </>
+        ) : (
+          <img
+            src={mediaUrl}
+            alt={`media-${idx}`}
+            className="w-full h-full object-cover group-hover:brightness-95 transition-all"
+            loading="lazy"
+            onError={() => handleError(mediaUrl)}
+          />
+        )}
+        {showOverlay && showOverlay > 0 && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center group-hover:bg-black/70 transition-all">
+            <span className="text-white text-4xl font-bold">+{showOverlay}</span>
           </div>
-        );
-      })}
-    </div>
+        )}
+      </div>
+    );
+  };
+
+  // Show only 2 images in feed, with +X badge for remaining
+  const renderLayout = () => {
+    const count = validMedia.length;
+
+    // Single image - full width
+    if (count === 1) {
+      return (
+        <div className="w-full">
+          {renderMediaItem(validMedia[0], 0, "w-full max-h-[500px]")}
+        </div>
+      );
+    }
+
+    // Two or more images - show 2 side by side
+    return (
+      <div className="grid grid-cols-2 gap-1">
+        {renderMediaItem(validMedia[0], 0, "aspect-square")}
+        {renderMediaItem(validMedia[1], 1, "aspect-square", count > 2 ? count - 2 : undefined)}
+      </div>
+    );
+  };
+  
+  return (
+    <>
+      {renderLayout()}
+
+      {/* Lightbox for viewing full media */}
+      {selectedMediaIndex !== null && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center">
+          <button
+            onClick={() => setSelectedMediaIndex(null)}
+            className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-full transition z-10"
+          >
+            ✕
+          </button>
+
+          {validMedia.length > 1 && (
+            <button
+              onClick={() => setSelectedMediaIndex(Math.max(0, selectedMediaIndex - 1))}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 p-3 rounded-full transition disabled:opacity-30 z-10"
+              disabled={selectedMediaIndex === 0}
+            >
+              ‹
+            </button>
+          )}
+
+          <div className="max-w-5xl max-h-[90vh] flex items-center justify-center px-16">
+            {(() => {
+              const m = validMedia[selectedMediaIndex];
+              const mediaUrl = normalizeMediaUrl(m);
+              const isVideo = (m.media_type || "").toLowerCase().includes("video");
+              
+              return isVideo ? (
+                <video
+                  src={mediaUrl || ''}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-[90vh] rounded"
+                />
+              ) : (
+                <img
+                  src={mediaUrl || ''}
+                  alt="Full view"
+                  className="max-w-full max-h-[90vh] rounded object-contain"
+                />
+              );
+            })()}
+          </div>
+
+          {validMedia.length > 1 && (
+            <button
+              onClick={() => setSelectedMediaIndex(Math.min(validMedia.length - 1, selectedMediaIndex + 1))}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 p-3 rounded-full transition disabled:opacity-30 z-10"
+              disabled={selectedMediaIndex === validMedia.length - 1}
+            >
+              ›
+            </button>
+          )}
+
+          {validMedia.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {validMedia.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedMediaIndex(idx)}
+                  className={`w-2 h-2 rounded-full transition ${
+                    idx === selectedMediaIndex ? 'bg-white' : 'bg-white/40 hover:bg-white/60'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 

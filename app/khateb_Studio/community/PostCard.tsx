@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MessageCircle, Repeat2, Share2, MoreHorizontal, Send, ThumbsUp, Bookmark } from "lucide-react";
+import { MessageCircle, Share2, MoreHorizontal, Send, ThumbsUp, Bookmark, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { likeComment, unlikeComment, addComment, addReply } from "@/src/api/postsApi";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
@@ -133,6 +133,7 @@ function Avatar({ src, alt, size = 32 }: { src?: string; alt: string; size?: num
 
 function MediaGrid({ media }: { media: Media[] }) {
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
   
   const handleError = (url: string) => {
     setFailedUrls(prev => new Set([...prev, url]));
@@ -144,39 +145,147 @@ function MediaGrid({ media }: { media: Media[] }) {
   });
   
   if (validMedia.length === 0) return null;
-  
-  return (
-    <div className={`grid gap-2 ${validMedia.length === 1 ? '' : validMedia.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
-      {validMedia.map((m, idx) => {
-        const mediaUrl = normalizeMediaUrl(m);
-        if (!mediaUrl) return null;
-        
-        const isVideo = (m.media_type || "").toLowerCase().includes("video");
-        
-        return isVideo ? (
-          <video
-            key={`video-${idx}-${mediaUrl}`}
-            src={mediaUrl}
-            controls
-            className="w-full max-h-[480px] rounded-lg bg-black object-cover"
-            onError={() => handleError(mediaUrl)}
-          />
-        ) : (
-          <div 
-            key={`image-${idx}-${mediaUrl}`} 
-            className={`relative rounded-lg overflow-hidden bg-gray-100 ${validMedia.length === 1 ? 'w-full h-80' : 'aspect-square'}`}
-          >
-            <img
+
+  const renderMediaItem = (m: Media, idx: number, className: string, showOverlay?: number) => {
+    const mediaUrl = normalizeMediaUrl(m);
+    if (!mediaUrl) return null;
+    
+    const isVideo = (m.media_type || "").toLowerCase().includes("video");
+    
+    return (
+      <div
+        key={`media-${idx}-${mediaUrl}`}
+        className={`relative bg-gray-100 overflow-hidden cursor-pointer group ${className}`}
+        onClick={() => setSelectedMediaIndex(idx)}
+      >
+        {isVideo ? (
+          <>
+            <video
               src={mediaUrl}
-              alt={`media-${idx}`}
               className="w-full h-full object-cover"
-              loading="lazy"
               onError={() => handleError(mediaUrl)}
             />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+              <div className="w-14 h-14 bg-black/60 rounded-full flex items-center justify-center">
+                <svg className="w-7 h-7 text-white fill-current ml-1" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+            </div>
+          </>
+        ) : (
+          <img
+            src={mediaUrl}
+            alt={`media-${idx}`}
+            className="w-full h-full object-cover group-hover:brightness-95 transition-all"
+            loading="lazy"
+            onError={() => handleError(mediaUrl)}
+          />
+        )}
+        {showOverlay && showOverlay > 0 && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center hover:bg-black/70 transition-all">
+            <span className="text-white text-4xl font-bold">+{showOverlay}</span>
           </div>
-        );
-      })}
-    </div>
+        )}
+      </div>
+    );
+  };
+
+  // Show only 2 images in feed, with +X badge for remaining
+  const renderLayout = () => {
+    const count = validMedia.length;
+
+    // Single image - full width
+    if (count === 1) {
+      return (
+        <div className="w-full">
+          {renderMediaItem(validMedia[0], 0, "w-full max-h-[500px]")}
+        </div>
+      );
+    }
+
+    // Two or more images - show 2 side by side
+    return (
+      <div className="grid grid-cols-2 gap-1">
+        {renderMediaItem(validMedia[0], 0, "aspect-square")}
+        {renderMediaItem(validMedia[1], 1, "aspect-square", count > 2 ? count - 2 : undefined)}
+      </div>
+    );
+  };
+  
+  return (
+    <>
+      {renderLayout()}
+
+      {/* Lightbox for viewing full media */}
+      {selectedMediaIndex !== null && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center">
+          <button
+            onClick={() => setSelectedMediaIndex(null)}
+            className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-full transition z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {validMedia.length > 1 && (
+            <button
+              onClick={() => setSelectedMediaIndex(Math.max(0, selectedMediaIndex - 1))}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 p-3 rounded-full transition disabled:opacity-30 z-10"
+              disabled={selectedMediaIndex === 0}
+            >
+              <ChevronLeft className="w-8 h-8" />
+            </button>
+          )}
+
+          <div className="max-w-5xl max-h-[90vh] flex items-center justify-center px-16">
+            {(() => {
+              const m = validMedia[selectedMediaIndex];
+              const mediaUrl = normalizeMediaUrl(m);
+              const isVideo = (m.media_type || "").toLowerCase().includes("video");
+              
+              return isVideo ? (
+                <video
+                  src={mediaUrl || ''}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-[90vh] rounded"
+                />
+              ) : (
+                <img
+                  src={mediaUrl || ''}
+                  alt="Full view"
+                  className="max-w-full max-h-[90vh] rounded object-contain"
+                />
+              );
+            })()}
+          </div>
+
+          {validMedia.length > 1 && (
+            <button
+              onClick={() => setSelectedMediaIndex(Math.min(validMedia.length - 1, selectedMediaIndex + 1))}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 p-3 rounded-full transition disabled:opacity-30 z-10"
+              disabled={selectedMediaIndex === validMedia.length - 1}
+            >
+              <ChevronRight className="w-8 h-8" />
+            </button>
+          )}
+
+          {validMedia.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {validMedia.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedMediaIndex(idx)}
+                  className={`w-2 h-2 rounded-full transition ${
+                    idx === selectedMediaIndex ? 'bg-white' : 'bg-white/40 hover:bg-white/60'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -185,12 +294,10 @@ function CommentItem({ comment, postId, currentUserAvatar, currentUserName, onLi
   const [replyContent, setReplyContent] = useState("");
   const [showReplies, setShowReplies] = useState(false);
   const [replies, setReplies] = useState<CommentReply[]>(comment.replies || []);
-  const [isLoadingReplies, setIsLoadingReplies] = useState(false);
-  const [repliesFetched, setRepliesFetched] = useState(false);
 
   const handleSubmitReply = async () => {
     if (replyContent.trim()) {
-      const tempId = `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const tempId = `reply-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const newReply: CommentReply = {
         id: tempId,
         author: {
@@ -413,7 +520,7 @@ export default function PostCard({ post, liked, saved, onToggleLike, onToggleSav
 
   const handleSubmitComment = async () => {
     if (commentText.trim()) {
-      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const newComment: Comment = {
         id: tempId,
         author: {
@@ -508,7 +615,7 @@ export default function PostCard({ post, liked, saved, onToggleLike, onToggleSav
 
   const handleReplyToComment = (commentId: string, replyContent: string) => {
     const newReply: CommentReply = {
-      id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `reply-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       author: {
         name: currentUserName,
         avatar: currentUserAvatar,
@@ -533,98 +640,100 @@ export default function PostCard({ post, liked, saved, onToggleLike, onToggleSav
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-[#f0e6e5] overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-4">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        <Link href={profileHref} className="w-11 h-11 relative rounded-full overflow-hidden bg-gray-100 flex-shrink-0 hover:opacity-80 transition-opacity">
-          <img
-            src={normalizeAvatarUrl(post.avatar_url)}
-            alt={post.display_name ?? post.username ?? "avatar"}
-            className="w-full h-full object-cover"
-          />
-        </Link>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-3 flex-1">
+          <Link href={profileHref} className="w-10 h-10 relative rounded-full overflow-hidden bg-gray-200 flex-shrink-0 hover:opacity-80 transition-opacity">
+            <img
+              src={normalizeAvatarUrl(post.avatar_url)}
+              alt={post.display_name ?? post.username ?? "avatar"}
+              className="w-full h-full object-cover"
+            />
+          </Link>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Link href={profileHref} className="font-semibold text-sm text-gray-900 truncate hover:underline">
+          <div className="flex-1 min-w-0">
+            <Link href={profileHref} className="font-semibold text-sm text-gray-900 hover:underline block">
               {post.display_name ?? post.username}
             </Link>
-            <span className="text-xs text-gray-400">· {formatDate(post.created_at)}</span>
+            <p className="text-xs text-gray-500">{formatDate(post.created_at)}</p>
           </div>
-          {post.username && (
-            <p className="text-xs text-gray-500">@{post.username}</p>
-          )}
         </div>
 
-        {post.is_following === 0 && (
-          <button className="bg-[#8A1538] text-white text-sm px-3 py-1 rounded-md font-medium hover:bg-[#6d1029] transition-colors">
-            Follow
-          </button>
-        )}
-
-        <button aria-label="more" className="ml-2 text-gray-400 hover:text-gray-600">
+        <button aria-label="more" className="text-gray-500 hover:bg-gray-100 p-2 rounded-full transition">
           <MoreHorizontal className="w-5 h-5" />
         </button>
       </div>
 
       {/* Content */}
       {post.content && (
-        <div className="px-4 pb-3">
+        <div className="px-4 py-3">
           <p className="text-sm text-gray-800 leading-relaxed">{post.content}</p>
         </div>
       )}
 
       {/* Media */}
       {post.media && post.media.length > 0 && (
-        <div className="px-4 pb-4">
+        <div className="w-full">
           <MediaGrid media={post.media} />
         </div>
       )}
 
-      {/* Actions */}
-      <div className="px-4 pb-4">
-        <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-          <button
-            onClick={onToggleLike}
-            className={`flex items-center gap-2 text-sm ${liked ? "text-[#8A1538]" : "text-gray-500 hover:text-[#8A1538]"}`}
-          >
-            <ThumbsUp className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
-            <span>{liked ? "Liked" : "Like"} {(post.likes_count ?? 0) > 0 ? `(${post.likes_count})` : ""}</span>
-          </button>
+      {/* Stats */}
+      <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100 flex justify-between">
+        <span>{(post.likes_count ?? 0) > 0 ? `${post.likes_count} ${post.likes_count === 1 ? 'like' : 'likes'}` : ''}</span>
+        <span>{localCommentsCount > 0 ? `${localCommentsCount} ${localCommentsCount === 1 ? 'comment' : 'comments'}` : ''}</span>
+      </div>
 
-          <button 
-            onClick={handleToggleComments}
-            className={`flex items-center gap-2 text-sm ${showComments ? "text-[#8A1538]" : "text-gray-500 hover:text-gray-700"}`}
-          >
-            <MessageCircle className="w-5 h-5" />
-            <span>Comment {localCommentsCount > 0 ? `(${localCommentsCount})` : ""}</span>
-          </button>
+      {/* Action Buttons */}
+      <div className="px-2 py-2 flex items-center justify-between gap-1 border-b border-gray-100">
+        <button
+          onClick={onToggleLike}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition ${
+            liked 
+              ? "text-[#8A1538] bg-red-50" 
+              : "text-gray-500 hover:bg-gray-100"
+          }`}
+        >
+          <ThumbsUp className={`w-5 h-5 ${liked ? "fill-current" : ""}`} />
+          <span>Like</span>
+        </button>
 
-          <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-            <Repeat2 className="w-5 h-5" />
-            <span>Repost {(post.shares_count ?? 0) > 0 ? `(${post.shares_count})` : ""}</span>
-          </button>
+        <button 
+          onClick={handleToggleComments}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition ${
+            showComments 
+              ? "text-[#8A1538] bg-blue-50" 
+              : "text-gray-500 hover:bg-gray-100"
+          }`}
+        >
+          <MessageCircle className="w-5 h-5" />
+          <span>Comment</span>
+        </button>
 
-          <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-            <Share2 className="w-5 h-5" />
-            <span>Share</span>
-          </button>
+        <button className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 transition">
+          <Share2 className="w-5 h-5" />
+          <span>Share</span>
+        </button>
 
-          <button 
-            onClick={onToggleSave}
-            className={`flex items-center gap-2 text-sm ${saved ? "text-[#8A1538]" : "text-gray-500 hover:text-[#8A1538]"}`}
-          >
-            <Bookmark className={`w-5 h-5 ${saved ? "fill-current" : ""}`} />
-            <span>{saved ? "Saved" : "Save"}</span>
-          </button>
-        </div>
+        <button 
+          onClick={onToggleSave}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition ${
+            saved 
+              ? "text-[#8A1538] bg-yellow-50" 
+              : "text-gray-500 hover:bg-gray-100"
+          }`}
+        >
+          <Bookmark className={`w-5 h-5 ${saved ? "fill-current" : ""}`} />
+          <span>Save</span>
+        </button>
       </div>
 
       {/* Comments Section */}
       {showComments && (
-        <div className="px-4 pb-4 border-t border-gray-100">
+        <div className="px-4 py-3 bg-gray-50">
           {/* Comment Input */}
-          <div className="flex items-center gap-3 py-3">
+          <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
             <Avatar src={currentUserAvatar} alt="Your avatar" size={32} />
             <div className="flex-1 flex items-center gap-2">
               <input
@@ -632,13 +741,13 @@ export default function PostCard({ post, liked, saved, onToggleLike, onToggleSav
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Write a comment..."
-                className="flex-1 text-sm border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:border-[#8A1538]"
+                className="flex-1 text-sm bg-gray-200 border-0 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#8A1538]"
                 onKeyDown={(e) => e.key === "Enter" && handleSubmitComment()}
               />
               <button
                 onClick={handleSubmitComment}
                 disabled={!commentText.trim()}
-                className="p-2 text-[#8A1538] hover:bg-gray-100 rounded-full disabled:opacity-50"
+                className="p-2 text-[#8A1538] hover:bg-gray-300 rounded-full disabled:opacity-50 transition"
               >
                 <Send className="w-5 h-5" />
               </button>
@@ -646,13 +755,13 @@ export default function PostCard({ post, liked, saved, onToggleLike, onToggleSav
           </div>
 
           {/* Comments List */}
-          {isLoadingComments ? (
-            <div className="text-center text-gray-500 text-sm py-4">Loading comments...</div>
-          ) : comments.length === 0 ? (
-            <div className="text-center text-gray-500 text-sm py-4">No comments yet. Be the first to comment!</div>
-          ) : (
-            <div className="space-y-4">
-              {comments.map((comment, index) => (
+          <div className="mt-3 space-y-3">
+            {isLoadingComments ? (
+              <div className="text-center text-gray-500 text-sm py-4">Loading comments...</div>
+            ) : comments.length === 0 ? (
+              <div className="text-center text-gray-500 text-sm py-4">No comments yet</div>
+            ) : (
+              comments.map((comment, index) => (
                 <CommentItem
                   key={comment.id || `comment-${index}`}
                   comment={comment}
@@ -662,9 +771,9 @@ export default function PostCard({ post, liked, saved, onToggleLike, onToggleSav
                   onLikeComment={handleLikeComment}
                   onReplyToComment={handleReplyToComment}
                 />
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
