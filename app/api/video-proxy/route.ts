@@ -1,48 +1,43 @@
 /**
- * Video Proxy Route
+ * Video Proxy API Route
  * 
- * Proxies video requests to avoid CORS issues and ensure proper streaming.
+ * Handles video streaming with proper CORS headers and error handling
+ * Allows the frontend to stream videos from external sources
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const { searchParams } = new URL(request.url);
     const videoUrl = searchParams.get('url');
 
     if (!videoUrl) {
       return NextResponse.json(
-        { error: 'Video URL is required' },
+        { error: 'Missing video URL' },
         { status: 400 }
       );
     }
 
-    // Decode the URL if it's encoded
-    const decodedUrl = decodeURIComponent(videoUrl);
-    
-    console.log('[Video Proxy] Fetching video:', decodedUrl);
-
-    const rangeHeader = request.headers.get('range');
-    const fetchHeaders: HeadersInit = {};
-    
-    if (rangeHeader) {
-      fetchHeaders['Range'] = rangeHeader;
+    // Validate URL is from allowed domain
+    const url = new URL(videoUrl);
+    if (!url.hostname.includes('apisoapp.twingroups.com')) {
+      return NextResponse.json(
+        { error: 'Video URL not from allowed domain' },
+        { status: 403 }
+      );
     }
 
-    const response = await fetch(decodedUrl, {
-      method: 'GET',
-      headers: fetchHeaders,
+    // Fetch the video from the external source
+    const response = await fetch(videoUrl, {
+      headers: {
+        'Range': request.headers.get('range') || '',
+      },
     });
 
     if (!response.ok) {
-      console.error('[Video Proxy] Backend error:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: decodedUrl,
-      });
       return NextResponse.json(
-        { error: 'Failed to fetch video' },
+        { error: `Failed to fetch video: ${response.statusText}` },
         { status: response.status }
       );
     }
@@ -50,66 +45,7 @@ export async function GET(request: NextRequest) {
     // Create a new response with the video stream
     const headers = new Headers();
     
-    // Copy important headers from the backend response
-    const contentType = response.headers.get('content-type');
-    if (contentType) {
-      headers.set('content-type', contentType);
-    } else {
-      // Default to mp4 if not specified
-      headers.set('content-type', 'video/mp4');
-    }
-    
-    if (response.headers.get('content-length')) {
-      headers.set('content-length', response.headers.get('content-length')!);
-    }
-    if (response.headers.get('content-range')) {
-      headers.set('content-range', response.headers.get('content-range')!);
-    }
-    if (response.headers.get('accept-ranges')) {
-      headers.set('accept-ranges', response.headers.get('accept-ranges')!);
-    } else {
-      headers.set('accept-ranges', 'bytes');
-    }
-
-    // Allow CORS
-    headers.set('Access-Control-Allow-Origin', '*');
-    headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    headers.set('Access-Control-Allow-Headers', 'Range');
-    headers.set('Cache-Control', 'public, max-age=3600');
-
-    return new NextResponse(response.body, {
-      status: response.status,
-      headers,
-    });
-  } catch (error) {
-    console.error('[Video Proxy] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function HEAD(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const videoUrl = searchParams.get('url');
-
-    if (!videoUrl) {
-      return NextResponse.json(
-        { error: 'Video URL is required' },
-        { status: 400 }
-      );
-    }
-
-    const decodedUrl = decodeURIComponent(videoUrl);
-
-    const response = await fetch(decodedUrl, {
-      method: 'HEAD',
-    });
-
-    const headers = new Headers();
-    
+    // Copy relevant headers from the original response
     if (response.headers.get('content-type')) {
       headers.set('content-type', response.headers.get('content-type')!);
     }
@@ -119,30 +55,39 @@ export async function HEAD(request: NextRequest) {
     if (response.headers.get('accept-ranges')) {
       headers.set('accept-ranges', response.headers.get('accept-ranges')!);
     }
+    if (response.headers.get('content-range')) {
+      headers.set('content-range', response.headers.get('content-range')!);
+    }
 
+    // Add CORS headers
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type, Range');
+    headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
 
-    return new NextResponse(null, {
+    // Cache video for 1 hour
+    headers.set('Cache-Control', 'public, max-age=3600');
+
+    return new NextResponse(response.body, {
       status: response.status,
       headers,
     });
   } catch (error) {
-    console.error('[Video Proxy HEAD] Error:', error);
+    console.error('[video-proxy] Error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to proxy video' },
       { status: 500 }
     );
   }
 }
 
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range, Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Range',
     },
   });
 }

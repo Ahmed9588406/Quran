@@ -21,16 +21,20 @@ export interface ReelViewerProps {
 }
 
 /**
- * Gets the video URL - uses the video proxy for proper streaming and CORS handling
+ * Gets the video URL - normalizes and returns proxy URL for video playback
  */
 function getVideoUrl(videoUrl: string): string {
   if (!videoUrl) return '';
   
+  const baseUrl = 'http://apisoapp.twingroups.com';
+  
   // Normalize the video URL first
   let normalizedUrl = videoUrl;
+  
   if (!videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
-    const baseUrl = 'http://apisoapp.twingroups.com';
-    normalizedUrl = `${baseUrl}${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+    // Ensure URL starts with /
+    const normalizedPath = videoUrl.startsWith('/') ? videoUrl : `/${videoUrl}`;
+    normalizedUrl = `${baseUrl}${normalizedPath}`;
   }
   
   // Use the video proxy to handle streaming and CORS
@@ -56,15 +60,27 @@ export function ReelViewer({ reel, isActive, isMuted, onToggleMute }: ReelViewer
 
   // Handle active state changes - play when active, pause when not
   useEffect(() => {
-    if (isActive && videoRef.current) {
-      // Ensure video is ready before playing
-      if (videoRef.current.readyState >= 2) {
-        play();
-      }
-    } else if (!isActive) {
-      pause();
+    if (!videoRef.current) return;
+    
+    if (isActive) {
+      // Delay slightly to ensure video is loaded
+      const timer = setTimeout(() => {
+        if (videoRef.current) {
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              if (err.name !== 'AbortError') {
+                console.error('Failed to autoplay video:', err);
+              }
+            });
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      videoRef.current.pause();
     }
-  }, [isActive, play, pause]);
+  }, [isActive]);
 
   // Sync muted state with video element
   useEffect(() => {
@@ -94,13 +110,15 @@ export function ReelViewer({ reel, isActive, isMuted, onToggleMute }: ReelViewer
     };
     
     const readableError = errorCodeMap[errorCode || 0] || `Error code ${errorCode}`;
+    const normalizedUrl = getVideoUrl(reel.video_url);
     
     console.error('[ReelViewer] Video error:', {
       errorCode,
       readableError,
       errorMessage,
       videoUrl: reel.video_url,
-      normalizedUrl: getVideoUrl(reel.video_url),
+      normalizedUrl,
+      reelId: reel.id,
     });
     
     setVideoError(`Video failed to load: ${readableError}`);
@@ -109,6 +127,19 @@ export function ReelViewer({ reel, isActive, isMuted, onToggleMute }: ReelViewer
   // Handle video loaded
   const handleVideoLoadStart = () => {
     setVideoError(null);
+    console.log('[ReelViewer] Video loading started for reel:', reel.id);
+  };
+
+  // Handle when video can play
+  const handleCanPlay = () => {
+    console.log('[ReelViewer] Video can play for reel:', reel.id);
+    if (isActive && videoRef.current) {
+      videoRef.current.play().catch(err => {
+        if (err.name !== 'AbortError') {
+          console.error('[ReelViewer] Failed to play on canplay:', err);
+        }
+      });
+    }
   };
 
   const videoUrl = getVideoUrl(reel.video_url);
@@ -124,6 +155,7 @@ export function ReelViewer({ reel, isActive, isMuted, onToggleMute }: ReelViewer
         src={videoUrl}
         className="w-full h-full object-cover cursor-pointer"
         loop
+        autoPlay
         playsInline
         muted={isMuted}
         onClick={handleVideoClick}
@@ -131,7 +163,8 @@ export function ReelViewer({ reel, isActive, isMuted, onToggleMute }: ReelViewer
         data-testid="reel-video"
         onError={handleVideoError}
         onLoadStart={handleVideoLoadStart}
-        preload="metadata"
+        onCanPlay={handleCanPlay}
+        preload="auto"
         controls={false}
         crossOrigin="anonymous"
       />
