@@ -13,6 +13,7 @@ import Fatwa from "../Kh_Fatwa";
 import KhOldLive from "../Kh_old_live";
 import AboutSection from "../Kh_AboutSection";
 import CreatePostModal from "../Create_Post";
+import MyStories from "../Kh_MyStories";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { likePost, unlikePost, savePost, unsavePost } from "@/src/api/postsApi";
@@ -397,6 +398,8 @@ export default function KhateebProfilePage() {
         return <Fatwa entries={fatwaPosts} />;
       case "about":
         return <AboutSection workExperiences={workExperiences} placesLived={placesLived} contactInfo={contactInfo} isOwnProfile={isOwnProfile} />;
+      case "stories":
+        return <MyStories userId={preacherId} />;
       default:
         return null;
     }

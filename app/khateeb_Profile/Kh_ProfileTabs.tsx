@@ -14,6 +14,8 @@ const tabs = [
   { id: "fatwa", label: "Fatwa" },
   { id: "old Live", label: "Old Live" },
   { id: "about", label: "About" },
+  { id: "stories", label: "My Stories" },
+  
   
 ];
 

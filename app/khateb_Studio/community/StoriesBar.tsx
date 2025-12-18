@@ -2,6 +2,20 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ChevronRight, Plus } from 'lucide-react';
 import Image from 'next/image';
+import CreateStoryModal from './CreateStoryModal';
+
+interface ApiStory {
+  id: string;
+  user_id: string;
+  username: string;
+  user_avatar?: string;
+  avatar?: string;
+  media_url: string;
+  caption?: string;
+  created_at: string;
+  expires_at: string;
+  viewed?: boolean;
+}
 
 interface Story {
   id: string;
@@ -9,6 +23,8 @@ interface Story {
   avatar: string;
   hasUnseenStory: boolean;
   isYourStory?: boolean;
+  mediaUrl?: string;
+  caption?: string;
 }
 
 interface StoriesBarProps {
@@ -24,6 +40,9 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
   const [startX, setStartX] = useState(0);
   const [scrollLeftPos, setScrollLeftPos] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isCreateStoryOpen, setIsCreateStoryOpen] = useState(false);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
@@ -36,23 +55,72 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
     }
   }, []);
 
-  // Mock stories - in production, fetch from API
-  const stories: Story[] = [
-    { 
-      id: '0', 
-      username: 'Your story', 
-      avatar: currentUser?.avatar_url || currentUser?.profile_picture_url || 'https://i.pravatar.cc/150?img=1', 
-      hasUnseenStory: false, 
-      isYourStory: true 
-    },
-    { id: '1', username: 'Sheikh Ahmad', avatar: 'https://i.pravatar.cc/150?img=47', hasUnseenStory: true },
-    { id: '2', username: 'Imam Hassan', avatar: 'https://i.pravatar.cc/150?img=27', hasUnseenStory: true },
-    { id: '3', username: 'Dr. Fatima', avatar: 'https://i.pravatar.cc/150?img=45', hasUnseenStory: true },
-    { id: '4', username: 'Sheikh Omar', avatar: 'https://i.pravatar.cc/150?img=33', hasUnseenStory: true },
-    { id: '5', username: 'Ustadh Ali', avatar: 'https://i.pravatar.cc/150?img=15', hasUnseenStory: true },
-    { id: '6', username: 'Dr. Aisha', avatar: 'https://i.pravatar.cc/150?img=44', hasUnseenStory: true },
-    { id: '7', username: 'Sheikh Yusuf', avatar: 'https://i.pravatar.cc/150?img=60', hasUnseenStory: true },
-  ];
+  useEffect(() => {
+    const fetchStories = async () => {
+      try {
+        setIsLoading(true);
+        const accessToken = localStorage.getItem('access_token');
+        
+        const headers: HeadersInit = {};
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        const response = await fetch('http://apisoapp.twingroups.com/stories/following?limit=20', {
+          headers,
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch stories');
+        }
+
+        const data = await response.json();
+        const apiStories: ApiStory[] = Array.isArray(data) ? data : data.stories || [];
+
+        // Transform API stories to component format
+        const transformedStories: Story[] = apiStories.map((story) => ({
+          id: story.id,
+          username: story.username,
+          avatar: story.user_avatar || story.avatar || 'https://i.pravatar.cc/150?img=1',
+          hasUnseenStory: !story.viewed,
+          mediaUrl: story.media_url,
+          caption: story.caption,
+        }));
+
+        // Add "Your story" at the beginning
+        const allStories: Story[] = [
+          {
+            id: '0',
+            username: 'Your story',
+            avatar: currentUser?.avatar_url || currentUser?.profile_picture_url || 'https://i.pravatar.cc/150?img=1',
+            hasUnseenStory: false,
+            isYourStory: true,
+          },
+          ...transformedStories,
+        ];
+
+        setStories(allStories);
+      } catch (error) {
+        console.error('Error fetching stories:', error);
+        // Fallback to empty array on error
+        setStories([
+          {
+            id: '0',
+            username: 'Your story',
+            avatar: currentUser?.avatar_url || currentUser?.profile_picture_url || 'https://i.pravatar.cc/150?img=1',
+            hasUnseenStory: false,
+            isYourStory: true,
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (currentUser) {
+      fetchStories();
+    }
+  }, [currentUser]);
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -72,8 +140,11 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
 
   const handleStoryClick = (story: Story) => {
     if (isDragging) return;
-    if (story.isYourStory && onCreateStory) {
-      onCreateStory();
+    if (story.isYourStory) {
+      setIsCreateStoryOpen(true);
+      if (onCreateStory) {
+        onCreateStory();
+      }
     } else if (onStoryClick) {
       onStoryClick(story.id, story.username);
     }
@@ -99,19 +170,33 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
   const handleMouseLeave = () => setIsDragging(false);
 
   return (
-    <div className="w-full">
-      <div className="relative bg-[#fff6f3] border border-[#f0e6e5] rounded-lg p-0 shadow-sm">
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          className={`flex gap-0 overflow-x-scroll scroll-smooth pb-1 px-1 scrollbar-hide ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', userSelect: 'none' }}
-        >
-          {stories.map((story) => (
+    <>
+      <CreateStoryModal 
+        isOpen={isCreateStoryOpen} 
+        onClose={() => setIsCreateStoryOpen(false)} 
+      />
+      <div className="w-full">
+        <div className="relative bg-[#fff6f3] border border-[#f0e6e5] rounded-lg p-0 shadow-sm">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-24 px-4">
+              <div className="flex gap-2">
+                <div className="w-3 h-3 bg-gray-400 rounded-full animate-bounce" />
+                <div className="w-3 h-3 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                <div className="w-3 h-3 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              className={`flex gap-0 overflow-x-scroll scroll-smooth pb-1 px-1 scrollbar-hide ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', userSelect: 'none' }}
+            >
+              {stories.map((story) => (
             <button
               key={story.id}
               onClick={() => handleStoryClick(story)}
@@ -144,35 +229,37 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
                 )}
               </div>
             </button>
-          ))}
-        </div>
+              ))}
+            </div>
+          )}
 
-        {showLeftArrow && (
-          <button
-            onClick={scrollLeft}
-            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-[#fff6f3] rounded-full shadow-lg p-2 hover:bg-[#fff6f3] transition-all hover:scale-110 border border-[#f0e6e5] z-10"
-            aria-label="Scroll left"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-700 rotate-180" />
-          </button>
-        )}
+          {!isLoading && showLeftArrow && (
+            <button
+              onClick={scrollLeft}
+              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-[#fff6f3] rounded-full shadow-lg p-2 hover:bg-[#fff6f3] transition-all hover:scale-110 border border-[#f0e6e5] z-10"
+              aria-label="Scroll left"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-700 rotate-180" />
+            </button>
+          )}
 
-        {showRightArrow && (
-          <button
-            onClick={scrollRight}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-[#fff6f3] rounded-full shadow-lg p-2 hover:bg-[#fff6f3] transition-all hover:scale-110 border border-[#f0e6e5] z-10"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-700" />
-          </button>
-        )}
+          {!isLoading && showRightArrow && (
+            <button
+              onClick={scrollRight}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-[#fff6f3] rounded-full shadow-lg p-2 hover:bg-[#fff6f3] transition-all hover:scale-110 border border-[#f0e6e5] z-10"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-700" />
+            </button>
+          )}
 
         <style jsx>{`
           .scrollbar-hide::-webkit-scrollbar {
             display: none;
           }
         `}</style>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
