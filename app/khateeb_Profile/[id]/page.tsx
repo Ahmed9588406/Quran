@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import NavBar from "../../user/navbar";
@@ -7,24 +7,41 @@ import Sidebar from "../Sidebar";
 import ProfileHeader from "../Kh_ProfileHeader";
 import ProfileTabs from "../Kh_ProfileTabs";
 import PhotosGrid from "../Kh_PhotosGrid";
-import PostCard from "../Kh_PostCard";
+import PostCard from "../../khateb_Studio/community/PostCard";
 import KhReels from "../Kh_Reels";
 import Fatwa from "../Kh_Fatwa";
 import KhOldLive from "../Kh_old_live";
 import AboutSection from "../Kh_AboutSection";
 import CreatePostModal from "../Create_Post";
+import MyStories from "../Kh_MyStories";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import { likePost, unlikePost, savePost, unsavePost } from "@/src/api/postsApi";
 
 const MessagesModal = dynamic(() => import("../../user/messages"), { ssr: false });
 
-type Media = { type: "image" | "video"; src: string; thumbnail?: string };
+type Media = {
+  url?: string;
+  media_url?: string;
+  media_type: string;
+};
+
 type Post = {
   id: string;
-  author: { name: string; avatar: string };
-  time: string;
-  content: string;
-  media?: Media;
+  user_id?: string;
+  author_id?: string;
+  content?: string;
+  created_at?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  likes_count?: number;
+  comments_count?: number;
+  shares_count?: number;
+  is_following?: number;
+  liked_by_me?: boolean;
+  saved_by_current_user?: boolean;
+  media?: Media[];
 };
 
 // Sample data (will be replaced with API data)
@@ -78,6 +95,164 @@ export default function KhateebProfilePage() {
   });
   
   const [posts, setPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [likedIds, setLikedIds] = useState<Record<string, boolean>>({});
+  const [savedIds, setSavedIds] = useState<Record<string, boolean>>({});
+
+  // Fetch user's posts from API
+  const fetchUserPosts = async (userId: string) => {
+    setLoadingPosts(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        console.warn("No access token found");
+        return;
+      }
+
+      console.log(`Fetching posts for user: ${userId}`);
+      const res = await fetch(`/api/posts/user/${userId}?page=1&per_page=20`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to fetch posts:", res.status, res.statusText);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("API Response:", data);
+      console.log("Posts array:", data?.posts);
+      
+      const postsArray = data?.posts || (Array.isArray(data) ? data : []);
+      console.log("Posts to render:", postsArray.length);
+      
+      const normalizeMediaUrl = (url?: string): string | null => {
+        if (!url) return null;
+        if (url.startsWith("http")) return url;
+        return `http://apisoapp.twingroups.com${url.startsWith('/') ? '' : '/'}${url}`;
+      };
+
+      const fetchedPosts: Post[] = postsArray.map((p: any) => {
+        console.log("Processing post:", p.id, "Media:", p.media);
+        
+        // Normalize media URLs
+        const normalizedMedia = (p.media || []).map((m: any) => {
+          const mediaUrl = m.url || m.media_url;
+          return {
+            url: normalizeMediaUrl(mediaUrl),
+            media_url: normalizeMediaUrl(mediaUrl),
+            media_type: m.media_type || "image",
+          };
+        });
+        
+        return {
+          id: p.id,
+          user_id: p.user_id || p.author_id,
+          author_id: p.author_id || p.user_id,
+          content: p.content || "",
+          created_at: p.created_at,
+          username: p.username,
+          display_name: p.display_name || p.username,
+          avatar_url: p.avatar_url,
+          likes_count: p.likes_count || 0,
+          comments_count: p.comments_count || 0,
+          shares_count: p.shares_count || 0,
+          is_following: p.is_following,
+          liked_by_me: p.liked_by_me || false,
+          saved_by_current_user: p.saved_by_current_user || false,
+          media: normalizedMedia,
+        };
+      });
+
+      console.log("Fetched posts:", fetchedPosts);
+      setPosts(fetchedPosts);
+      
+      // Initialize liked/saved state
+      const likedState: Record<string, boolean> = {};
+      const savedState: Record<string, boolean> = {};
+      fetchedPosts.forEach((p) => {
+        likedState[p.id] = p.liked_by_me ?? false;
+        savedState[p.id] = p.saved_by_current_user ?? false;
+      });
+      setLikedIds(likedState);
+      setSavedIds(savedState);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  // Handle like toggle
+  const handleToggleLike = useCallback(async (postId: string) => {
+    const prevLiked = likedIds[postId];
+    setLikedIds((s) => ({ ...s, [postId]: !prevLiked }));
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              likes_count: prevLiked
+                ? Math.max(0, (p.likes_count ?? 0) - 1)
+                : (p.likes_count ?? 0) + 1,
+            }
+          : p
+      )
+    );
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      const result = prevLiked
+        ? await unlikePost(postId, token)
+        : await likePost(postId, token);
+      if (result && result.likesCount !== undefined) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, likes_count: result.likesCount } : p
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+      // Revert on error
+      setLikedIds((s) => ({ ...s, [postId]: prevLiked }));
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                likes_count: prevLiked
+                  ? (p.likes_count ?? 0) + 1
+                  : Math.max(0, (p.likes_count ?? 0) - 1),
+              }
+            : p
+        )
+      );
+    }
+  }, [likedIds]);
+
+  // Handle save toggle
+  const handleToggleSave = useCallback(async (postId: string) => {
+    const prevSaved = savedIds[postId];
+    setSavedIds((s) => ({ ...s, [postId]: !prevSaved }));
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined;
+      if (prevSaved) {
+        await unsavePost(postId, token);
+      } else {
+        await savePost(postId, token);
+      }
+    } catch (err) {
+      console.error("Failed to toggle save:", err);
+      // Revert on error
+      setSavedIds((s) => ({ ...s, [postId]: prevSaved }));
+    }
+  }, [savedIds]);
+
+
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -108,8 +283,8 @@ export default function KhateebProfilePage() {
           });
         }
         
-        // TODO: Fetch profile data from API for other users
-        // const response = await fetch(`/api/preacher/${preacherId}`);
+        // Fetch posts for this user
+        await fetchUserPosts(preacherId);
         
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -121,15 +296,40 @@ export default function KhateebProfilePage() {
     loadProfile();
   }, [preacherId]);
 
-  const handleCreateFromModal = (payload: { content: string; media?: Media }) => {
-    const newPost: Post = {
-      id: `post${Date.now()}`,
-      author: { name: profileData.name, avatar: profileData.avatar },
-      time: "Now",
-      content: payload.content,
-      ...(payload.media ? { media: payload.media } : {}),
-    };
-    setPosts((p) => [newPost, ...p]);
+  const handleCreateFromModal = async (payload: { content: string; media?: any; file?: File }) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        console.error("No access token found");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("content", payload.content);
+      formData.append("visibility", "public");
+      
+      if (payload.file) {
+        formData.append("file", payload.file);
+      }
+
+      const response = await fetch("/api/posts", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.error("Failed to create post:", response.status);
+        return;
+      }
+
+      // Refresh posts from API
+      await fetchUserPosts(preacherId);
+    } catch (error) {
+      console.error("Error creating post:", error);
+    }
   };
 
   const renderTabContent = () => {
@@ -158,11 +358,21 @@ export default function KhateebProfilePage() {
                 </div>
               )}
               <CreatePostModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateFromModal} authorName={profileData.name} authorAvatar={profileData.avatar} />
-              {posts.map((post) => (
-                <PostCard key={post.id} id={post.id} author={post.author} time={post.time} content={post.content} media={post.media} />
-              ))}
-              {posts.length === 0 && (
+              {loadingPosts ? (
+                <div className="text-center py-12 text-gray-500">Loading posts...</div>
+              ) : posts.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">No posts yet</div>
+              ) : (
+                posts.map((post) => (
+                  <PostCard 
+                    key={post.id} 
+                    post={post}
+                    liked={likedIds[post.id] ?? post.liked_by_me ?? false}
+                    saved={savedIds[post.id] ?? post.saved_by_current_user ?? false}
+                    onToggleLike={() => handleToggleLike(post.id)}
+                    onToggleSave={() => handleToggleSave(post.id)}
+                  />
+                ))
               )}
             </div>
           </div>
@@ -181,13 +391,15 @@ export default function KhateebProfilePage() {
           </div>
         );
       case "reels":
-        return <KhReels reels={reelsData} />;
+        return <KhReels userId={preacherId} />;
       case "old Live":
         return <KhOldLive />;
       case "fatwa":
         return <Fatwa entries={fatwaPosts} />;
       case "about":
         return <AboutSection workExperiences={workExperiences} placesLived={placesLived} contactInfo={contactInfo} isOwnProfile={isOwnProfile} />;
+      case "stories":
+        return <MyStories userId={preacherId} />;
       default:
         return null;
     }

@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import AddMediaModal from "./Add_media";
 
-type Media = { type: "image" | "video"; src: string; thumbnail?: string };
+type Media = { type: "image" | "video"; src: string; thumbnail?: string; file?: File };
 
 interface CreatePostProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (payload: { content: string; media?: Media }) => void;
+  onCreate: (payload: { content: string; media?: Media; file?: File }) => void;
   authorName: string;
   authorAvatar: string;
 }
@@ -74,9 +74,10 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, authorName,
 
   const handlePost = () => {
     if (!content.trim() && !previewUrl) return;
-    const payload: { content: string; media?: Media } = { content: content.trim() };
-    if (previewUrl && mediaType) {
-      payload.media = { type: mediaType, src: previewUrl, thumbnail: previewUrl };
+    const payload: { content: string; media?: Media; file?: File } = { content: content.trim() };
+    if (previewUrl && mediaType && file) {
+      payload.media = { type: mediaType, src: previewUrl, thumbnail: previewUrl, file };
+      payload.file = file;
     }
     onCreate(payload);
     onClose();
