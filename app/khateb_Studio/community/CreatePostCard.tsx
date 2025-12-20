@@ -139,10 +139,6 @@ export default function CreatePostCard({
       
       // Trigger parent refresh (reloads /api/feed)
       onPostCreated?.();
-
-      // Optional: force a short delayed refresh to allow backend to attach media
-      // Some backends return media in the feed only after async processing.
-      setTimeout(() => onPostCreated?.(), 900);
     } catch (error) {
       console.error("Error creating post:", error);
       toast.error(error instanceof Error ? error.message : "Failed to create post");

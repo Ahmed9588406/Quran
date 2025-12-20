@@ -85,7 +85,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
       errorMessage = response.statusText || errorMessage;
     }
     
-    throw new ChatAPIError(errorMessage, response.status, errorCode);
+    // Include status code in error message for better debugging
+    const fullErrorMessage = `Failed to send message: ${errorMessage} (Status: ${response.status})`;
+    throw new ChatAPIError(fullErrorMessage, response.status, errorCode);
   }
   
   // Handle empty responses (204 No Content)
@@ -270,6 +272,7 @@ export class ChatAPI {
   async sendMedia(chatId: string, file: File, type: 'image' | 'video' | 'audio' | 'document'): Promise<Message> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('type', type);
     
     // Don't set Content-Type header - browser will set it with boundary for multipart
     const headers: HeadersInit = {};
@@ -278,10 +281,8 @@ export class ChatAPI {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
-    // Proxy uses /api/chats/:chatId/messages for media uploads
-    // Documents use 'image' endpoint as backend doesn't have dedicated document endpoint
-    const endpointType = type === 'document' ? 'image' : type;
-    const response = await fetch(`${this.baseUrl}/${chatId}/messages?type=${endpointType}`, {
+    // Use the media upload endpoint
+    const response = await fetch(`${this.baseUrl}/${chatId}/media`, {
       method: 'POST',
       headers,
       body: formData,
