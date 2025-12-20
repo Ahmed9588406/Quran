@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 
 const BASE_URL = 'http://apisoapp.twingroups.com';
@@ -59,8 +60,20 @@ export async function GET(request: Request) {
 
     const data = await backendRes.json().catch(() => null);
 
-    // Keep logging light; media debugging can be enabled when needed.
-    // console.log('[feed] status', backendRes.status);
+    // Log the raw backend response for debugging
+    console.log("=== FEED BACKEND RESPONSE ===");
+    console.log("Backend Status:", backendRes.status);
+    if (data?.posts && Array.isArray(data.posts)) {
+      console.log("Number of posts:", data.posts.length);
+      data.posts.forEach((post: any, idx: number) => {
+        console.log(`Post ${idx + 1} (ID: ${post.id}):`, {
+          content: post.content?.substring(0, 50),
+          media: post.media,
+          media_count: post.media?.length || 0
+        });
+      });
+    }
+    console.log("=============================");
 
     if (!backendRes.ok) {
       return NextResponse.json(data ?? { error: 'Failed to fetch feed' }, {
@@ -69,7 +82,7 @@ export async function GET(request: Request) {
       });
     }
 
-    // Normalize URLs in posts (and normalize media shape)
+    // Normalize URLs in posts
     if (data?.posts && Array.isArray(data.posts)) {
       data.posts = data.posts.map((post: Record<string, unknown>) => {
         const normalized = { ...post };
@@ -79,67 +92,36 @@ export async function GET(request: Request) {
           normalized.avatar_url = `${BASE_URL}${post.avatar_url}`;
         }
         
-        // Some backend responses may not use `media`; normalize common variants into `media`.
-        const anyPost = post as any;
-        const rawMedia =
-          (Array.isArray(anyPost.media) ? anyPost.media : null) ??
-          (Array.isArray(anyPost.media_files) ? anyPost.media_files : null) ??
-          (Array.isArray(anyPost.attachments) ? anyPost.attachments : null) ??
-          (Array.isArray(anyPost.files) ? anyPost.files : null) ??
-          (Array.isArray(anyPost.images) ? anyPost.images : null) ??
-          (Array.isArray(anyPost.videos) ? anyPost.videos : null) ??
-          null;
-
-        if (rawMedia) {
-          normalized.media = rawMedia.map((m: unknown) => {
-            // String URL
+        // Normalize media URLs
+        if (Array.isArray(post.media)) {
+          normalized.media = post.media.map((m: unknown) => {
+            // Handle both string and object formats
             if (typeof m === 'string') {
+              // If media is just a string URL, convert to object format
               const url = m.startsWith('/') ? `${BASE_URL}${m}` : m;
-              const lower = m.toLowerCase();
-              const mediaType = lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov')
-                ? 'video/mp4'
-                : 'image/jpeg';
+              const mediaType = m.toLowerCase().endsWith('.mp4') || m.toLowerCase().endsWith('.webm') ? 'video/mp4' : 'image/jpeg';
               return { url, media_url: url, media_type: mediaType };
-            }
-
-            // Object variant
-            if (typeof m === 'object' && m !== null) {
+            } else if (typeof m === 'object' && m !== null) {
               const mediaObj = m as Record<string, unknown>;
-
-              // Try multiple possible keys for the URL
-              const candidate =
-                (typeof mediaObj.media_url === 'string' && mediaObj.media_url) ||
-                (typeof mediaObj.url === 'string' && mediaObj.url) ||
-                (typeof (mediaObj as any).file_url === 'string' && (mediaObj as any).file_url) ||
-                (typeof (mediaObj as any).path === 'string' && (mediaObj as any).path) ||
-                (typeof (mediaObj as any).src === 'string' && (mediaObj as any).src) ||
-                '';
-
-              const normalizedUrl = candidate
-                ? candidate.startsWith('/')
-                  ? `${BASE_URL}${candidate}`
-                  : candidate
-                : '';
-
-              const typeCandidate =
-                (typeof mediaObj.media_type === 'string' && mediaObj.media_type) ||
-                (typeof (mediaObj as any).type === 'string' && (mediaObj as any).type) ||
-                (typeof (mediaObj as any).mime === 'string' && (mediaObj as any).mime) ||
-                '';
-
-              return {
-                ...mediaObj,
-                url: normalizedUrl || undefined,
-                media_url: normalizedUrl || undefined,
-                media_type: typeCandidate || (normalizedUrl.toLowerCase().includes('.mp4') ? 'video/mp4' : 'image/jpeg'),
-              };
+              const normalizedMedia = { ...mediaObj };
+              
+              // Handle 'url' field
+              if (typeof mediaObj.url === 'string') {
+                normalizedMedia.url = mediaObj.url.startsWith('/') ? `${BASE_URL}${mediaObj.url}` : mediaObj.url;
+              }
+              
+              // Handle 'media_url' field (backend uses this)
+              if (typeof mediaObj.media_url === 'string') {
+                const normalizedUrl = mediaObj.media_url.startsWith('/') ? `${BASE_URL}${mediaObj.media_url}` : mediaObj.media_url;
+                normalizedMedia.media_url = normalizedUrl;
+                // Also set 'url' for consistency
+                normalizedMedia.url = normalizedUrl;
+              }
+              
+              return normalizedMedia;
             }
-
             return m;
           });
-        } else {
-          // Ensure `media` exists for the UI (avoid undefined surprises)
-          normalized.media = Array.isArray((post as any).media) ? (post as any).media : [];
         }
         
         return normalized;

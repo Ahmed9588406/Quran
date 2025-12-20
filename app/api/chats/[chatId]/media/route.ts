@@ -48,6 +48,7 @@ export async function POST(
     // Create new FormData for backend
     const backendFormData = new FormData();
     backendFormData.append('file', file);
+    backendFormData.append('type', type);
 
     // Determine endpoint based on type
     const endpoint = `${BASE_URL}/chat/${chatId}/message/${type}`;
