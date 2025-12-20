@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+const BACKEND_URL = 'https://noneffusive-reminiscent-tanna.ngrok-free.dev/api/v1/stream';
+
+/**
+ * POST /api/stream/[liveStreamId]/join - User joins stream
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ liveStreamId: string }> }
+) {
+  try {
+    const { liveStreamId } = await params;
+    const authHeader = request.headers.get('authorization');
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'userId is required' },
+        { status: 400 }
+      );
+    }
+
+    const response = await fetch(`${BACKEND_URL}/${liveStreamId}/join?userId=${userId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        ...(authHeader && { Authorization: authHeader }),
+      },
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error('Error joining stream:', error);
+    return NextResponse.json(
+      { error: 'Failed to join stream' },
+      { status: 500 }
+    );
+  }
+}

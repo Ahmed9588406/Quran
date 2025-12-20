@@ -105,6 +105,11 @@ export function extractUserRole(response: AuthResponse | null | undefined): stri
  * Requirements: 1.1, 1.3
  */
 export function getPostLoginRoute(userId: string | null, role?: string | null): string {
+  // If user has admin role, navigate to admin dashboard
+  if (role && role.toLowerCase() === 'admin') {
+    return '/admin';
+  }
+  
   // If user has preacher role, navigate to dynamic khateb_Studio route with their ID
   if (role && role.toLowerCase() === 'preacher') {
     if (userId && userId.trim().length > 0) {
