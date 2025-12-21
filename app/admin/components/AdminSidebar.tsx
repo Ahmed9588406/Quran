@@ -1,8 +1,8 @@
 "use client";
 import React from "react";
-import { LayoutDashboard, Radio, MapPin, Disc, Settings, HelpCircle } from "lucide-react";
+import { LayoutDashboard, Radio, MapPin, Disc, Settings, HelpCircle, Mic } from "lucide-react";
 
-type AdminView = "dashboard" | "streams" | "mosques" | "recordings";
+type AdminView = "dashboard" | "streams" | "mosques" | "recordings" | "live-streaming";
 
 type Props = {
   isOpen: boolean;
@@ -13,7 +13,8 @@ type Props = {
 
 const menuItems: { id: AdminView; label: string; icon: React.ReactNode }[] = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: "streams", label: "Live Streams", icon: <Radio className="w-5 h-5" /> },
+  { id: "streams", label: "Stream Rooms", icon: <Radio className="w-5 h-5" /> },
+  { id: "live-streaming", label: "Live Streaming", icon: <Mic className="w-5 h-5" /> },
   { id: "mosques", label: "Mosques Map", icon: <MapPin className="w-5 h-5" /> },
   { id: "recordings", label: "Recordings", icon: <Disc className="w-5 h-5" /> },
 ];

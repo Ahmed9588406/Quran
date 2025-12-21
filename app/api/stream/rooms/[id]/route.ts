@@ -22,8 +22,15 @@ export async function GET(
       },
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const text = await response.text();
+    
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json(data, { status: response.status });
+    } catch {
+      console.error('Non-JSON response from backend:', text.substring(0, 200));
+      return NextResponse.json({ error: 'Room not found or invalid response' }, { status: 404 });
+    }
   } catch (error) {
     console.error('Error fetching room:', error);
     return NextResponse.json(
@@ -53,12 +60,19 @@ export async function DELETE(
       },
     });
 
-    if (response.status === 204) {
-      return new NextResponse(null, { status: 204 });
+    if (response.status === 204 || response.ok) {
+      return NextResponse.json({ success: true }, { status: 200 });
     }
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const text = await response.text();
+    
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json(data, { status: response.status });
+    } catch {
+      console.error('Non-JSON response from backend:', text.substring(0, 200));
+      return NextResponse.json({ error: 'Failed to delete room' }, { status: response.status });
+    }
   } catch (error) {
     console.error('Error deleting room:', error);
     return NextResponse.json(

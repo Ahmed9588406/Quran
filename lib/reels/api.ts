@@ -431,8 +431,10 @@ export class ReelsAPI {
    * Follows a user (reel creator).
    * 
    * Requirements: 9.2
+   * Endpoint: POST http://apisoapp.twingroups.com/follow/{{user_id}}
+   * Body: {"target_user_id":"..."}
    * 
-   * @param userId - ID of the user to follow
+   * @param userId - ID of the user to follow (target_user_id)
    * @returns Promise resolving to FollowResponse
    */
   async followUser(userId: string): Promise<FollowResponse> {
@@ -442,7 +444,7 @@ export class ReelsAPI {
     const response = await fetch(apiPath, {
       method: 'POST',
       headers: createHeaders('application/json'),
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ target_user_id: userId }),
     });
     
     return handleResponse<FollowResponse>(response);
@@ -451,7 +453,10 @@ export class ReelsAPI {
   /**
    * Unfollows a user.
    * 
-   * @param userId - ID of the user to unfollow
+   * Endpoint: DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+   * Body: {"target_user_id":"..."}
+   * 
+   * @param userId - ID of the user to unfollow (target_user_id)
    * @returns Promise resolving to FollowResponse
    */
   async unfollowUser(userId: string): Promise<FollowResponse> {
@@ -461,7 +466,7 @@ export class ReelsAPI {
     const response = await fetch(apiPath, {
       method: 'DELETE',
       headers: createHeaders('application/json'),
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ target_user_id: userId }),
     });
     
     return handleResponse<FollowResponse>(response);

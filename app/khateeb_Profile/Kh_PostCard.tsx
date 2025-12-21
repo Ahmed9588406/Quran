@@ -9,6 +9,7 @@ interface PostCardProps {
   author: {
     name: string;
     avatar: string;
+    id?: string; // User ID for follow functionality
   };
   time: string;
   content: string;
@@ -20,6 +21,29 @@ interface PostCardProps {
   likes?: number;
   comments?: number;
   reposts?: number;
+}
+
+/**
+ * Toggle follow/unfollow for a user
+ * Endpoint: POST/DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+ * Body: {"target_user_id":"..."}
+ */
+async function toggleFollowUser(targetUserId: string, isCurrentlyFollowing: boolean): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("access_token");
+    const res = await fetch("/api/follow", {
+      method: isCurrentlyFollowing ? "DELETE" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Follow toggle failed:", err);
+    return false;
+  }
 }
 
 export default function PostCard({
@@ -34,6 +58,8 @@ export default function PostCard({
 }: PostCardProps) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(likes);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
 
   const handleLike = async () => {
     // optimistic update
@@ -57,6 +83,22 @@ export default function PostCard({
     }
   };
 
+  const handleFollowClick = async () => {
+    if (!author.id || isTogglingFollow) return;
+    
+    const prev = isFollowing;
+    setIsFollowing(!prev);
+    setIsTogglingFollow(true);
+    
+    const success = await toggleFollowUser(author.id, prev);
+    
+    if (!success) {
+      setIsFollowing(prev);
+    }
+    
+    setIsTogglingFollow(false);
+  };
+
   return (
     <div className="bg-[#FFF9F3] rounded-lg border border-[#f0e6e5] p-4">
       {/* Header */}
@@ -77,8 +119,16 @@ export default function PostCard({
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="px-4 py-1 bg-[#7b2030] text-white text-xs font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
-            Follow
+          <button 
+            onClick={handleFollowClick}
+            disabled={isTogglingFollow}
+            className={`px-4 py-1 text-xs font-medium rounded-full transition-colors ${
+              isFollowing
+                ? "bg-white text-[#7b2030] border border-[#7b2030] hover:bg-[#fffaf9]"
+                : "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
+            } ${isTogglingFollow ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            {isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
           </button>
           <button
             aria-label="More options"

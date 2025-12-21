@@ -89,8 +89,19 @@ function ReelItem({
 
   const handleFollow = useCallback(async () => {
     try {
-      await reelsAPI.followUser(reel.user_id);
-      setIsFollowing(true);
+      // Use the correct API format: POST /api/follow with body {"target_user_id":"..."}
+      const token = localStorage.getItem("access_token");
+      const res = await fetch("/api/follow", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ target_user_id: reel.user_id }),
+      });
+      if (res.ok) {
+        setIsFollowing(true);
+      }
     } catch (error) {
       console.error("Failed to follow user:", error);
     }

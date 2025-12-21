@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { Settings } from "lucide-react";
 
@@ -12,6 +12,30 @@ interface ProfileHeaderProps {
   bio: string;
   tags: string[];
   isOwnProfile?: boolean;
+  userId?: string; // User ID for follow functionality
+}
+
+/**
+ * Toggle follow/unfollow for a user
+ * Endpoint: POST/DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+ * Body: {"target_user_id":"..."}
+ */
+async function toggleFollowUser(targetUserId: string, isCurrentlyFollowing: boolean): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("access_token");
+    const res = await fetch("/api/follow", {
+      method: isCurrentlyFollowing ? "DELETE" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Follow toggle failed:", err);
+    return false;
+  }
 }
 
 export default function ProfileHeader({
@@ -23,7 +47,30 @@ export default function ProfileHeader({
   bio,
   tags,
   isOwnProfile = false,
+  userId,
 }: ProfileHeaderProps) {
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [followerCount, setFollowerCount] = useState(followers);
+
+  const handleFollowClick = async () => {
+    if (!userId || isTogglingFollow) return;
+    
+    const prev = isFollowing;
+    setIsFollowing(!prev);
+    setFollowerCount(prev ? followerCount - 1 : followerCount + 1);
+    setIsTogglingFollow(true);
+    
+    const success = await toggleFollowUser(userId, prev);
+    
+    if (!success) {
+      setIsFollowing(prev);
+      setFollowerCount(prev ? followerCount : followerCount - 1);
+    }
+    
+    setIsTogglingFollow(false);
+  };
+
   return (
     <div className=" border-b border-[#f0e6e5] px-6 py-6">
       <div className="max-w-4xl mx-auto">
@@ -69,8 +116,16 @@ export default function ProfileHeader({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <button className="px-5 py-1.5 bg-[#7b2030] text-white text-sm font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
-                      Follow
+                    <button 
+                      onClick={handleFollowClick}
+                      disabled={isTogglingFollow}
+                      className={`px-5 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                        isFollowing
+                          ? "bg-white text-[#7b2030] border border-[#7b2030] hover:bg-[#fffaf9]"
+                          : "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
+                      } ${isTogglingFollow ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      {isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
                     </button>
                     <button
                       className="px-5 py-1.5 text-[#D7BA83] rounded-full hover:bg-gray-50 transition-colors"
@@ -106,7 +161,7 @@ export default function ProfileHeader({
                 <span className="text-gray-500 ml-1">posts</span>
               </div>
               <div>
-                <span className="font-semibold text-gray-900">{followers}</span>
+                <span className="font-semibold text-gray-900">{followerCount}</span>
                 <span className="text-gray-500 ml-1">followers</span>
               </div>
               <div>

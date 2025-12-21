@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>🎧 Live Stream Listener</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/meetecho/janus-gateway/html/janus.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      text-align: center;
+      color: #212529;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #6c757d;
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+    .status-card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    .status-indicator.idle { background: #6c757d; animation: none; }
+    .status-indicator.connecting { background: #ffc107; }
+    .status-indicator.live { background: #28a745; }
+    .status-indicator.ended { background: #dc3545; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .status-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: #212529;
+    }
+    .info-box {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .info-label {
+      font-size: 12px;
+      color: #6c757d;
+      margin-bottom: 5px;
+    }
+    .info-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .audio-player {
+      width: 100%;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      background: #f8f9fa;
+      padding: 10px;
+    }
+    audio {
+      width: 100%;
+      border-radius: 8px;
+    }
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4); }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .alert {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    .alert-info { background: #d1ecf1; color: #0c5460; }
+    .alert-success { background: #d4edda; color: #155724; }
+    .alert-danger { background: #f8d7da; color: #721c24; }
+    .alert-warning { background: #fff3cd; color: #856404; }
+    .stream-ended {
+      text-align: center;
+      padding: 30px;
+    }
+    .stream-ended h2 {
+      color: #dc3545;
+      margin-bottom: 15px;
+    }
+    .stream-ended p {
+      color: #6c757d;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎧 Live Stream</h1>
+    <p class="subtitle">Room ID: <strong id="roomIdDisplay">Loading...</strong></p>
+
+    <div class="status-card">
+      <span class="status-indicator connecting" id="statusIndicator"></span>
+      <span class="status-text" id="statusText">Connecting...</span>
+    </div>
+
+    <div class="info-box" id="listenerBox">
+      <div class="info-label">Current Listeners</div>
+      <div class="info-value" id="listenerCount">-</div>
+    </div>
+
+    <div id="alertContainer"></div>
+
+    <div class="audio-player" id="audioContainer" style="display: none;">
+      <audio id="remoteAudio" autoplay playsinline controls></audio>
+    </div>
+
+    <button id="playBtn" class="btn btn-primary" style="display: none;" onclick="manualPlay()">
+      🔊 Unmute & Play Audio
+    </button>
+
+    <div id="streamEndedContainer" style="display: none;">
+      <div class="stream-ended">
+        <h2>📡 Stream Ended</h2>
+        <p>This live stream has ended.</p>
+        <p style="margin-top: 10px;">Total Views: <strong id="totalViews">-</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="listener.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { Settings, MapPin, Briefcase, GraduationCap, MessageCircle } from "lucide-react";
 
@@ -31,8 +31,32 @@ interface ProfileHeaderProps {
   work?: string | null;
   interests?: string | null;
   reelsCount?: number;
-  userId?: string; // User ID for messaging
+  userId?: string; // User ID for messaging and follow
   onMessage?: () => void; // Callback when message button is clicked
+  onFollowChange?: (isFollowing: boolean) => void; // Callback when follow state changes
+}
+
+/**
+ * Follow/unfollow a user via the API
+ * Endpoint: POST/DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+ * Body: {"target_user_id":"..."}
+ */
+async function toggleFollowUser(targetUserId: string, isCurrentlyFollowing: boolean): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("access_token");
+    const res = await fetch("/api/follow", {
+      method: isCurrentlyFollowing ? "DELETE" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Follow toggle failed:", err);
+    return false;
+  }
 }
 
 export default function ProfileHeader({
@@ -47,7 +71,7 @@ export default function ProfileHeader({
   bio,
   tags,
   isOwnProfile = false,
-  isFollowing = false,
+  isFollowing: initialIsFollowing = false,
   country,
   location,
   education,
@@ -56,10 +80,37 @@ export default function ProfileHeader({
   reelsCount = 0,
   userId,
   onMessage,
+  onFollowChange,
 }: ProfileHeaderProps) {
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [followerCount, setFollowerCount] = useState(followers);
+
   // prefer avatar then avatar_url; normalize relative paths; fallback to local asset
   const avatarSrc = normalizeUrl(avatar ?? avatar_url) ?? "/default-avatar.png";
   const coverSrc = normalizeUrl(coverUrl) ?? undefined;
+
+  const handleFollowClick = async () => {
+    if (!userId || isTogglingFollow) return;
+    
+    const prev = isFollowing;
+    // Optimistic update
+    setIsFollowing(!prev);
+    setFollowerCount(prev ? followerCount - 1 : followerCount + 1);
+    setIsTogglingFollow(true);
+    
+    const success = await toggleFollowUser(userId, prev);
+    
+    if (!success) {
+      // Revert on failure
+      setIsFollowing(prev);
+      setFollowerCount(prev ? followerCount : followerCount - 1);
+    } else {
+      onFollowChange?.(!prev);
+    }
+    
+    setIsTogglingFollow(false);
+  };
 
   // Log profile header props (visible in browser console)
   console.info("ProfileHeader props:", {
@@ -131,13 +182,15 @@ export default function ProfileHeader({
                   ) : (
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={handleFollowClick}
+                        disabled={isTogglingFollow}
                         className={`px-5 py-1.5 text-sm font-medium rounded-full transition-colors ${
                           isFollowing
                             ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
                             : "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
-                        }`}
+                        } ${isTogglingFollow ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
-                        {isFollowing ? "Following" : "Follow"}
+                        {isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
                       </button>
                       <button
                         onClick={onMessage}
@@ -170,7 +223,7 @@ export default function ProfileHeader({
                   <span className="text-gray-500 ml-1">posts</span>
                 </div>
                 <div>
-                  <span className="font-semibold text-gray-900">{followers}</span>
+                  <span className="font-semibold text-gray-900">{followerCount}</span>
                   <span className="text-gray-500 ml-1">followers</span>
                 </div>
                 <div>

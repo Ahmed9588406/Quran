@@ -18,13 +18,20 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const text = await response.text();
+    
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json(data, { status: response.status });
+    } catch {
+      console.error('Non-JSON response from backend:', text.substring(0, 200));
+      return NextResponse.json({ content: [], totalElements: 0 }, { status: 200 });
+    }
   } catch (error) {
     console.error('Error fetching my rooms:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch my rooms' },
-      { status: 500 }
+      { content: [], totalElements: 0, error: 'Failed to fetch my rooms' },
+      { status: 200 }
     );
   }
 }

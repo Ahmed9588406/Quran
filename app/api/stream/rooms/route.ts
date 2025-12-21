@@ -21,13 +21,21 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const text = await response.text();
+    
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json(data, { status: response.status });
+    } catch {
+      console.error('Non-JSON response from backend:', text.substring(0, 200));
+      // Return empty content array on parse error
+      return NextResponse.json({ content: [], totalElements: 0 }, { status: 200 });
+    }
   } catch (error) {
     console.error('Error fetching rooms:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch rooms' },
-      { status: 500 }
+      { content: [], totalElements: 0, error: 'Failed to fetch rooms' },
+      { status: 200 }
     );
   }
 }
@@ -50,8 +58,18 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    const text = await response.text();
+    
+    try {
+      const data = JSON.parse(text);
+      return NextResponse.json(data, { status: response.status });
+    } catch {
+      console.error('Non-JSON response from backend:', text.substring(0, 200));
+      if (response.ok) {
+        return NextResponse.json({ success: true, message: 'Room created' }, { status: 200 });
+      }
+      return NextResponse.json({ error: 'Invalid response from server' }, { status: response.status });
+    }
   } catch (error) {
     console.error('Error creating room:', error);
     return NextResponse.json(

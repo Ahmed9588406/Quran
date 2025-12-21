@@ -9,8 +9,9 @@ import DashboardOverview from "./components/DashboardOverview";
 import StreamsManagement from "./components/StreamsManagement";
 import MosquesMap from "./components/MosquesMap";
 import RecordingsPanel from "./components/RecordingsPanel";
+import LiveStreamingPanel from "./components/LiveStreamingPanel";
 
-type AdminView = "dashboard" | "streams" | "mosques" | "recordings";
+type AdminView = "dashboard" | "streams" | "mosques" | "recordings" | "live-streaming";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -82,6 +83,8 @@ export default function AdminDashboardPage() {
         return <MosquesMap />;
       case "recordings":
         return <RecordingsPanel />;
+      case "live-streaming":
+        return <LiveStreamingPanel />;
       default:
         return <DashboardOverview />;
     }

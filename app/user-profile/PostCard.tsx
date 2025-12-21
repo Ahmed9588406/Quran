@@ -613,6 +613,8 @@ export default function PostCard({
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
 
   const authorName = display_name || username || "User";
   const authorAvatar = normalizeAvatarUrl(avatar_url);
@@ -623,6 +625,41 @@ export default function PostCard({
 
   // Ensure comments is always an array
   const safeComments: Comment[] = Array.isArray(comments) ? comments : [];
+
+  /**
+   * Toggle follow/unfollow for the post author
+   * Endpoint: POST/DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+   * Body: {"target_user_id":"..."}
+   */
+  const handleFollowToggle = async () => {
+    if (!user_id || isTogglingFollow) return;
+    
+    const prev = isFollowing;
+    setIsFollowing(!prev);
+    setIsTogglingFollow(true);
+    
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch("/api/follow", {
+        method: prev ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ target_user_id: user_id }),
+      });
+      
+      if (!res.ok) {
+        // Revert on failure
+        setIsFollowing(prev);
+      }
+    } catch (err) {
+      console.error("Follow toggle failed:", err);
+      setIsFollowing(prev);
+    } finally {
+      setIsTogglingFollow(false);
+    }
+  };
 
   const handleLike = () => {
     // Optimistic update + call API
@@ -948,8 +985,16 @@ export default function PostCard({
 
           <div className="flex items-center gap-2">
             {!isOwnProfile && hasValidUserId && (
-              <button className="px-4 py-1 bg-[#7b2030] text-white text-xs font-medium rounded-full hover:bg-[#5e0e27] transition-colors">
-                Follow
+              <button 
+                onClick={handleFollowToggle}
+                disabled={isTogglingFollow}
+                className={`px-4 py-1 text-xs font-medium rounded-full transition-colors ${
+                  isFollowing
+                    ? "bg-white text-[#7b2030] border border-[#7b2030] hover:bg-[#fffaf9]"
+                    : "bg-[#7b2030] text-white hover:bg-[#5e0e27]"
+                } ${isTogglingFollow ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {isTogglingFollow ? "..." : isFollowing ? "Following" : "Follow"}
               </button>
             )}
             

@@ -114,7 +114,7 @@ export default function SuggestedUsers() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ target_user_id: userId }),
       });
 
       if (!res.ok) {

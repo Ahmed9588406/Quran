@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Mosque Live Streaming</title>
+  <link rel="stylesheet" href="admin-dashboard.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1>🕌 Admin Dashboard</h1>
+        <div class="user-info">
+          <span id="adminName">Admin</span>
+          <button onclick="logout()" class="btn-logout">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs">
+      <button class="tab active" onclick="showTab('mosques')">Mosques</button>
+      <button class="tab" onclick="showTab('rooms')">Rooms</button>
+      <button class="tab" onclick="showTab('preachers')">Preachers</button>
+    </nav>
+
+    <!-- Mosques Tab -->
+    <div id="mosques-tab" class="tab-content active">
+      <div class="section-header">
+        <h2>Mosque Management</h2>
+        <button onclick="showCreateMosqueModal()" class="btn-primary">+ Create Mosque</button>
+      </div>
+      <div id="mosques-list" class="grid"></div>
+    </div>
+
+    <!-- Rooms Tab -->
+    <div id="rooms-tab" class="tab-content">
+      <div class="section-header">
+        <h2>Room Management</h2>
+        <button onclick="showCreateRoomModal()" class="btn-primary">+ Create Room</button>
+      </div>
+      <div id="rooms-list" class="grid"></div>
+    </div>
+
+    <!-- Preachers Tab -->
+    <div id="preachers-tab" class="tab-content">
+      <div class="section-header">
+        <h2>Preachers</h2>
+      </div>
+      <div id="preachers-list" class="grid"></div>
+    </div>
+  </div>
+
+  <!-- Modals will be added by JavaScript -->
+  <div id="modal-container"></div>
+
+  <script src="admin-dashboard.js"></script>
+</body>
+</html>
