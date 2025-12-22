@@ -1,133 +1,153 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import AdminSidebar from "./components/AdminSidebar";
-import AdminNavbar from "./components/AdminNavbar";
-import DashboardOverview from "./components/DashboardOverview";
-import StreamsManagement from "./components/StreamsManagement";
-import MosquesMap from "./components/MosquesMap";
-import RecordingsPanel from "./components/RecordingsPanel";
-import LiveStreamingPanel from "./components/LiveStreamingPanel";
 
-type AdminView = "dashboard" | "streams" | "mosques" | "recordings" | "live-streaming";
+import React, { useState, useEffect, useCallback } from "react";
+import { AdminHeader } from "./components/AdminHeader";
+import { TabNavigation } from "./components/TabNavigation";
+import { MosquesTab } from "./components/MosquesTab";
+import { RoomsTab } from "./components/RoomsTab";
+import { PreachersTab } from "./components/PreachersTab";
+import { Toast } from "./components/Toast";
+import { LoginModal } from "./components/LoginModal";
+import { Mosque, Room, Preacher, ToastMessage } from "./types";
 
-export default function AdminDashboardPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeView, setActiveView] = useState<AdminView>("dashboard");
-  const [userName, setUserName] = useState("Admin");
+const API_BASE = "/api/admin";
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState<"mosques" | "rooms" | "preachers">("mosques");
+  const [adminToken, setAdminToken] = useState<string>("");
+  const [showLogin, setShowLogin] = useState(false);
+  const [mosques, setMosques] = useState<Mosque[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [preachers, setPreachers] = useState<Preacher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" | "warning") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const loadMosques = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/mosques?size=100`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await response.json();
+      setMosques(data.content || []);
+    } catch (error) {
+      console.error("Error loading mosques:", error);
+      showToast("Failed to load mosques", "error");
+    }
+  }, [adminToken, showToast]);
+
+  const loadRooms = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/rooms?size=100`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await response.json();
+      setRooms(data.content || []);
+    } catch (error) {
+      console.error("Error loading rooms:", error);
+    }
+  }, [adminToken]);
+
+  const loadPreachers = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/preachers?size=100`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await response.json();
+      setPreachers(data.content || []);
+    } catch (error) {
+      console.error("Error loading preachers:", error);
+    }
+  }, [adminToken]);
+
+  const loadAllData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadMosques(), loadRooms(), loadPreachers()]);
+    setLoading(false);
+  }, [loadMosques, loadRooms, loadPreachers]);
 
   useEffect(() => {
-    const checkAuth = () => {
-      try {
-        const userStr = localStorage.getItem("user");
-        const token = localStorage.getItem("access_token");
-
-        if (!userStr || !token) {
-          router.replace("/login");
-          return;
-        }
-
-        const user = JSON.parse(userStr);
-        const userRole = user.role?.toLowerCase();
-
-        if (userRole !== "admin") {
-          // Non-admin users redirect to their appropriate page
-          const userId = user.id || localStorage.getItem("user_id");
-          if (userRole === "preacher") {
-            router.replace(`/khateb_Studio/${userId}`);
-          } else {
-            router.replace(`/user/${userId}`);
-          }
-          return;
-        }
-
-        setUserName(user.display_name || user.username || "Admin");
-        setIsAuthorized(true);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Auth check failed:", error);
-        router.replace("/login");
-      }
-    };
-
-    checkAuth();
-  }, [router]);
-
-  if (isLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-[#FFF9F3]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-[#8A1538] border-t-transparent rounded-full animate-spin" />
-          <p className="text-[#8A1538] font-medium">Loading Admin Dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthorized) {
-    return null;
-  }
-
-  const renderContent = () => {
-    switch (activeView) {
-      case "dashboard":
-        return <DashboardOverview />;
-      case "streams":
-        return <StreamsManagement />;
-      case "mosques":
-        return <MosquesMap />;
-      case "recordings":
-        return <RecordingsPanel />;
-      case "live-streaming":
-        return <LiveStreamingPanel />;
-      default:
-        return <DashboardOverview />;
+    const token = localStorage.getItem("adminToken");
+    if (token) {
+      setAdminToken(token);
+    } else {
+      setShowLogin(true);
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (adminToken) {
+      loadAllData();
+    }
+  }, [adminToken, loadAllData]);
+
+  const handleLogin = (token: string) => {
+    localStorage.setItem("adminToken", token);
+    setAdminToken(token);
+    setShowLogin(false);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("adminToken");
+    setAdminToken("");
+    setShowLogin(true);
+    setMosques([]);
+    setRooms([]);
+    setPreachers([]);
+  };
+
+  if (showLogin) {
+    return <LoginModal onLogin={handleLogin} />;
+  }
+
   return (
-    <div className="h-screen bg-[#FFF9F3] flex flex-col overflow-hidden">
-      <AdminNavbar
-        userName={userName}
-        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-        isSidebarOpen={isSidebarOpen}
-      />
-
-      <div className="flex flex-1 overflow-hidden">
-        <AdminSidebar
-          isOpen={isSidebarOpen}
-          activeView={activeView}
-          onViewChange={setActiveView}
-          onClose={() => setIsSidebarOpen(false)}
-        />
-
-        <main
-          className={`flex-1 transition-all duration-300 overflow-hidden ${
-            isSidebarOpen ? "ml-64" : "ml-16"
-          }`}
-        >
-          <div className="h-full p-6 overflow-y-auto">
-            {renderContent()}
-          </div>
-        </main>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <AdminHeader onLogout={handleLogout} />
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+        
+        <div className="p-6 md:p-8">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+              <p className="mt-4 text-gray-500">Loading data...</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === "mosques" && (
+                <MosquesTab
+                  mosques={mosques}
+                  preachers={preachers}
+                  adminToken={adminToken}
+                  apiBase={API_BASE}
+                  onRefresh={loadMosques}
+                  showToast={showToast}
+                />
+              )}
+              {activeTab === "rooms" && (
+                <RoomsTab
+                  rooms={rooms}
+                  mosques={mosques}
+                  adminToken={adminToken}
+                  apiBase={API_BASE}
+                  onRefresh={() => { loadRooms(); loadMosques(); }}
+                  showToast={showToast}
+                />
+              )}
+              {activeTab === "preachers" && (
+                <PreachersTab preachers={preachers} />
+              )}
+            </>
+          )}
+        </div>
       </div>
-
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
+      
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

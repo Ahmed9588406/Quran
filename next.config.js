@@ -25,6 +25,11 @@ const nextConfig = {
         source: '/api/v1/fatwas/my/:status',
         destination: 'http://192.168.1.29:8080/api/v1/fatwas/my/:status',
       },
+      // Janus WebRTC server proxy
+      {
+        source: '/janus/:path*',
+        destination: 'http://192.168.1.29:8088/janus/:path*',
+      },
     ];
   },
 };
