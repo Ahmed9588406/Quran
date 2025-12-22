@@ -48,8 +48,33 @@ function formatDate(d?: string) {
   }
 }
 
+/**
+ * Toggle follow/unfollow for a user
+ * Endpoint: POST/DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+ * Body: {"target_user_id":"..."}
+ */
+async function toggleFollowUser(targetUserId: string, isCurrentlyFollowing: boolean): Promise<boolean> {
+  try {
+    const token = localStorage.getItem("access_token");
+    const res = await fetch("/api/follow", {
+      method: isCurrentlyFollowing ? "DELETE" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Follow toggle failed:", err);
+    return false;
+  }
+}
+
 export default function PostView() {
   const [likedIds, setLikedIds] = useState<Record<string, boolean>>({});
+  const [followingIds, setFollowingIds] = useState<Record<string, boolean>>({});
+  const [togglingFollowIds, setTogglingFollowIds] = useState<Record<string, boolean>>({});
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +133,23 @@ export default function PostView() {
     }
   };
 
+  // Follow/unfollow logic
+  const handleToggleFollow = async (authorId: string) => {
+    if (!authorId || togglingFollowIds[authorId]) return;
+    
+    const prev = followingIds[authorId] ?? false;
+    setFollowingIds((s) => ({ ...s, [authorId]: !prev }));
+    setTogglingFollowIds((s) => ({ ...s, [authorId]: true }));
+    
+    const success = await toggleFollowUser(authorId, prev);
+    
+    if (!success) {
+      setFollowingIds((s) => ({ ...s, [authorId]: prev }));
+    }
+    
+    setTogglingFollowIds((s) => ({ ...s, [authorId]: false }));
+  };
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -136,10 +178,15 @@ export default function PostView() {
           setHasMore(items.length >= 10);
           // Initialize liked state
           const likedState: Record<string, boolean> = {};
+          const followingState: Record<string, boolean> = {};
           items.forEach((p) => {
             likedState[p.id] = p.liked_by_me ?? false;
+            if (p.author_id) {
+              followingState[p.author_id] = p.is_following === 1;
+            }
           });
           setLikedIds(likedState);
+          setFollowingIds(followingState);
         }
       } catch (err: any) {
         if (!cancelled) setError(err.message ?? String(err));
@@ -192,9 +239,26 @@ export default function PostView() {
                   </div>
                 </div>
 
-                {post.is_following === 0 && (
-                  <button className="bg-[#7b2030] text-white text-sm px-3 py-1 rounded-md font-medium hover:opacity-95">
-                    Follow
+                {post.author_id && post.is_following === 0 && !followingIds[post.author_id] && (
+                  <button 
+                    onClick={() => handleToggleFollow(post.author_id!)}
+                    disabled={togglingFollowIds[post.author_id!]}
+                    className={`text-sm px-3 py-1 rounded-md font-medium hover:opacity-95 ${
+                      followingIds[post.author_id!]
+                        ? "bg-white text-[#7b2030] border border-[#7b2030]"
+                        : "bg-[#7b2030] text-white"
+                    } ${togglingFollowIds[post.author_id!] ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    {togglingFollowIds[post.author_id!] ? "..." : followingIds[post.author_id!] ? "Following" : "Follow"}
+                  </button>
+                )}
+                {post.author_id && followingIds[post.author_id] && (
+                  <button 
+                    onClick={() => handleToggleFollow(post.author_id!)}
+                    disabled={togglingFollowIds[post.author_id!]}
+                    className="bg-white text-[#7b2030] border border-[#7b2030] text-sm px-3 py-1 rounded-md font-medium hover:bg-[#fffaf9]"
+                  >
+                    {togglingFollowIds[post.author_id!] ? "..." : "Following"}
                   </button>
                 )}
 

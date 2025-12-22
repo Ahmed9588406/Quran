@@ -835,15 +835,16 @@ function FeedPostCard({ post, currentUserAvatar, currentUserName }: FeedPostCard
 		setIsTogglingFollow(true);
 		try {
 			const token = localStorage.getItem("access_token") ?? undefined;
-			// attempt to call a local proxy endpoint that handles follow/unfollow.
-			// POST -> follow, DELETE -> unfollow. If your API differs, adjust the path/method.
+			// Call the follow API with the correct body format
+			// Endpoint: POST/DELETE http://apisoapp.twingroups.com/follow/{{user_id}}
+			// Body: {"target_user_id":"..."}
 			const res = await fetch("/api/follow", {
 				method: prev ? "DELETE" : "POST",
 				headers: {
 					"Content-Type": "application/json",
 					...(token ? { Authorization: `Bearer ${token}` } : {}),
 				},
-				body: JSON.stringify({ userId: String(authorId) }),
+				body: JSON.stringify({ target_user_id: String(authorId) }),
 			});
 			if (!res.ok) {
 				// revert on failure

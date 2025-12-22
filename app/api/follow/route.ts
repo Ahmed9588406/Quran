@@ -2,17 +2,59 @@
  * Follow API Route
  * 
  * Proxies follow/unfollow requests to the external API.
+ * Endpoint: POST http://apisoapp.twingroups.com/follow/{{user_id}}
+ * Body: {"target_user_id":"..."}
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
+/**
+ * Get current user ID from token (decode JWT or fetch from API)
+ */
+async function getCurrentUserId(token: string): Promise<string | null> {
+  try {
+    // Try to decode JWT to get user_id
+    const parts = token.replace('Bearer ', '').split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(atob(parts[1]));
+      if (payload.user_id || payload.sub || payload.id) {
+        return payload.user_id || payload.sub || payload.id;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const token = request.headers.get('authorization');
     
+    // Get target user ID from request body (can be userId or target_user_id)
+    const targetUserId = body.target_user_id || body.userId || body.user_id;
+    
+    if (!targetUserId) {
+      return NextResponse.json(
+        { error: 'target_user_id is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get current user ID from token
+    let currentUserId: string | null = null;
+    if (token) {
+      currentUserId = await getCurrentUserId(token);
+    }
+    
+    // If we couldn't get user ID from token, try from body
+    if (!currentUserId) {
+      currentUserId = body.current_user_id || body.currentUserId;
+    }
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -21,19 +63,22 @@ export async function POST(request: NextRequest) {
       headers['Authorization'] = token;
     }
 
-    const response = await fetch(
-      `${BACKEND_URL}/follow`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      }
-    );
+    // Build the endpoint URL with user_id path parameter
+    // Use current user ID if available, otherwise use a placeholder that the backend might handle
+    const userId = currentUserId || 'me';
+    const endpoint = `${BACKEND_URL}/follow/${userId}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ target_user_id: String(targetUserId) }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('[Follow API Proxy] Error response:', errorText);
       return NextResponse.json(
-        { error: 'Failed to follow user' },
+        { error: 'Failed to follow user', details: errorText },
         { status: response.status }
       );
     }
@@ -67,6 +112,27 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json();
     const token = request.headers.get('authorization');
     
+    // Get target user ID from request body (can be userId or target_user_id)
+    const targetUserId = body.target_user_id || body.userId || body.user_id;
+    
+    if (!targetUserId) {
+      return NextResponse.json(
+        { error: 'target_user_id is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get current user ID from token
+    let currentUserId: string | null = null;
+    if (token) {
+      currentUserId = await getCurrentUserId(token);
+    }
+    
+    // If we couldn't get user ID from token, try from body
+    if (!currentUserId) {
+      currentUserId = body.current_user_id || body.currentUserId;
+    }
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -75,19 +141,21 @@ export async function DELETE(request: NextRequest) {
       headers['Authorization'] = token;
     }
 
-    const response = await fetch(
-      `${BACKEND_URL}/follow`,
-      {
-        method: 'DELETE',
-        headers,
-        body: JSON.stringify(body),
-      }
-    );
+    // Build the endpoint URL with user_id path parameter
+    const userId = currentUserId || 'me';
+    const endpoint = `${BACKEND_URL}/follow/${userId}`;
+
+    const response = await fetch(endpoint, {
+      method: 'DELETE',
+      headers,
+      body: JSON.stringify({ target_user_id: String(targetUserId) }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('[Unfollow API Proxy] Error response:', errorText);
       return NextResponse.json(
-        { error: 'Failed to unfollow user' },
+        { error: 'Failed to unfollow user', details: errorText },
         { status: response.status }
       );
     }
