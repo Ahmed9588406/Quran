@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { Settings, MapPin, Briefcase, GraduationCap, MessageCircle } from "lucide-react";
+import FollowersModal from "./FollowersModal";
 
 const BASE_URL = "http://apisoapp.twingroups.com"; // same backend host used by the proxy
 
@@ -85,6 +86,7 @@ export default function ProfileHeader({
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [followerCount, setFollowerCount] = useState(followers);
+  const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
 
   // prefer avatar then avatar_url; normalize relative paths; fallback to local asset
   const avatarSrc = normalizeUrl(avatar ?? avatar_url) ?? "/default-avatar.png";
@@ -222,10 +224,13 @@ export default function ProfileHeader({
                   <span className="font-semibold text-gray-900">{posts}</span>
                   <span className="text-gray-500 ml-1">posts</span>
                 </div>
-                <div>
+                <button
+                  onClick={() => setIsFollowersModalOpen(true)}
+                  className="hover:opacity-70 transition-opacity cursor-pointer"
+                >
                   <span className="font-semibold text-gray-900">{followerCount}</span>
                   <span className="text-gray-500 ml-1">followers</span>
-                </div>
+                </button>
                 <div>
                   <span className="font-semibold text-gray-900">{following}</span>
                   <span className="text-gray-500 ml-1">following</span>
@@ -289,6 +294,14 @@ export default function ProfileHeader({
           </div>
         </div>
       </div>
+
+      {/* Followers Modal */}
+      <FollowersModal
+        isOpen={isFollowersModalOpen}
+        onClose={() => setIsFollowersModalOpen(false)}
+        userId={userId || ''}
+        isOwnProfile={isOwnProfile}
+      />
     </div>
   );
 }

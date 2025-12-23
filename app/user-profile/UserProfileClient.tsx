@@ -10,6 +10,7 @@ import PhotosGrid from "./PhotosGrid";
 import Leaderboard from "./Leaderboard";
 import AboutSection from "./AboutSection";
 import ProfilePostCard from "./PostCard";
+import MyStories from "./MyStories";
 import { Button } from "@/components/ui/button";
 import { getCurrentUserId } from "@/lib/auth-helpers";
 import { Bookmark, Grid, Film, Loader2 } from "lucide-react";
@@ -761,6 +762,8 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
             )}
           </div>
         );
+      case "stories":
+        return <MyStories userId={userId} isOwnProfile={isOwnProfile} />;
       default:
         return null;
     }

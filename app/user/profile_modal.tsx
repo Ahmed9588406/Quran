@@ -1,10 +1,10 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
-import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Globe, LogOut, X } from "lucide-react";
-import { getProfileRoute } from "@/lib/auth-helpers";
+import { getProfileRoute, clearSession } from "@/lib/auth-helpers";
 
 type UserData = {
   id: string;
@@ -26,6 +26,7 @@ type Props = {
 
 export default function ProfileModal({ isOpen, onClose, user }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
   const [profileHref, setProfileHref] = useState("/user-profile");
   const [userData, setUserData] = useState<UserData | null>(user || null);
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,22 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
   useEffect(() => {
     setProfileHref(getProfileRoute());
   }, []);
+
+  const handleSignOut = async () => {
+    try {
+      // Clear session from localStorage
+      clearSession();
+      
+      // Close the modal
+      onClose();
+      
+      // Redirect to login page
+      router.push("/login");
+    } catch (err) {
+      console.error("Error signing out:", err);
+      setError("Failed to sign out");
+    }
+  }
 
   // Fetch user profile data when modal opens
   useEffect(() => {
@@ -193,10 +210,7 @@ export default function ProfileModal({ isOpen, onClose, user }: Props) {
         </button>
 
         <button
-          onClick={() => {
-            onClose();
-            // add sign-out logic here if needed
-          }}
+          onClick={handleSignOut}
           className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-gray-50"
         >
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/60">

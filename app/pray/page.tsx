@@ -88,10 +88,12 @@ export default function PrayPage() {
             </li>
 
             <li>
+              <Link href="/pray/sebha">
               <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
                 <span className="text-sm font-medium text-[#2b2b2b] text-left">Sebha</span>
                 <Image src="/icons/pray/roqia.svg" alt="Sebha Icon" width={40} height={40} className="object-contain" />
               </button>
+              </Link>
             </li>
 
             <li>

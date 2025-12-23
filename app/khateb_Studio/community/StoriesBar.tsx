@@ -212,7 +212,7 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
                 
                 <div className={`relative ${story.hasUnseenStory && !story.isYourStory ? 'p-[2.5px]' : ''} ${story.hasUnseenStory && !story.isYourStory ? 'bg-gradient-to-tr from-yellow-400 via-pink-500 to-fuchsia-500' : 'bg-gray-200'} rounded-full`}>
                   <div className="bg-white p-[3px] rounded-full">
-                    <Image
+                    <img
                       src={story.avatar}
                       alt={story.username}
                       width={64}

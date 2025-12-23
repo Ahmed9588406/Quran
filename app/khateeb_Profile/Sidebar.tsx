@@ -106,8 +106,6 @@ export default function Sidebar({
     { id: "go_live", label: "Go Live", icon: <Video className="w-5 h-5" />, href: "/go-live" },
     { id: "content", label: "Content", icon: <FileText className="w-5 h-5" />, href: "/content" },
     { id: "fatwas", label: "Fatwas", icon: <BookOpen className="w-5 h-5" />, href: "/khateb_Studio/fatwas" },
-    { id: "library", label: "Library", icon: <Archive className="w-5 h-5" />, href: "/library" },
-    { id: "analytics", label: "Analytics", icon: <BarChart2 className="w-5 h-5" />, href: "/analytics" },
     { id: "archive", label: "Archive", icon: <Archive className="w-5 h-5" />, href: "/archive" },
   ];
 
@@ -256,13 +254,7 @@ export default function Sidebar({
             </div>
           </Link>
 
-          <button 
-            onClick={() => onNavigate?.("feedback")} 
-            className={`flex items-center gap-3 rounded-lg transition-colors ${isOpen ? "w-full p-3" : "w-10 h-10 justify-center"} text-gray-600 hover:bg-gray-100`}
-          >
-            <MessageCircle className="w-6 h-6" />
-            {isOpen && <span className="text-sm">Send feedback</span>}
-          </button>
+          
         </div>
       </aside>
     </>

@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Bookmark } from "lucide-react";
+import { Bookmark, Play } from "lucide-react";
 
 interface ProfileTabsProps {
   activeTab: string;
@@ -17,6 +17,7 @@ export default function ProfileTabs({
     { id: "posts", label: "Posts", icon: "📝" },
     { id: "photos", label: "Photos", icon: "🖼️" },
     { id: "reels", label: "Reels", icon: "🎬" },
+    { id: "stories", label: "Stories", icon: "⭕" },
   ];
 
   return (
