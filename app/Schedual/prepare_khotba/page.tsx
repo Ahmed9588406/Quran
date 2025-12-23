@@ -1,14 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Menu, Moon, MessageCircle } from "lucide-react";
+import { Bell, Menu, Moon, MessageCircle, Download, FileText, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import dynamic from "next/dynamic";
 import Sidebar from "../../khateeb_Profile/Sidebar";
 import MessagesModal from "../../user/messages";
 import StartNewMessage from "../../user/start_new_message";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 function NavBar({
   onToggleSidebar,
@@ -131,7 +133,6 @@ function NavBar({
               className="ml-2 w-10 h-10 rounded-full overflow-hidden relative shadow-sm ring-1 ring-[#f0e6e5]"
               aria-label="Open profile"
             >
-              {/* Use native <img> as a reliable fallback for the header avatar */}
               <img
                 src="/icons/settings/profile.png"
                 alt="Profile"
@@ -163,8 +164,8 @@ export default function PrepareKhotbaPage() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // upload modal + success modal state
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isUploadSuccessOpen, setUploadSuccessOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -172,73 +173,356 @@ export default function PrepareKhotbaPage() {
   const [isMessagesOpen, setMessagesOpen] = useState(false);
   const [isStartNewOpen, setStartNewOpen] = useState(false);
 
-  // dummy users for start new message
+  const [khotbaTitle, setKhotbaTitle] = useState("");
+  const [khotbaContent, setKhotbaContent] = useState("");
+  const [importance, setImportance] = useState("");
+  const [supportingData, setSupportingData] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('right');
+  const [fontSize, setFontSize] = useState(16);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
   const dummyUsers = [
     { id: "u1", name: "John Doe", avatar: "https://i.pravatar.cc/80?img=1" },
     { id: "u2", name: "Jane Smith", avatar: "https://i.pravatar.cc/80?img=2" },
-    // add more as needed
   ];
 
-  // open upload modal (previously the Add file button triggered file input directly)
+  // Check if user is a preacher
+  useEffect(() => {
+    const checkAuthorization = () => {
+      try {
+        const userStr = localStorage.getItem('user');
+        const userRole = localStorage.getItem('user_role');
+        
+        let role = userRole;
+        
+        // Try to get role from user object if stored
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            role = user.role || userRole;
+          } catch {
+            // ignore parse error
+          }
+        }
+        
+        console.log('User role:', role);
+        
+        if (role !== 'preacher') {
+          // Not a preacher, redirect to home
+          alert('Access denied. Only preachers can access this page.');
+          router.push('/user');
+          return;
+        }
+        
+        setIsAuthorized(true);
+      } catch (err) {
+        console.error('Error checking authorization:', err);
+        router.push('/user');
+      }
+    };
+    
+    checkAuthorization();
+  }, [router]);
+
   const handleAddFile = () => {
     setUploadModalOpen(true);
   };
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setSelectedFiles(prev => [...prev, ...Array.from(files)]);
-      // simulate upload with uploading indicator
       setIsUploading(true);
-      setTimeout(() => {
+      
+      try {
+        // Get user ID from localStorage
+        const userId = localStorage.getItem('user_id');
+        const accessToken = localStorage.getItem('access_token');
+        
+        console.log('User ID:', userId);
+        console.log('Has access token:', !!accessToken);
+        
+        if (!userId) {
+          alert('User not authenticated. Please log in.');
+          setIsUploading(false);
+          return;
+        }
+
+        // Upload each file
+        const uploadPromises = Array.from(files).map(async (file) => {
+          console.log('Uploading file:', file.name, file.type, file.size);
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('userId', userId);
+          // Optional: Add liveStreamId if needed
+          // formData.append('liveStreamId', 'your-stream-id');
+
+          const response = await fetch('/api/documents', {
+            method: 'POST',
+            headers: {
+              ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+            },
+            body: formData,
+          });
+
+          console.log('Response status:', response.status);
+
+          if (!response.ok) {
+            // Try to get response as text first
+            const responseText = await response.text();
+            console.error('Upload failed - Status:', response.status);
+            console.error('Upload failed - Response text:', responseText);
+            
+            // Try to parse as JSON
+            let error;
+            try {
+              error = JSON.parse(responseText);
+            } catch {
+              error = { error: responseText || `HTTP ${response.status}` };
+            }
+            
+            console.error('Upload failed - Parsed error:', error);
+            const errorMsg = error.details || error.error || error.message || responseText || `Upload failed with status ${response.status}`;
+            throw new Error(errorMsg);
+          }
+
+          const result = await response.json();
+          console.log('Upload success:', result);
+          return result;
+        });
+
+        await Promise.all(uploadPromises);
+        
+        // Add files to local state after successful upload
+        setSelectedFiles(prev => [...prev, ...Array.from(files)]);
         setIsUploading(false);
         setUploadSuccessOpen(true);
+        
         setTimeout(() => {
           setUploadSuccessOpen(false);
           setUploadModalOpen(false);
         }, 2000);
-      }, 1500); // simulate 1.5s upload
+      } catch (error) {
+        console.error('Upload error:', error);
+        setIsUploading(false);
+        alert(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   };
 
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const files = e.dataTransfer.files;
+    
     if (files && files.length) {
-      setSelectedFiles(prev => [...prev, ...Array.from(files)]);
-      // simulate upload with uploading indicator
       setIsUploading(true);
-      setTimeout(() => {
+      
+      try {
+        // Get user ID from localStorage
+        const userId = localStorage.getItem('user_id');
+        const accessToken = localStorage.getItem('access_token');
+        
+        console.log('User ID:', userId);
+        console.log('Has access token:', !!accessToken);
+        
+        if (!userId) {
+          alert('User not authenticated. Please log in.');
+          setIsUploading(false);
+          return;
+        }
+
+        // Upload each file
+        const uploadPromises = Array.from(files).map(async (file) => {
+          console.log('Uploading file:', file.name, file.type, file.size);
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('userId', userId);
+          // Optional: Add liveStreamId if needed
+          // formData.append('liveStreamId', 'your-stream-id');
+
+          const response = await fetch('/api/documents', {
+            method: 'POST',
+            headers: {
+              ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+            },
+            body: formData,
+          });
+
+          console.log('Response status:', response.status);
+
+          if (!response.ok) {
+            // Try to get response as text first
+            const responseText = await response.text();
+            console.error('Upload failed - Status:', response.status);
+            console.error('Upload failed - Response text:', responseText);
+            
+            // Try to parse as JSON
+            let error;
+            try {
+              error = JSON.parse(responseText);
+            } catch {
+              error = { error: responseText || `HTTP ${response.status}` };
+            }
+            
+            console.error('Upload failed - Parsed error:', error);
+            const errorMsg = error.details || error.error || error.message || responseText || `Upload failed with status ${response.status}`;
+            throw new Error(errorMsg);
+          }
+
+          const result = await response.json();
+          console.log('Upload success:', result);
+          return result;
+        });
+
+        await Promise.all(uploadPromises);
+        
+        // Add files to local state after successful upload
+        setSelectedFiles(prev => [...prev, ...Array.from(files)]);
         setIsUploading(false);
         setUploadSuccessOpen(true);
+        
         setTimeout(() => {
           setUploadSuccessOpen(false);
           setUploadModalOpen(false);
         }, 2000);
-      }, 1500);
+      } catch (error) {
+        console.error('Upload error:', error);
+        setIsUploading(false);
+        alert(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   };
+  
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragOver(true); };
   const onDragLeave = () => setDragOver(false);
 
-  const handleUploadConfirm = () => {
-    if (selectedFiles.length === 0) return;
-    // simulate upload...
-    setUploadSuccessOpen(true);
-    // auto-close success after 2s
-    setTimeout(() => {
-      setUploadSuccessOpen(false);
-      setUploadModalOpen(false);
-      // optionally clear selection: setSelectedFiles([]);
-    }, 2000);
+  const handleSelectUser = (user: any) => {
+    console.log("Selected user:", user);
   };
 
-  const handleSelectUser = (user: any) => {
-    // handle selecting user, e.g., open chat
-    console.log("Selected user:", user);
-    // for now, just close
+  const exportToPDF = async () => {
+    if (!contentRef.current) return;
+    
+    setIsExporting(true);
+    
+    try {
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = '210mm';
+      tempContainer.style.padding = '20mm';
+      tempContainer.style.backgroundColor = 'white';
+      tempContainer.style.fontFamily = 'Arial, sans-serif';
+      tempContainer.style.direction = 'rtl';
+      
+      tempContainer.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #8A1538; padding-bottom: 20px;">
+          <h1 style="color: #8A1538; font-size: 32px; margin-bottom: 10px; font-weight: bold;">خطبة الجمعة</h1>
+          <p style="color: #666; font-size: 16px;">${formattedDate || new Date().toLocaleDateString('ar-SA')}</p>
+        </div>
+        
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #8A1538; font-size: 24px; margin-bottom: 15px; font-weight: bold; text-align: ${textAlign};">موضوع الخطبة</h2>
+          <p style="font-size: ${fontSize}px; line-height: 1.8; color: #333; text-align: ${textAlign};">${khotbaTitle || 'لم يتم إدخال عنوان'}</p>
+        </div>
+        
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #8A1538; font-size: 24px; margin-bottom: 15px; font-weight: bold; text-align: ${textAlign};">محتوى الخطبة</h2>
+          <div style="font-size: ${fontSize}px; line-height: 1.8; color: #333; white-space: pre-wrap; text-align: ${textAlign};">${khotbaContent || 'لم يتم إدخال محتوى'}</div>
+        </div>
+        
+        ${importance ? `
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #8A1538; font-size: 24px; margin-bottom: 15px; font-weight: bold; text-align: ${textAlign};">الأهمية</h2>
+          <div style="font-size: ${fontSize}px; line-height: 1.8; color: #333; white-space: pre-wrap; text-align: ${textAlign};">${importance}</div>
+        </div>
+        ` : ''}
+        
+        ${supportingData ? `
+        <div style="margin-bottom: 30px;">
+          <h2 style="color: #8A1538; font-size: 24px; margin-bottom: 15px; font-weight: bold; text-align: ${textAlign};">البيانات الداعمة</h2>
+          <div style="font-size: ${fontSize}px; line-height: 1.8; color: #333; white-space: pre-wrap; text-align: ${textAlign};">${supportingData}</div>
+        </div>
+        ` : ''}
+        
+        ${selectedFiles.length > 0 ? `
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #eee;">
+          <h3 style="color: #8A1538; font-size: 18px; margin-bottom: 10px; font-weight: bold;">الملفات المرفقة:</h3>
+          <ul style="list-style: none; padding: 0;">
+            ${selectedFiles.map(file => `<li style="margin-bottom: 5px; color: #666;">• ${file.name}</li>`).join('')}
+          </ul>
+        </div>
+        ` : ''}
+        
+        <div style="margin-top: 50px; text-align: center; color: #999; font-size: 12px; border-top: 1px solid #eee; padding-top: 20px;">
+          <p>تم إنشاء هذا المستند بواسطة نظام إعداد الخطب - وصال</p>
+        </div>
+      `;
+      
+      document.body.appendChild(tempContainer);
+      
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      document.body.removeChild(tempContainer);
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 297;
+      
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 297;
+      }
+      
+      const fileName = `خطبة_${khotbaTitle.substring(0, 20) || 'جديدة'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      
+      alert('تم تصدير الخطبة بنجاح! ✓');
+      
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('حدث خطأ أثناء تصدير الملف. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsExporting(false);
+    }
   };
+
+  // Show loading while checking authorization
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <svg className="animate-spin w-12 h-12 text-[#8A1538] mb-4" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+            <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+          </svg>
+          <p className="text-gray-500">Checking authorization...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -246,16 +530,41 @@ export default function PrepareKhotbaPage() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="pt-24 px-12 lg:px-20">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-start justify-between mb-8">
-            <div className="text-base text-[#8A1538] flex items-center gap-2">
+            <div className="text-base text-[#8A1538] flex items-center gap-4">
               <button onClick={() => router.back()} className="flex items-center gap-2 text-base text-[#8A1538] hover:underline">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7 7" /></svg>
                 <span>Back to Home</span>
               </button>
+              <Link href="/Schedual/previous_khotbas" className="flex items-center gap-2 text-base text-gray-500 hover:text-[#8A1538] transition-colors">
+                <FileText className="w-5 h-5" />
+                <span>Previous Khotbas</span>
+              </Link>
             </div>
 
-            <div className="text-base text-gray-500">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={exportToPDF}
+                disabled={isExporting}
+                className="flex items-center gap-2 px-6 py-3 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExporting ? (
+                  <>
+                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    <span>Exporting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    <span>Export as PDF</span>
+                  </>
+                )}
+              </button>
+
               <button onClick={handleAddFile} className="flex items-center gap-2 text-base text-gray-500 hover:text-gray-700">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                   <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -263,14 +572,74 @@ export default function PrepareKhotbaPage() {
                 <span className="ml-1">Add file</span>
               </button>
 
-              {/* hidden native input used by the modal's "Select File" button */}
-              <input ref={fileInputRef} type="file" onChange={handleFileChange} multiple style={{ display: "none" }} />
+              <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" onChange={handleFileChange} multiple style={{ display: "none" }} />
             </div>
           </div>
 
-          <div className="mb-12">
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">Text Alignment:</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setTextAlign('left')}
+                    className={`p-2 rounded ${textAlign === 'left' ? 'bg-[#8A1538] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                    title="Align Left"
+                  >
+                    <AlignLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setTextAlign('center')}
+                    className={`p-2 rounded ${textAlign === 'center' ? 'bg-[#8A1538] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                    title="Align Center"
+                  >
+                    <AlignCenter className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setTextAlign('right')}
+                    className={`p-2 rounded ${textAlign === 'right' ? 'bg-[#8A1538] text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                    title="Align Right (Arabic)"
+                  >
+                    <AlignRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">Font Size:</span>
+                <select
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                  className="px-3 py-1 border border-gray-300 rounded bg-white text-gray-700"
+                >
+                  <option value={12}>12px</option>
+                  <option value={14}>14px</option>
+                  <option value={16}>16px</option>
+                  <option value={18}>18px</option>
+                  <option value={20}>20px</option>
+                  <option value={24}>24px</option>
+                  <option value={28}>28px</option>
+                  <option value={32}>32px</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <FileText className="w-4 h-4" />
+                <span>Characters: {khotbaContent.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <div ref={contentRef} className="mb-12">
             <div className="text-base text-gray-300 uppercase tracking-wide">khotbah subject</div>
-            <h1 className="mt-4 text-5xl font-semibold text-[#2b2b2b]">Describe your idea</h1>
+            <input
+              type="text"
+              value={khotbaTitle}
+              onChange={(e) => setKhotbaTitle(e.target.value)}
+              placeholder="Enter Khotba title / أدخل عنوان الخطبة"
+              className="mt-4 w-full text-5xl font-semibold text-[#2b2b2b] bg-transparent border-none focus:outline-none focus:ring-0"
+              style={{ textAlign: textAlign }}
+            />
             {formattedDate ? (
               <div className="mt-4 text-base text-gray-600">Selected date: <span className="font-medium text-gray-800">{formattedDate}</span></div>
             ) : (
@@ -278,11 +647,18 @@ export default function PrepareKhotbaPage() {
             )}
           </div>
 
-          {/* large textarea / content area */}
           <div className="mb-10">
             <textarea
-              placeholder="Write here what you think..."
-              className="w-full min-h-[300px] border-t border-b border-gray-200 px-6 py-8 text-lg text-gray-700 focus:outline-none"
+              value={khotbaContent}
+              onChange={(e) => setKhotbaContent(e.target.value)}
+              placeholder="Write your Khotba content here... / اكتب محتوى الخطبة هنا..."
+              className="w-full min-h-[400px] border-t border-b border-gray-200 px-6 py-8 text-lg text-gray-700 focus:outline-none resize-y"
+              style={{ 
+                textAlign: textAlign, 
+                fontSize: `${fontSize}px`,
+                lineHeight: '1.8',
+                direction: textAlign === 'right' ? 'rtl' : 'ltr'
+              }}
             />
           </div>
           
@@ -290,38 +666,63 @@ export default function PrepareKhotbaPage() {
 
           <div className="mb-10">
             <h2 className="text-3xl font-semibold text-gray-800 mb-4">Why do you think it&apos;s important?</h2>
-            <p className="text-lg text-gray-500 mb-4">Why do you think it&apos;s important?</p>
-            <ul className="list-disc list-inside text-lg text-gray-600 space-y-3">
-              <li>List</li>
-              <li>List</li>
-              <li>List</li>
-            </ul>
+            <textarea
+              value={importance}
+              onChange={(e) => setImportance(e.target.value)}
+              placeholder="Explain the importance... / اشرح الأهمية..."
+              className="w-full min-h-[200px] border border-gray-200 rounded-lg px-6 py-4 text-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#8A1538] resize-y"
+              style={{ 
+                textAlign: textAlign, 
+                fontSize: `${fontSize}px`,
+                lineHeight: '1.8',
+                direction: textAlign === 'right' ? 'rtl' : 'ltr'
+              }}
+            />
           </div>
 
           <hr className="border-t border-gray-200 my-10" />
 
           <div className="mb-20">
             <h3 className="text-2xl font-semibold text-gray-800 mb-3">Supporting data</h3>
-            <p className="text-lg text-gray-500">Link slack threads, data reports, etc.</p>
-            <div className="mt-6 border border-dashed border-gray-200 rounded p-8 min-h-[150px] text-lg text-gray-400">
-              {selectedFiles.length > 0 ? (
+            <textarea
+              value={supportingData}
+              onChange={(e) => setSupportingData(e.target.value)}
+              placeholder="Add supporting data, references, or links... / أضف البيانات الداعمة والمراجع..."
+              className="w-full min-h-[150px] border border-gray-200 rounded-lg px-6 py-4 text-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#8A1538] resize-y mb-6"
+              style={{ 
+                textAlign: textAlign, 
+                fontSize: `${fontSize}px`,
+                lineHeight: '1.8',
+                direction: textAlign === 'right' ? 'rtl' : 'ltr'
+              }}
+            />
+            
+            {selectedFiles.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-800 mb-4">Attached Files:</h4>
                 <ul className="space-y-3">
                   {selectedFiles.map((file, index) => (
-                    <li key={index} className="flex items-center gap-3">
-                      <span>{file.name}</span>
-                      <span className="text-sm text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                    <li key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-[#8A1538]" />
+                        <span className="text-gray-700">{file.name}</span>
+                        <span className="text-sm text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== index))}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Remove
+                      </button>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                "Attach supporting files or paste links here..."
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* Upload Modal */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setUploadModalOpen(false)} />
@@ -331,7 +732,6 @@ export default function PrepareKhotbaPage() {
             onDragLeave={onDragLeave}
             className={`relative z-10 w-[640px] h-[444px] p-6 bg-[#FFF9F3] rounded-[24px] flex flex-col items-center justify-center gap-6 ${dragOver ? "ring-2 ring-[#8A1538]" : ""}`}
           >
-            {/* Upload Icon */}
             <div className="flex flex-col items-center gap-[26px]">
               <div className="w-14 h-14 flex items-center justify-center">
                 <Image
@@ -342,7 +742,6 @@ export default function PrepareKhotbaPage() {
                 />
               </div>
               
-              {/* Title */}
               <div className="flex flex-col items-center justify-center gap-4 w-full">
                 <h2 className="text-[32px] font-medium text-[#333333] text-center leading-[1em] tracking-[-0.04em]">
                   Drag and drop file to upload
@@ -350,7 +749,6 @@ export default function PrepareKhotbaPage() {
               </div>
             </div>
 
-            {/* Select File Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
               className="w-[166px] h-12 bg-[#8A1538] rounded-lg flex items-center justify-center gap-2 px-4 py-2 hover:bg-[#6d1029] transition-colors"
@@ -363,7 +761,6 @@ export default function PrepareKhotbaPage() {
         </div>
       )}
 
-      {/* Upload Success / Uploading indicator */}
       {isUploadModalOpen && isUploading && (
         <div className="fixed inset-0 z-70 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/30" />
@@ -398,20 +795,17 @@ export default function PrepareKhotbaPage() {
         </div>
       )}
 
-      {/* Floating messages button */}
       <button aria-label="Open messages" onClick={() => setMessagesOpen(true)} className="fixed bottom-8 right-8 bg-[#8A1538] text-white px-8 py-4 rounded-full shadow-lg flex items-center gap-3 hover:bg-[#6d1029] transition-colors text-lg">
         <span className="font-medium">Messages</span>
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
       </button>
 
-      {/* Messages Modal */}
       <MessagesModal
         isOpen={isMessagesOpen}
         onClose={() => setMessagesOpen(false)}
         onOpenStart={() => setStartNewOpen(true)}
       />
 
-      {/* Start New Message Modal */}
       <StartNewMessage
         isOpen={isStartNewOpen}
         onClose={() => setStartNewOpen(false)}

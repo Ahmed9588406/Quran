@@ -95,6 +95,11 @@ export default function Login() {
 				localStorage.setItem("user_id", userId);
 			}
 			
+			// Store user role separately for quick access
+			if (userRole) {
+				localStorage.setItem("user_role", userRole);
+			}
+			
 			if (user) {
 				// Store user object with ID and role for subsequent navigation
 				// Requirements: 1.2
