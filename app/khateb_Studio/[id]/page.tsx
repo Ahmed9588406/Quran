@@ -260,6 +260,7 @@ export default function DynamicKhateebStudioPage({ params }: { params: Promise<{
   const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
   const [isAudioOpen, setIsAudioOpen] = useState(false);
   const [isMicSettingsOpen, setIsMicSettingsOpen] = useState(false);
+  const [liveRoomInfo, setLiveRoomInfo] = useState<{ roomId: number; liveStreamId: number; topic?: string } | null>(null);
 
   const router = useRouter();
 
@@ -582,14 +583,27 @@ export default function DynamicKhateebStudioPage({ params }: { params: Promise<{
       <GoLiveModal
         open={isGoLiveOpen}
         onClose={() => setIsGoLiveOpen(false)}
-        onStartLive={() => {
+        onStartLive={(roomInfo) => {
           setIsGoLiveOpen(false);
+          if (roomInfo) {
+            setLiveRoomInfo(roomInfo);
+          }
           setIsAudioOpen(true);
         }}
       />
 
       {/* Audio / Live room bottom modal */}
-      <AudioModal open={isAudioOpen} onClose={() => setIsAudioOpen(false)} participantsCount={1} />
+      <AudioModal 
+        open={isAudioOpen} 
+        onClose={() => {
+          setIsAudioOpen(false);
+          setLiveRoomInfo(null);
+        }} 
+        participantsCount={0}
+        roomId={liveRoomInfo?.roomId}
+        liveStreamId={liveRoomInfo?.liveStreamId}
+        topic={liveRoomInfo?.topic}
+      />
 
       {/* Microphone settings modal */}
       <MicrophoneSettingsModal open={isMicSettingsOpen} onClose={() => setIsMicSettingsOpen(false)} />

@@ -7,9 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'http://apisoapp.twingroups.com';
+const BACKEND_URL = 'https://apisoapp.twingroups.com';
 
-const BACKEND_BASE = 'http://apisoapp.twingroups.com';
+const BACKEND_BASE = 'https://apisoapp.twingroups.com';
 
 /**
  * Normalizes URLs to be absolute

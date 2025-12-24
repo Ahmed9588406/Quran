@@ -13,13 +13,14 @@ import CommunityFeed from "./CommunityFeed";
 
 const StartNewMessage = dynamic(() => import("../../user/start_new_message"), { ssr: false });
 
-type User = { id: string; name: string; avatar: string };
-
-const sampleUsers: User[] = [
-  { id: "u1", name: "Ahmed Abdullah", avatar: "https://i.pravatar.cc/80?img=1" },
-  { id: "u2", name: "Mohammed Ali", avatar: "https://i.pravatar.cc/80?img=2" },
-  { id: "u3", name: "Fatima Hassan", avatar: "https://i.pravatar.cc/80?img=3" },
-];
+type User = { 
+  id: string; 
+  name: string; 
+  avatar: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+};
 
 export default function KhatebCommunityPage() {
   const router = useRouter();
@@ -28,6 +29,11 @@ export default function KhatebCommunityPage() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  // Following users state
+  const [followingUsers, setFollowingUsers] = useState<User[]>([]);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [followingError, setFollowingError] = useState<string | null>(null);
   
   // UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -71,6 +77,107 @@ export default function KhatebCommunityPage() {
 
     checkAuth();
   }, [router]);
+
+  // Fetch following users
+  const fetchFollowingUsers = async () => {
+    try {
+      setFollowingLoading(true);
+      setFollowingError(null);
+
+      const accessToken = localStorage.getItem("access_token");
+      if (!accessToken) {
+        setFollowingError("Authentication token not found");
+        setFollowingLoading(false);
+        return;
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
+      // Fetch following users from API
+      const response = await fetch("/api/following?limit=50&page=1", {
+        method: "GET",
+        headers,
+      });
+
+      console.log("Following API response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to fetch following users:", response.status, errorText);
+        throw new Error("Failed to fetch following users");
+      }
+
+      const data = await response.json();
+      console.log("Following API response data:", data);
+
+      // Transform API response to User format
+      let users: User[] = [];
+
+      if (data.following && Array.isArray(data.following)) {
+        users = data.following.map((user: any) => {
+          // Normalize avatar URL
+          let avatarUrl = user.avatar_url || user.profile_picture_url || "";
+          if (avatarUrl && !avatarUrl.startsWith("http")) {
+            avatarUrl = `https://apisoapp.twingroups.com${avatarUrl}`;
+          }
+          if (!avatarUrl) {
+            avatarUrl = "/icons/settings/profile.png";
+          }
+
+          return {
+            id: user.id || user.user_id || "",
+            name: user.display_name || user.username || "Unknown",
+            avatar: avatarUrl,
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: avatarUrl,
+          };
+        });
+        console.log("Transformed following users:", users);
+      } else if (Array.isArray(data)) {
+        // Handle if API returns array directly
+        users = data.map((user: any) => {
+          let avatarUrl = user.avatar_url || user.profile_picture_url || "";
+          if (avatarUrl && !avatarUrl.startsWith("http")) {
+            avatarUrl = `https://apisoapp.twingroups.com${avatarUrl}`;
+          }
+          if (!avatarUrl) {
+            avatarUrl = "/icons/settings/profile.png";
+          }
+
+          return {
+            id: user.id || user.user_id || "",
+            name: user.display_name || user.username || "Unknown",
+            avatar: avatarUrl,
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: avatarUrl,
+          };
+        });
+      }
+
+      setFollowingUsers(users);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load following users";
+      setFollowingError(errorMessage);
+      console.error("Error fetching following users:", err);
+    } finally {
+      setFollowingLoading(false);
+    }
+  };
+
+  // Fetch following users on component mount
+  useEffect(() => {
+    if (isAuthorized) {
+      fetchFollowingUsers();
+    }
+  }, [isAuthorized]);
 
   const handlePostCreated = () => {
     setRefreshKey(prev => prev + 1);
@@ -174,7 +281,7 @@ export default function KhatebCommunityPage() {
         <StartNewMessage
           isOpen={isStartMsgOpen}
           onClose={() => setIsStartMsgOpen(false)}
-          users={sampleUsers}
+          users={followingUsers.length > 0 ? followingUsers : []}
           onSelect={(user) => {
             console.log("Selected user:", user);
             setIsStartMsgOpen(false);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'https://noneffusive-reminiscent-tanna.ngrok-free.dev/api/v1/stream';
+// Use the stable backend URL
+const BACKEND_URL = 'https://javabacked.twingroups.com/api/v1/stream';
 
 /**
  * GET /api/stream/my-rooms - Get preacher's assigned rooms (Preacher only)

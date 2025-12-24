@@ -396,16 +396,16 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
         ...reel,
         video_url: reel.video_url?.startsWith("http") 
           ? reel.video_url 
-          : `http://apisoapp.twingroups.com${reel.video_url}`,
+          : `https://apisoapp.twingroups.com${reel.video_url}`,
         thumbnail_url: reel.thumbnail_url?.startsWith("http")
           ? reel.thumbnail_url
           : reel.thumbnail_url
-          ? `http://apisoapp.twingroups.com${reel.thumbnail_url}`
+          ? `https://apisoapp.twingroups.com${reel.thumbnail_url}`
           : undefined,
         user_avatar: reel.user_avatar?.startsWith("http")
           ? reel.user_avatar
           : reel.user_avatar
-          ? `http://apisoapp.twingroups.com${reel.user_avatar}`
+          ? `https://apisoapp.twingroups.com${reel.user_avatar}`
           : "/icons/settings/profile.png",
       }));
 
@@ -506,14 +506,14 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                 userPosts.map((post) => {
                   // Normalize media URLs if needed
                   const normalizedMedia = post.media?.map((m) => ({
-                    url: m.url ? (m.url.startsWith("http") ? m.url : `http://apisoapp.twingroups.com${m.url}`) : "",
+                    url: m.url ? (m.url.startsWith("http") ? m.url : `https://apisoapp.twingroups.com${m.url}`) : "",
                     media_type: m.media_type,
                   }));
                   // Normalize avatar URL
                   const normalizedAvatar = post.avatar_url?.startsWith("http")
                     ? post.avatar_url
                     : post.avatar_url
-                    ? `http://apisoapp.twingroups.com${post.avatar_url}`
+                    ? `https://apisoapp.twingroups.com${post.avatar_url}`
                     : userData?.avatar_url || "/icons/settings/profile.png";
 
                   return (
@@ -675,13 +675,13 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                   // Posts view - card layout
                   currentSavedItems.map((post) => {
                     const normalizedMedia = post.media?.map((m) => ({
-                      url: m.url ? (m.url.startsWith("http") ? m.url : `http://apisoapp.twingroups.com${m.url}`) : "",
+                      url: m.url ? (m.url.startsWith("http") ? m.url : `https://apisoapp.twingroups.com${m.url}`) : "",
                       media_type: m.media_type,
                     }));
                     const normalizedAvatar = post.avatar_url?.startsWith("http")
                       ? post.avatar_url
                       : post.avatar_url
-                      ? `http://apisoapp.twingroups.com${post.avatar_url}`
+                      ? `https://apisoapp.twingroups.com${post.avatar_url}`
                       : "/icons/settings/profile.png";
 
                     return (
@@ -712,7 +712,7 @@ export default function UserProfileClient({ userId }: UserProfileClientProps) {
                       const thumbnailUrl = videoMedia?.url
                         ? videoMedia.url.startsWith("http")
                           ? videoMedia.url
-                          : `http://apisoapp.twingroups.com${videoMedia.url}`
+                          : `https://apisoapp.twingroups.com${videoMedia.url}`
                         : null;
 
                       return (

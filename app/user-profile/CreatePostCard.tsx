@@ -1,6 +1,6 @@
 "use client";
-import { useState, useRef } from "react";
-import { Image as ImageIcon, Video, Send, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Image as ImageIcon, Video, Send, X, Play } from "lucide-react";
 import { toast } from "react-toastify";
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
@@ -29,38 +29,107 @@ export default function CreatePostCard({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
+  // Cleanup object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      selectedFiles.forEach((file) => {
+        if (file.preview.startsWith("blob:")) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, []);
+
+  // Determine file type from file
+  const getFileType = (file: File): "image" | "video" | null => {
+    // Check MIME type first
+    if (file.type.startsWith("image/")) return "image";
+    if (file.type.startsWith("video/")) return "video";
+    
+    // Fallback to extension check
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+    const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'wmv', 'flv', '3gp'];
+    
+    if (imageExts.includes(ext)) return "image";
+    if (videoExts.includes(ext)) return "video";
+    
+    return null;
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, expectedType?: "image" | "video") => {
     const files = Array.from(e.target.files || []);
     
+    // Max file size: 100MB for videos, 10MB for images
+    const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+    
+    console.log(`=== FILE SELECT ===`);
+    console.log("Files selected:", files.length);
+    console.log("Expected type:", expectedType || "any");
+    
+    if (files.length === 0) {
+      console.log("No files selected");
+      return;
+    }
+    
     files.forEach((file) => {
-      if (type === "image" && !file.type.startsWith("image/")) {
-        toast.error("Please select a valid image file");
+      console.log(`Processing file:`, file.name, "MIME:", file.type, `Size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Determine file type
+      const detectedType = getFileType(file);
+      console.log("Detected type:", detectedType);
+      
+      if (!detectedType) {
+        toast.error(`"${file.name}" is not a supported file type`);
+        console.log("Rejected: unsupported type");
         return;
       }
-      if (type === "video" && !file.type.startsWith("video/")) {
-        toast.error("Please select a valid video file");
+      
+      // If expectedType is specified, validate it matches
+      if (expectedType && detectedType !== expectedType) {
+        toast.error(`"${file.name}" is not a valid ${expectedType} file`);
+        console.log(`Rejected: expected ${expectedType}, got ${detectedType}`);
+        return;
+      }
+      
+      // Check file size
+      if (detectedType === "video" && file.size > MAX_VIDEO_SIZE) {
+        toast.error(`Video file is too large. Maximum size is 100MB. Your file: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+        return;
+      }
+      if (detectedType === "image" && file.size > MAX_IMAGE_SIZE) {
+        toast.error(`Image file is too large. Maximum size is 10MB. Your file: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const preview = event.target?.result as string;
-        setSelectedFiles((prev) => [
-          ...prev,
-          { file, preview, type },
-        ]);
-      };
-      reader.readAsDataURL(file);
+      // Use URL.createObjectURL for efficient preview
+      const preview = URL.createObjectURL(file);
+      console.log(`Created preview URL for ${detectedType}:`, preview);
+      
+      setSelectedFiles((prev) => [
+        ...prev,
+        { file, preview, type: detectedType },
+      ]);
+      
+      toast.success(`${detectedType === "video" ? "Video" : "Image"} added: ${file.name}`);
     });
 
-    // Reset input
+    // Reset inputs
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (videoInputRef.current) videoInputRef.current.value = "";
   };
-
+  
+  // Cleanup object URLs when files are removed
   const removeFile = (index: number) => {
+    const fileToRemove = selectedFiles[index];
+    if (fileToRemove?.preview.startsWith("blob:")) {
+      URL.revokeObjectURL(fileToRemove.preview);
+    }
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
+
+
 
   const handleCreatePost = async () => {
     if (!content.trim() && selectedFiles.length === 0) {
@@ -86,13 +155,13 @@ export default function CreatePostCard({
       console.log("Visibility:", visibility);
       console.log("Number of files:", selectedFiles.length);
       
-      // Append content and visibility
-      if (content.trim()) {
-        formData.append("content", content.trim());
-      }
+      // Append content (required field)
+      formData.append("content", content.trim() || "");
+      
+      // Append visibility
       formData.append("visibility", visibility);
 
-      // Add files with explicit filename (matching Postman format)
+      // Add files - each file with key "file" (matching Postman format)
       for (const selectedFile of selectedFiles) {
         console.log("Adding file:", selectedFile.file.name, "Type:", selectedFile.file.type, "Size:", selectedFile.file.size);
         formData.append("file", selectedFile.file, selectedFile.file.name);
@@ -113,6 +182,7 @@ export default function CreatePostCard({
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
+          // Don't set Content-Type - let browser set it with boundary for FormData
         },
         body: formData,
       });
@@ -186,10 +256,20 @@ export default function CreatePostCard({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <video
-                      src={file.preview}
-                      className="w-full h-full object-cover"
-                    />
+                    <div className="relative w-full h-full">
+                      <video
+                        src={file.preview}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                      {/* Video play icon overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center">
+                          <Play className="w-5 h-5 text-gray-800 ml-0.5" fill="currentColor" />
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <button
@@ -198,6 +278,10 @@ export default function CreatePostCard({
                 >
                   <X className="w-4 h-4" />
                 </button>
+                {/* File type badge */}
+                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[10px] text-white font-medium">
+                  {file.type === "video" ? "VIDEO" : "IMAGE"}
+                </div>
               </div>
             ))}
           </div>
@@ -221,7 +305,7 @@ export default function CreatePostCard({
       {/* Action Buttons */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
         <div className="flex items-center gap-4">
-          {/* Add Media Button */}
+          {/* Add Media Button - accepts both images and videos */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading}
@@ -231,14 +315,14 @@ export default function CreatePostCard({
             <span className="text-sm font-medium">Add media</span>
           </button>
 
-          {/* Add Reel Button */}
+          {/* Add Video Button - specifically for videos */}
           <button
             onClick={() => videoInputRef.current?.click()}
             disabled={isLoading}
             className="flex items-center gap-2 text-[#7b2030] hover:text-[#5e0e27] disabled:opacity-50 transition-colors"
           >
             <Video className="w-5 h-5" />
-            <span className="text-sm font-medium">Add reel</span>
+            <span className="text-sm font-medium">Add video</span>
           </button>
 
           {/* Hidden File Inputs */}
@@ -246,15 +330,14 @@ export default function CreatePostCard({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
-            onChange={(e) => handleFileSelect(e, "image")}
+            accept="image/*,video/*,.mp4,.webm,.mov,.avi,.mkv,.m4v,.wmv,.flv,.3gp,.jpg,.jpeg,.png,.gif,.webp"
+            onChange={(e) => handleFileSelect(e)}
             className="hidden"
           />
           <input
             ref={videoInputRef}
             type="file"
-            multiple
-            accept="video/*"
+            accept="video/*,.mp4,.webm,.mov,.avi,.mkv,.m4v,.wmv,.flv,.3gp"
             onChange={(e) => handleFileSelect(e, "video")}
             className="hidden"
           />

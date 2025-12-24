@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 
-const BASE_URL = "http://apisoapp.twingroups.com";
+const BASE_URL = "https://apisoapp.twingroups.com";
 
 /**
  * POST /api/posts
@@ -12,7 +12,7 @@ const BASE_URL = "http://apisoapp.twingroups.com";
  * - Body: FormData with:
  *   - content: string (post text)
  *   - visibility: "public" | "friends" | "private"
- *   - files: File[] (optional, images or videos)
+ *   - file: File[] (optional, images or videos - can have multiple "file" entries)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Get files - support both "files" and "file" field names
     const filesFromFiles = formData.getAll("files") as File[];
     const filesFromFile = formData.getAll("file") as File[];
-    const allFiles = [...filesFromFiles, ...filesFromFile];
+    const allFiles = [...filesFromFiles, ...filesFromFile].filter(f => f instanceof File && f.size > 0);
 
     // Log received data
     console.log("=== RECEIVED POST DATA ===");
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     });
     console.log("==========================");
 
-    // Validate content - allow posts with just media (no content)
+    // Validate - must have content or media
     if ((!content || content.trim().length === 0) && allFiles.length === 0) {
       return NextResponse.json(
         { error: "Post must have content or media" },
@@ -58,22 +58,26 @@ export async function POST(request: NextRequest) {
     // Create FormData for backend - match Postman format exactly
     const backendFormData = new FormData();
     
-    // Only append content if it exists
-    if (content && content.trim()) {
-      backendFormData.append("content", content.trim());
-    }
+    // Always append content (even if empty, some backends require it)
+    backendFormData.append("content", content?.trim() || "");
+    
+    // Append visibility
     backendFormData.append("visibility", visibility);
 
-    // Add files to backend FormData - use "file" key (matching Postman)
+    // Add files to backend FormData - use "file" key for each file (matching Postman)
     for (const file of allFiles) {
-      backendFormData.append("file", file, file.name);
+      // Create a new Blob from the file to ensure proper transfer
+      const arrayBuffer = await file.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: file.type });
+      backendFormData.append("file", blob, file.name);
     }
 
     // Log what we're sending to backend
     console.log("=== SENDING TO BACKEND ===");
+    console.log("URL:", `${BASE_URL}/posts`);
     for (const [key, value] of backendFormData.entries()) {
-      if (value instanceof File) {
-        console.log(`${key}: [File] ${value.name} (${value.type}, ${value.size} bytes)`);
+      if (value instanceof Blob) {
+        console.log(`${key}: [Blob] ${(value as any).name || 'unnamed'} (${value.type}, ${value.size} bytes)`);
       } else {
         console.log(`${key}: ${value}`);
       }
@@ -85,13 +89,18 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        // Don't set Content-Type - let fetch set it with proper boundary for FormData
       },
       body: backendFormData,
     });
 
-    const result = await response.json().catch(() => ({
-      error: `Backend returned ${response.status}`,
-    }));
+    const responseText = await response.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      result = { error: `Backend returned: ${responseText}` };
+    }
 
     // Log the backend response for debugging
     console.log("=== BACKEND POST CREATION RESPONSE ===");

@@ -21,7 +21,7 @@ export default function ProfileTabs({
   ];
 
   return (
-    <div className="border-b border-gray-200 sticky top-0 bg-white z-40">
+    <div className="border-b border-gray-200 sticky top-0 bg-white">
       <div className="max-w-4xl mx-auto px-6 flex gap-8">
         {tabs.map((tab) => (
           <button

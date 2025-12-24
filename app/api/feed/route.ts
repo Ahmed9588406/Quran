@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 
-const BASE_URL = 'http://apisoapp.twingroups.com';
+const BASE_URL = 'https://apisoapp.twingroups.com';
 
 function corsHeaders() {
   return {
@@ -19,6 +19,34 @@ function getCookieFromHeader(cookieHeader: string | null, name: string) {
     if (k === name) return decodeURIComponent(v.join('='));
   }
   return null;
+}
+
+// Helper to normalize any URL that starts with /
+function normalizeUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  if (typeof url !== 'string') return null;
+  // If already has http/https, return as is
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  // If starts with /, prepend base URL
+  if (url.startsWith('/')) return `${BASE_URL}${url}`;
+  // Otherwise, assume it's a relative path
+  return `${BASE_URL}/${url}`;
+}
+
+// Helper to determine media type from URL
+function getMediaType(url: string): string {
+  const lower = url.toLowerCase();
+  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') || lower.endsWith('.avi')) {
+    return 'video';
+  }
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp')) {
+    return 'image';
+  }
+  // Check for video in path
+  if (lower.includes('/video') || lower.includes('video/')) {
+    return 'video';
+  }
+  return 'image'; // default to image
 }
 
 export async function OPTIONS() {
@@ -88,41 +116,51 @@ export async function GET(request: Request) {
         const normalized = { ...post };
         
         // Normalize avatar_url
-        if (typeof post.avatar_url === 'string' && post.avatar_url.startsWith('/')) {
-          normalized.avatar_url = `${BASE_URL}${post.avatar_url}`;
-        }
+        normalized.avatar_url = normalizeUrl(post.avatar_url as string);
         
-        // Normalize media URLs
+        // Normalize media URLs - handle various formats
         if (Array.isArray(post.media)) {
           normalized.media = post.media.map((m: unknown) => {
-            // Handle both string and object formats
+            // Handle string format: "/uploads/posts/post_xxx.png"
             if (typeof m === 'string') {
-              // If media is just a string URL, convert to object format
-              const url = m.startsWith('/') ? `${BASE_URL}${m}` : m;
-              const mediaType = m.toLowerCase().endsWith('.mp4') || m.toLowerCase().endsWith('.webm') ? 'video/mp4' : 'image/jpeg';
-              return { url, media_url: url, media_type: mediaType };
-            } else if (typeof m === 'object' && m !== null) {
+              const fullUrl = normalizeUrl(m);
+              return { 
+                url: fullUrl, 
+                media_url: fullUrl, 
+                media_type: getMediaType(m) 
+              };
+            }
+            
+            // Handle object format
+            if (typeof m === 'object' && m !== null) {
               const mediaObj = m as Record<string, unknown>;
-              const normalizedMedia = { ...mediaObj };
+              const normalizedMedia: Record<string, unknown> = { ...mediaObj };
               
-              // Handle 'url' field
-              if (typeof mediaObj.url === 'string') {
-                normalizedMedia.url = mediaObj.url.startsWith('/') ? `${BASE_URL}${mediaObj.url}` : mediaObj.url;
+              // Try to get URL from various fields
+              const rawUrl = mediaObj.url || mediaObj.media_url || mediaObj.file_url || mediaObj.path;
+              if (typeof rawUrl === 'string') {
+                const fullUrl = normalizeUrl(rawUrl);
+                normalizedMedia.url = fullUrl;
+                normalizedMedia.media_url = fullUrl;
               }
               
-              // Handle 'media_url' field (backend uses this)
-              if (typeof mediaObj.media_url === 'string') {
-                const normalizedUrl = mediaObj.media_url.startsWith('/') ? `${BASE_URL}${mediaObj.media_url}` : mediaObj.media_url;
-                normalizedMedia.media_url = normalizedUrl;
-                // Also set 'url' for consistency
-                normalizedMedia.url = normalizedUrl;
+              // Ensure media_type is set
+              if (!normalizedMedia.media_type && normalizedMedia.url) {
+                normalizedMedia.media_type = getMediaType(normalizedMedia.url as string);
               }
               
               return normalizedMedia;
             }
+            
             return m;
           });
         }
+        
+        // Log normalized post for debugging
+        console.log(`Normalized post ${post.id}:`, {
+          media: normalized.media,
+          avatar_url: normalized.avatar_url
+        });
         
         return normalized;
       });

@@ -83,19 +83,15 @@ export default function CreateStoryModal({ isOpen, onClose, onStoryCreated }: Cr
 
       const data: StoryResponse = await response.json();
 
-      if (data.success) {
+      if (data.success || data.story_id) {
         setSuccess(true);
         setSelectedFile(null);
         setPreview('');
         setCaption('');
         
-        // Call the callback to refresh stories
-        if (onStoryCreated) {
-          onStoryCreated();
-        }
-        
         setTimeout(() => {
           setSuccess(false);
+          onStoryCreated?.();
           onClose();
         }, 2000);
       } else {
@@ -161,7 +157,7 @@ export default function CreateStoryModal({ isOpen, onClose, onStoryCreated }: Cr
           ) : (
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition"
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-[#7b2030] hover:bg-red-50 transition"
             >
               <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
               <p className="text-sm text-gray-600">Click to upload image</p>
@@ -186,7 +182,7 @@ export default function CreateStoryModal({ isOpen, onClose, onStoryCreated }: Cr
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a caption..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7b2030] resize-none"
               rows={3}
               maxLength={200}
             />
@@ -222,7 +218,7 @@ export default function CreateStoryModal({ isOpen, onClose, onStoryCreated }: Cr
             <button
               type="submit"
               disabled={isLoading || !selectedFile}
-              className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition font-medium flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 bg-[#7b2030] text-white rounded-lg hover:bg-[#5e0e27] disabled:bg-gray-400 disabled:cursor-not-allowed transition font-medium flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>

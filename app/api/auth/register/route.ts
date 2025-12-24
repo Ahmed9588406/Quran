@@ -1,7 +1,7 @@
 /* eslint-disable prefer-const */
 import { NextRequest, NextResponse } from "next/server";
 
-const BASE_URL = "http://apisoapp.twingroups.com";
+const BASE_URL = "https://apisoapp.twingroups.com";
 const REGISTER_ENDPOINT = `${BASE_URL}/auth/register`;
 
 function corsHeaders() {

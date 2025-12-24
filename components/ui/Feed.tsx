@@ -100,14 +100,14 @@ function formatRelativeTime(dateString?: string): string {
 const normalizeAvatarUrl = (url?: string): string => {
 	if (!url) return DEFAULT_AVATAR;
 	if (url.startsWith("http")) return url;
-	return `http://apisoapp.twingroups.com${url}`;
+	return `https://apisoapp.twingroups.com${url}`;
 };
 
 // Helper to normalize media URLs
 const normalizeMediaUrl = (url?: string): string | null => {
 	if (!url) return null;
 	if (url.startsWith("http")) return url;
-	return `http://apisoapp.twingroups.com${url}`;
+	return `https://apisoapp.twingroups.com${url}`;
 };
 
 /**
@@ -338,23 +338,53 @@ interface MediaGridProps {
 }
 
 function MediaGrid({ media, onImageClick }: MediaGridProps) {
-	const imageMedia = media.filter((m) => !m.media_type?.includes("video"));
-	const videoMedia = media.filter((m) => m.media_type?.includes("video"));
+	// Better video detection - check for "video" anywhere in media_type
+	const isVideo = (m: Media) => {
+		const type = m.media_type?.toLowerCase() || '';
+		return type === 'video' || type.startsWith('video/') || type.includes('video');
+	};
+	
+	const imageMedia = media.filter((m) => !isVideo(m));
+	const videoMedia = media.filter((m) => isVideo(m));
 	const totalImages = imageMedia.length;
+
+	// Debug log
+	console.log("MediaGrid - Total media:", media.length, "Images:", imageMedia.length, "Videos:", videoMedia.length);
+	media.forEach((m, i) => console.log(`  Media ${i}:`, m.url, "type:", m.media_type));
 
 	const renderVideos = () => (
 		<>
 			{videoMedia.map((item, index) => {
 				const mediaUrl = normalizeMediaUrl(item.url);
+				console.log("Rendering video:", mediaUrl, "original:", item.url);
 				if (!mediaUrl) return null;
 				return (
-					<div key={`video-${index}`} className="relative aspect-video bg-black">
-						<video src={mediaUrl} className="w-full h-full object-cover" controls preload="metadata" />
+					<div key={`video-${index}`} className="relative aspect-video bg-black rounded-lg overflow-hidden mb-2">
+						<video 
+							src={mediaUrl} 
+							className="w-full h-full object-contain" 
+							controls 
+							preload="metadata"
+							playsInline
+							onLoadStart={() => console.log("Video loading started:", mediaUrl)}
+							onCanPlay={() => console.log("Video can play:", mediaUrl)}
+							onError={(e) => {
+								console.error("Video error:", mediaUrl, e);
+								const target = e.target as HTMLVideoElement;
+								// Show error message instead of hiding
+								target.parentElement!.innerHTML = `<div class="flex items-center justify-center h-full text-white text-sm">Video failed to load</div>`;
+							}}
+						/>
 					</div>
 				);
 			})}
 		</>
 	);
+
+	// If only videos, no images
+	if (totalImages === 0 && videoMedia.length > 0) {
+		return <div className="mt-3">{renderVideos()}</div>;
+	}
 
 	if (totalImages === 1) {
 		const mediaUrl = normalizeMediaUrl(imageMedia[0].url);

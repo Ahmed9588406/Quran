@@ -108,7 +108,7 @@ export default function StoryViewer({ stories, initialIndex, onClose, onDelete, 
   useEffect(() => {
     if (isPaused || showViewers) return;
 
-    const duration = currentStory?.media_type === 'video' ? 15000 : 5000; // 15s for video, 5s for image
+    const duration = currentStory?.media_type === 'video' ? 15000 : 5000;
     const increment = 100 / (duration / 50);
 
     const interval = setInterval(() => {
@@ -160,7 +160,7 @@ export default function StoryViewer({ stories, initialIndex, onClose, onDelete, 
       if (stories.length <= 1) {
         onClose();
       } else if (currentIndex < stories.length - 1) {
-        // Stay at same index (next story will slide in)
+        // Stay at same index
       } else if (currentIndex > 0) {
         setCurrentIndex(currentIndex - 1);
       }

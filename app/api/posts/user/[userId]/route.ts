@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = "http://apisoapp.twingroups.com";
+const BACKEND_URL = "https://apisoapp.twingroups.com";
 
 function corsHeaders() {
   return {

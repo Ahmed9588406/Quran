@@ -29,6 +29,7 @@ interface Story {
 }
 
 interface StoriesBarProps {
+  userId?: string;
   onStoryClick?: (storyId: string, username: string) => void;
   onCreateStory?: () => void;
 }
@@ -109,7 +110,7 @@ function StoryActionMenu({
   );
 }
 
-export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarProps) {
+export default function StoriesBar({ userId, onStoryClick, onCreateStory }: StoriesBarProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -148,11 +149,11 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
   const fetchMyStories = async () => {
     try {
       const accessToken = localStorage.getItem('access_token');
-      const userId = localStorage.getItem('user_id') || currentUser?.id;
+      const storyUserId = userId || localStorage.getItem('user_id') || currentUser?.id;
       
-      if (!accessToken || !userId) return;
+      if (!accessToken || !storyUserId) return;
 
-      const response = await fetch(`/api/stories/${userId}`, {
+      const response = await fetch(`/api/stories/${storyUserId}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -181,7 +182,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
 
-      // Use proxy API to avoid CORS issues
       const response = await fetch('/api/stories/following?limit=20', {
         method: 'GET',
         headers,
@@ -198,9 +198,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
       const data = await response.json();
       console.log('Stories API response data:', data);
 
-      // The API returns: { success: true, users: [...], total_users: 20 }
-      // Each user has: { user_id, username, display_name, avatar_url, stories: [...], has_unviewed }
-      
       let usersWithStories: any[] = [];
       
       if (data.users && Array.isArray(data.users)) {
@@ -247,7 +244,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
 
       // Sort stories: unseen stories first, viewed stories at the end
       const sortedStories = transformedStories.sort((a, b) => {
-        // Unseen stories come first
         if (a.hasUnseenStory && !b.hasUnseenStory) return -1;
         if (!a.hasUnseenStory && b.hasUnseenStory) return 1;
         return 0;
@@ -264,7 +260,7 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
         currentUserAvatar = '/icons/settings/profile.png';
       }
 
-      // Add "Your story" at the beginning, then all following stories (sorted: unseen first, viewed last)
+      // Add "Your story" at the beginning
       const allStories: Story[] = [
         {
           id: '0',
@@ -332,13 +328,11 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
   const handleYourStoryClick = (e: React.MouseEvent) => {
     if (isDragging) return;
     
-    // If user has stories, show the action menu
     if (myStories.length > 0) {
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setMenuPosition({ x: rect.left + rect.width / 2, y: rect.bottom });
       setActionMenuOpen(true);
     } else {
-      // No stories, directly open create modal
       setIsCreateStoryOpen(true);
       if (onCreateStory) {
         onCreateStory();
@@ -364,10 +358,8 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
     if (isDragging) return;
     
     if (story.isYourStory) {
-      // This is handled by handleYourStoryClick
       return;
     } else if (story.stories && story.stories.length > 0) {
-      // Open story viewer with this user's stories
       setViewerStories(story.stories);
       setViewerInitialIndex(0);
       setCanDeleteViewer(false);
@@ -422,7 +414,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
   const handleMouseUp = () => setIsDragging(false);
   const handleMouseLeave = () => setIsDragging(false);
 
-  // Check if "Your story" has active stories (show ring indicator)
   const yourStoryHasContent = myStories.length > 0;
 
   return (
@@ -486,7 +477,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
                     aria-label={story.isYourStory ? 'Your story options' : `${story.username} story`}
                   >
                     <div className="relative">
-                      {/* Ring for unseen stories OR for your story if you have content */}
                       {((story.hasUnseenStory && !story.isYourStory) || (story.isYourStory && yourStoryHasContent)) && (
                         <div className={`absolute inset-0 rounded-full p-[2.5px] ${
                           story.isYourStory 
@@ -519,7 +509,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
                         </div>
                       </div>
 
-                      {/* Plus icon for Your Story */}
                       {story.isYourStory && (
                         <div className={`absolute bottom-0 right-0 rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-lg transition-colors ${
                           yourStoryHasContent 
@@ -531,7 +520,6 @@ export default function StoriesBar({ onStoryClick, onCreateStory }: StoriesBarPr
                       )}
                     </div>
                     
-                    {/* Username label */}
                     <span className="text-xs text-gray-600 mt-1 max-w-[70px] truncate">
                       {story.isYourStory ? 'Your story' : story.username}
                     </span>

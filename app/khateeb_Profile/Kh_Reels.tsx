@@ -52,8 +52,8 @@ export default function KhReels({ reels: initialReels, userId: propUserId }: KhR
         // Get auth token
         const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
-        // Fetch reels from endpoint
-        const response = await fetch(`${BASE_URL}/users/${userId}/reels`, {
+        // Fetch reels from proxy endpoint to avoid CORS issues
+        const response = await fetch(`/api/users/${userId}/reels`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

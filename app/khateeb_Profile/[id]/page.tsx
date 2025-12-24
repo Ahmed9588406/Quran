@@ -399,7 +399,7 @@ export default function KhateebProfilePage() {
       case "about":
         return <AboutSection workExperiences={workExperiences} placesLived={placesLived} contactInfo={contactInfo} isOwnProfile={isOwnProfile} />;
       case "stories":
-        return <MyStories userId={preacherId} />;
+        return <MyStories userId={preacherId} isOwnProfile={isOwnProfile} />;
       default:
         return null;
     }

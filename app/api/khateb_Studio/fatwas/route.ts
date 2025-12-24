@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE_URL = "https://noneffusive-reminiscent-tanna.ngrok-free.dev";
+// Use the stable backend URL
+const API_BASE_URL = "https://javabacked.twingroups.com";
 
 /**
  * GET /api/khateb_Studio/fatwas

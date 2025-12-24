@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BASE_URL = "http://apisoapp.twingroups.com";
+const BASE_URL = "https://apisoapp.twingroups.com";
 
 export async function GET(request: NextRequest) {
   try {
