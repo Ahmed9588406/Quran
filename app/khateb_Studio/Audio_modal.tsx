@@ -247,7 +247,17 @@ export default function AudioModal({
           startTimeRef.current = Date.now();
           setStatus("live");
           setStatusText("🔴 LIVE");
+          
+          // Ensure microphone is unmuted when going live
+          if (localStreamRef.current) {
+            const audioTracks = localStreamRef.current.getAudioTracks();
+            audioTracks.forEach((track) => {
+              track.enabled = true; // Enable all audio tracks (unmuted)
+              console.log(`Audio track ${track.label} enabled for live broadcast`);
+            });
+          }
           setMuted(false);
+          
           showAlert("You are now LIVE!", "success");
           startDurationCounter();
           startListenerPolling();
@@ -361,16 +371,46 @@ export default function AudioModal({
     pluginHandleRef.current = null;
   }, []);
 
-  // Toggle mute
-  const toggleMute = () => {
+  // Ref to track current muted state for use in callbacks
+  const mutedRef = useRef(muted);
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
+
+  // Toggle mute - uses track.enabled to mute/unmute without destroying the track
+  const toggleMute = useCallback(() => {
+    const currentMuted = mutedRef.current;
+    const newMutedState = !currentMuted;
+    
+    console.log(`Toggle mute: current=${currentMuted}, new=${newMutedState}`);
+    
     if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = muted; // Toggle: if muted, enable; if not muted, disable
-        setMuted(!muted);
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      console.log(`Found ${audioTracks.length} audio tracks`);
+      
+      audioTracks.forEach((track, index) => {
+        // Use track.enabled to mute/unmute - this doesn't destroy the track
+        track.enabled = !newMutedState;
+        console.log(`Audio track ${index} enabled: ${track.enabled}`);
+      });
+    }
+    
+    // Also tell Janus to mute/unmute the audio stream
+    if (pluginHandleRef.current) {
+      try {
+        pluginHandleRef.current.send({
+          message: { request: "configure", audio: !newMutedState }
+        });
+        console.log(`Janus: Sent ${newMutedState ? 'mute' : 'unmute'} request (audio: ${!newMutedState})`);
+      } catch (err) {
+        console.error("Error sending mute/unmute command to Janus:", err);
       }
     }
-  };
+    
+    setMuted(newMutedState);
+    mutedRef.current = newMutedState;
+    console.log(`Microphone ${newMutedState ? 'MUTED' : 'UNMUTED'}`);
+  }, []);
 
   // Reset state when modal closes
   useEffect(() => {

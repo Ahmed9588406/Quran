@@ -63,20 +63,15 @@ export default function PrayPage() {
             </li>
 
             <li>
-              
-              <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
-                <span className="text-sm font-medium text-[#2b2b2b] text-left">Azkar</span>
-                <Image src="/icons/pray/azkar.svg" alt="Azkar Icon" width={30} height={30} className="object-contain" />
-              </button>
-
+              <Link href="/pray/Azkar">
+                <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
+                  <span className="text-sm font-medium text-[#2b2b2b] text-left">Azkar</span>
+                  <Image src="/icons/pray/azkar.svg" alt="Azkar Icon" width={30} height={30} className="object-contain" />
+                </button>
+              </Link>
             </li>
 
-            <li>
-              <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
-                <span className="text-sm font-medium text-[#2b2b2b] text-left">Roqya</span>
-                <Image src="/icons/pray/roqia.svg" alt="Roqya Icon" width={40} height={40} className="object-contain" />
-              </button>
-            </li>
+            
 
             <li>
               <Link href="/pray/fatwa">
@@ -97,10 +92,12 @@ export default function PrayPage() {
             </li>
 
             <li>
-              <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
-                <span className="text-sm font-medium text-[#2b2b2b] text-left">Asmaa Allah el hosna</span>
-                <Image src="/icons/pray/asma.svg" alt="Asmaa Icon" width={40} height={40} className="object-contain" />
-              </button>
+              <Link href="/pray/asma-allah">
+                <button className="w-full flex items-center justify-between bg-[#e6cfa3] hover:bg-[#e0c49b] rounded-full px-4 py-3 shadow-sm">
+                  <span className="text-sm font-medium text-[#2b2b2b] text-left">Asmaa Allah el hosna</span>
+                  <Image src="/icons/pray/asma.svg" alt="Asmaa Icon" width={40} height={40} className="object-contain" />
+                </button>
+              </Link>
             </li>
           </ul>
         </div>

@@ -1,114 +1,156 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import NavBar from '../../../user/navbar';
 import LeftSide from '@/app/user/leftside';
 
-// Collection metadata
-const collectionInfo: Record<string, { nameEnglish: string; nameArabic: string }> = {
-  bukhari: { nameEnglish: 'Sahih al-Bukhari', nameArabic: 'صحيح البخاري' },
-  muslim: { nameEnglish: 'Sahih Muslim', nameArabic: 'صحيح مسلم' },
-  abudawud: { nameEnglish: 'Sunan Abu Dawud', nameArabic: 'سنن أبي داود' },
-  tirmidhi: { nameEnglish: 'Jami at-Tirmidhi', nameArabic: 'جامع الترمذي' },
-  nasai: { nameEnglish: "Sunan an-Nasa'i", nameArabic: 'سنن النسائي' },
-  ibnmajah: { nameEnglish: 'Sunan Ibn Majah', nameArabic: 'سنن ابن ماجه' },
-};
+const API_KEY = '$2y$10$RIuJylwAPesmEgBmKsZnfOCFTPTP0YI9rZLUZYWbEortEXDudvyt';
+
+interface Chapter {
+  id: number;
+  chapterNumber: string;
+  chapterEnglish: string;
+  chapterUrdu: string;
+  chapterArabic: string;
+  bookSlug: string;
+}
+
+interface BookInfo {
+  id: number;
+  bookName: string;
+  writerName: string;
+  writerDeath: string;
+  bookSlug: string;
+}
 
 interface Hadith {
-  number: number;
-  arab: string;
-  id?: string;
+  id: number;
+  hadithNumber: string;
+  englishNarrator: string;
+  hadithEnglish: string;
+  hadithUrdu: string;
+  urduNarrator: string;
+  hadithArabic: string;
+  headingArabic: string | null;
+  headingUrdu: string | null;
+  headingEnglish: string | null;
+  chapterId: string;
+  bookSlug: string;
+  volume: string;
+  status: string;
+  book: BookInfo;
+  chapter: Chapter;
 }
+
+interface HadithResponse {
+  status: number;
+  message: string;
+  hadiths: {
+    current_page: number;
+    data: Hadith[];
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+const arabicNames: Record<string, string> = {
+  'sahih-bukhari': 'صحيح البخاري',
+  'sahih-muslim': 'صحيح مسلم',
+  'al-tirmidhi': 'جامع الترمذي',
+  'abu-dawood': 'سنن أبي داود',
+  'ibn-e-majah': 'سنن ابن ماجه',
+  'sunan-nasai': 'سنن النسائي',
+  'mishkat': 'مشكاة المصابيح',
+  'musnad-ahmad': 'مسند أحمد',
+};
+
+type Language = 'arabic' | 'english' | 'urdu';
 
 export default function HadithCollectionPage() {
   const params = useParams();
-  const collectionId = params.hades as string;
+  const bookSlug = params.hades as string;
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [hadiths, setHadiths] = useState<Hadith[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [totalHadiths, setTotalHadiths] = useState(0);
-
-  const hadithsPerPage = 10;
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>('arabic');
+  const [expandedHadith, setExpandedHadith] = useState<number | null>(null);
+  const [bookInfo, setBookInfo] = useState<BookInfo | null>(null);
 
   const toggleSidebar = () => setSidebarOpen((s) => !s);
 
-  const collection = collectionInfo[collectionId] || {
-    nameEnglish: collectionId,
-    nameArabic: collectionId,
-  };
+  const fetchHadiths = useCallback(async (page: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = `https://hadithapi.com/public/api/hadiths?apiKey=${API_KEY}&book=${bookSlug}&page=${page}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch hadiths');
+      
+      const data: HadithResponse = await res.json();
+      
+      if (data.status === 200 && data.hadiths) {
+        setHadiths(data.hadiths.data);
+        setTotalPages(data.hadiths.last_page);
+        setTotalHadiths(data.hadiths.total);
+        setCurrentPage(data.hadiths.current_page);
+        
+        if (data.hadiths.data.length > 0 && data.hadiths.data[0].book) {
+          setBookInfo(data.hadiths.data[0].book);
+        }
+      } else {
+        throw new Error(data.message || 'Failed to load hadiths');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, [bookSlug]);
 
   useEffect(() => {
-    const fetchHadiths = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Using the Hadith API - fetching a range of hadiths
-        const startHadith = (currentPage - 1) * hadithsPerPage + 1;
-        const endHadith = currentPage * hadithsPerPage;
-        
-        const promises = [];
-        for (let i = startHadith; i <= endHadith; i++) {
-          promises.push(
-            fetch(`https://api.hadith.gading.dev/books/${collectionId}/${i}`)
-              .then(res => res.json())
-              .catch(() => null)
-          );
-        }
-        
-        const results = await Promise.all(promises);
-        const validHadiths = results
-          .filter(r => r && r.data)
-          .map(r => ({
-            number: r.data.number,
-            arab: r.data.arab,
-            id: r.data.id,
-          }));
-        
-        setHadiths(validHadiths);
-        
-        // Get total count from the first request or use default
-        if (results[0]?.data) {
-          // Estimate total based on collection
-          const totals: Record<string, number> = {
-            bukhari: 7563,
-            muslim: 3033,
-            abudawud: 3998,
-            tirmidhi: 3956,
-            nasai: 5758,
-            ibnmajah: 4341,
-          };
-          setTotalHadiths(totals[collectionId] || 1000);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (collectionId) {
-      fetchHadiths();
+    if (bookSlug) {
+      fetchHadiths(currentPage);
     }
-  }, [collectionId, currentPage]);
-
-  const totalPages = Math.ceil(totalHadiths / hadithsPerPage);
+  }, [bookSlug, currentPage, fetchHadiths]);
 
   const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedHadith(expandedHadith === id ? null : id);
+  };
+
+  const getHadithText = (hadith: Hadith): string => {
+    switch (selectedLanguage) {
+      case 'english': return hadith.hadithEnglish;
+      case 'urdu': return hadith.hadithUrdu;
+      default: return hadith.hadithArabic;
     }
   };
+
+  const getNarrator = (hadith: Hadith): string => {
+    switch (selectedLanguage) {
+      case 'english': return hadith.englishNarrator;
+      case 'urdu': return hadith.urduNarrator;
+      default: return '';
+    }
+  };
+
+  const bookName = bookInfo?.bookName || bookSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const arabicName = arabicNames[bookSlug] || bookName;
 
   return (
     <div
@@ -121,44 +163,26 @@ export default function HadithCollectionPage() {
         backgroundAttachment: 'fixed',
       }}
     >
-      {/* Top navigation */}
       <NavBar onToggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
-
-      {/* Fixed left sidebar */}
-      <LeftSide
-        isOpen={isSidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        activeView="pray"
-      />
+      <LeftSide isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} activeView="pray" />
 
       <div className="max-w-4xl mx-auto">
-        {/* Back button */}
         <Link
           href="/pray/Ahades"
           className="inline-flex items-center mb-6 text-[#8A1538] hover:text-[#6d1029] transition-colors"
         >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           <span className="font-medium">Back to Collections</span>
         </Link>
 
-        {/* Collection Header */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-[#8A1538] to-[#6d1029] rounded-2xl p-6 mb-6 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold mb-1">{collection.nameEnglish}</h1>
-              <p className="text-white/80">Hadith Collection</p>
+              <h1 className="text-3xl font-bold mb-1">{bookName}</h1>
+              {bookInfo && <p className="text-white/80">By: {bookInfo.writerName}</p>}
               <div className="flex items-center gap-4 mt-3 text-sm text-white/70">
                 <span>{totalHadiths.toLocaleString()} Hadiths</span>
                 <span>•</span>
@@ -166,9 +190,27 @@ export default function HadithCollectionPage() {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-4xl font-arabic mb-2">{collection.nameArabic}</div>
+              <div className="text-4xl font-arabic mb-2">{arabicName}</div>
             </div>
           </div>
+        </div>
+
+        {/* Language Selector */}
+        <div className="bg-white rounded-xl p-4 mb-6 shadow-md flex items-center justify-center gap-4">
+          <span className="text-gray-600 font-medium">Language:</span>
+          {(['arabic', 'english', 'urdu'] as Language[]).map((lang) => (
+            <button
+              key={lang}
+              onClick={() => setSelectedLanguage(lang)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                selectedLanguage === lang
+                  ? 'bg-[#8A1538] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {lang === 'arabic' ? 'العربية' : lang === 'urdu' ? 'اردو' : 'English'}
+            </button>
+          ))}
         </div>
 
         {loading && (
@@ -186,46 +228,116 @@ export default function HadithCollectionPage() {
 
         {!loading && !error && (
           <>
-            {/* Hadiths Container */}
             <div className="space-y-4 mb-6">
-              {hadiths.map((hadith, idx) => (
-                <div
-                  // composite key to avoid collisions: collectionId + hadith number + index
-                  key={`${collectionId}-${hadith.number ?? idx}-${hadith.id ?? idx}`}
-                  className="bg-[#fdfaf5] rounded-xl p-6 shadow-md"
-                >
-                   {/* Hadith Number */}
-                   <div className="flex items-center justify-between mb-4">
-                     <div
-                       className="w-10 h-10 rounded-lg flex items-center justify-center"
-                       style={{
-                         backgroundColor: '#CFAE70',
-                         transform: 'rotate(45deg)',
-                       }}
-                     >
-                       <span
-                         className="text-sm font-bold text-[#8A1538]"
-                         style={{ transform: 'rotate(-45deg)' }}
-                       >
-                         {hadith.number}
-                       </span>
-                     </div>
-                     <span className="text-sm text-gray-500">
-                       Hadith #{hadith.number}
-                     </span>
-                   </div>
+              {hadiths.map((hadith) => (
+                <div key={hadith.id} className="bg-[#fdfaf5] rounded-xl p-6 shadow-md">
+                  {/* Hadith Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: '#CFAE70', transform: 'rotate(45deg)' }}
+                      >
+                        <span className="text-sm font-bold text-[#8A1538]" style={{ transform: 'rotate(-45deg)' }}>
+                          {hadith.hadithNumber}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-500">Hadith #{hadith.hadithNumber}</span>
+                        {hadith.status && (
+                          <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                            hadith.status === 'Sahih' ? 'bg-green-100 text-green-700' :
+                            hadith.status === 'Hasan' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {hadith.status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => toggleExpand(hadith.id)}
+                      className="text-[#8A1538] hover:text-[#6d1029] transition-colors"
+                    >
+                      <svg
+                        className={`w-6 h-6 transition-transform ${expandedHadith === hadith.id ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
 
-                   {/* Arabic Text */}
-                   <div className="text-right" dir="rtl">
-                     <p className="text-xl font-arabic leading-[2.5] text-[#333333]">
-                       {hadith.arab}
-                     </p>
-                   </div>
-                 </div>
-               ))}
+                  {/* Chapter Info */}
+                  {hadith.chapter && (
+                    <div className="mb-4 p-3 bg-[#CFAE70]/10 rounded-lg">
+                      <p className="text-sm text-[#8A1538] font-medium">
+                        Chapter {hadith.chapter.chapterNumber}: {
+                          selectedLanguage === 'arabic' ? hadith.chapter.chapterArabic :
+                          selectedLanguage === 'urdu' ? hadith.chapter.chapterUrdu :
+                          hadith.chapter.chapterEnglish
+                        }
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Narrator */}
+                  {getNarrator(hadith) && (
+                    <p className={`text-sm text-gray-600 mb-3 italic ${selectedLanguage === 'urdu' ? 'text-right' : ''}`}
+                       dir={selectedLanguage === 'urdu' ? 'rtl' : 'ltr'}>
+                      {getNarrator(hadith)}
+                    </p>
+                  )}
+
+                  {/* Hadith Text */}
+                  <div className={selectedLanguage === 'arabic' || selectedLanguage === 'urdu' ? 'text-right' : ''}
+                       dir={selectedLanguage === 'arabic' || selectedLanguage === 'urdu' ? 'rtl' : 'ltr'}>
+                    <p className={`leading-[2.5] text-[#333333] ${
+                      selectedLanguage === 'arabic' ? 'text-xl font-arabic' :
+                      selectedLanguage === 'urdu' ? 'text-lg' : 'text-base'
+                    }`}>
+                      {getHadithText(hadith)}
+                    </p>
+                  </div>
+
+                  {/* Expanded: Show all languages */}
+                  {expandedHadith === hadith.id && (
+                    <div className="mt-6 pt-6 border-t border-gray-200 space-y-6">
+                      {selectedLanguage !== 'arabic' && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-[#8A1538] mb-2">العربية (Arabic)</h4>
+                          <p className="text-xl font-arabic leading-[2.5] text-[#333333] text-right" dir="rtl">
+                            {hadith.hadithArabic}
+                          </p>
+                        </div>
+                      )}
+                      {selectedLanguage !== 'english' && hadith.hadithEnglish && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-[#8A1538] mb-2">English</h4>
+                          {hadith.englishNarrator && (
+                            <p className="text-sm text-gray-600 mb-2 italic">{hadith.englishNarrator}</p>
+                          )}
+                          <p className="text-base leading-relaxed text-[#333333]">{hadith.hadithEnglish}</p>
+                        </div>
+                      )}
+                      {selectedLanguage !== 'urdu' && hadith.hadithUrdu && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-[#8A1538] mb-2">اردو (Urdu)</h4>
+                          {hadith.urduNarrator && (
+                            <p className="text-sm text-gray-600 mb-2 italic text-right" dir="rtl">{hadith.urduNarrator}</p>
+                          )}
+                          <p className="text-lg leading-[2] text-[#333333] text-right" dir="rtl">{hadith.hadithUrdu}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
-            {/* Page Navigation */}
+            {/* Pagination */}
             <div className="flex items-center justify-center gap-4 mb-6">
               <button
                 onClick={goToPreviousPage}
@@ -240,17 +352,17 @@ export default function HadithCollectionPage() {
 
               <div className="flex items-center gap-2 bg-white/90 px-4 py-2 rounded-lg">
                 <span className="text-gray-600">Page:</span>
-                <select
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
                   value={currentPage}
-                  onChange={(e) => setCurrentPage(parseInt(e.target.value))}
-                  className="px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8A1538]"
-                >
-                  {Array.from({ length: Math.min(totalPages, 100) }, (_, i) => i + 1).map((page) => (
-                    <option key={page} value={page}>
-                      {page}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (val >= 1 && val <= totalPages) setCurrentPage(val);
+                  }}
+                  className="w-16 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8A1538] text-center"
+                />
                 <span className="text-gray-600">of {totalPages}</span>
               </div>
 
@@ -266,12 +378,8 @@ export default function HadithCollectionPage() {
               </button>
             </div>
 
-            {/* Info */}
             <div className="bg-white/80 rounded-xl p-4 text-center text-sm text-gray-600">
-              <p>
-                Showing Hadiths {(currentPage - 1) * hadithsPerPage + 1} -{' '}
-                {Math.min(currentPage * hadithsPerPage, totalHadiths)} of {totalHadiths.toLocaleString()}
-              </p>
+              <p>Total: {totalHadiths.toLocaleString()} Hadiths | Page {currentPage} of {totalPages}</p>
             </div>
           </>
         )}

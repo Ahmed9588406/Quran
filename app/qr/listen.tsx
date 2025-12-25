@@ -1,21 +1,26 @@
 "use client";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
-import { Radio } from "lucide-react";
+import { Radio, Volume2, VolumeX } from "lucide-react";
 import NavBar from "../user/navbar";
 import LeftSide from "../user/leftside";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 
-function ListenPage() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.8);
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+interface ListenPageProps {
+  roomId?: number;
+  liveStreamId?: number;
+}
 
-  // NEW: messages modal state
+function ListenPage({ roomId = 0, liveStreamId = 0 }: ListenPageProps) {
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isMessagesOpen, setMessagesOpen] = useState(false);
   const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
+
+  // Audio visualization state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.8);
+  const [isMuted, setIsMuted] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -84,7 +89,6 @@ function ListenPage() {
     oscillatorRef.current = osc;
 
     setTimeout(() => {
-      // eslint-disable-next-line react-hooks/immutability
       if (isPlayingRef.current) playTone();
     }, 400 + Math.random() * 200);
   }, []);
@@ -109,13 +113,9 @@ function ListenPage() {
     });
 
     if (isPlayingRef.current) {
-      // eslint-disable-next-line react-hooks/immutability
       animationRef.current = requestAnimationFrame(animateWaveform);
     }
   }, []);
-
-  // Removed unused playback control helpers to avoid unused-variable build errors.
-  // Keep core audio functions (initAudio, playTone, animateWaveform) which are used.
 
   useEffect(() => {
     const start = async () => {
@@ -141,25 +141,35 @@ function ListenPage() {
     };
   }, [initAudio, playTone, animateWaveform]);
 
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = isMuted ? volumeRef.current : 0;
+    }
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    volumeRef.current = newVolume;
+    if (masterGainRef.current && !isMuted) {
+      masterGainRef.current.gain.value = newVolume;
+    }
+  };
+
   return (
     <>
-      {/* Top navigation (appears at top of this page) */}
       <NavBar
         onToggleSidebar={() => setSidebarOpen((s) => !s)}
         isSidebarOpen={isSidebarOpen}
       />
 
-      {/* Left side panel (sidebar) */}
       <LeftSide
         isOpen={isSidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        onOpenScan={() => {
-          /* optional: handle scan action if needed */
-        }}
+        onOpenScan={() => {}}
         activeView="listen"
       />
 
-      {/* existing page content */}
       <div
         className="min-h-screen flex justify-center items-center p-5 font-sans"
         style={{
@@ -198,6 +208,23 @@ function ListenPage() {
                 <span className="font-semibold text-gray-800">Started:</span>
                 <span className="text-amber-700 ml-1">22 Minutes ago</span>
               </div>
+            </div>
+
+            {/* Volume control */}
+            <div className="mt-3 flex items-center gap-3">
+              <button onClick={toggleMute} className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
+                {isMuted ? <VolumeX size={20} className="text-red-500" /> : <Volume2 size={20} className="text-green-600" />}
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                className="flex-1 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer"
+              />
+              <span className="text-xs text-gray-500 w-10">{Math.round(volume * 100)}%</span>
             </div>
           </div>
 
@@ -264,7 +291,7 @@ function ListenPage() {
         </div>
       </div>
 
-      {/* Floating messages button (bottom-right) */}
+      {/* Floating messages button */}
       <div className="fixed right-8 bottom-8 z-50">
         <Button
           aria-label="Quick action"
@@ -279,15 +306,11 @@ function ListenPage() {
         </Button>
       </div>
 
-      {/* Messages modal (dynamically loaded) */}
       {isMessagesOpen && (
         <MessagesModal
           isOpen={true}
           onClose={() => setMessagesOpen(false)}
-          onOpenStart={() => {
-            /* optional: open composer; not implemented here */
-            setMessagesOpen(false);
-          }}
+          onOpenStart={() => setMessagesOpen(false)}
         />
       )}
     </>
