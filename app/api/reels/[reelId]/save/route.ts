@@ -10,12 +10,13 @@ const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { reelId: string } }
+  props: { params: Promise<{ reelId: string }> }
 ) {
   try {
+    const params = await props.params;
     const { reelId } = params;
     const token = request.headers.get('authorization');
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -42,12 +43,12 @@ export async function POST(
         status: response.status,
         body: errorText,
       });
-      
+
       // Return success anyway for 404
       if (response.status === 404) {
         return NextResponse.json({ success: true });
       }
-      
+
       return NextResponse.json(
         { error: 'Failed to save reel' },
         { status: response.status }
@@ -56,7 +57,7 @@ export async function POST(
 
     const text = await response.text();
     let data = {};
-    
+
     // Handle empty responses
     if (text) {
       try {
@@ -67,7 +68,7 @@ export async function POST(
     } else {
       data = { success: true };
     }
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('[Reels Save API Proxy] Error:', error);
@@ -80,12 +81,13 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { reelId: string } }
+  props: { params: Promise<{ reelId: string }> }
 ) {
   try {
+    const params = await props.params;
     const { reelId } = params;
     const token = request.headers.get('authorization');
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -112,12 +114,12 @@ export async function DELETE(
         status: response.status,
         body: errorText,
       });
-      
+
       // Return success anyway for 404
       if (response.status === 404) {
         return NextResponse.json({ success: true });
       }
-      
+
       return NextResponse.json(
         { error: 'Failed to unsave reel' },
         { status: response.status }
@@ -126,7 +128,7 @@ export async function DELETE(
 
     const text = await response.text();
     let data = {};
-    
+
     // Handle empty responses
     if (text) {
       try {
@@ -137,7 +139,7 @@ export async function DELETE(
     } else {
       data = { success: true };
     }
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('[Reels Unsave API Proxy] Error:', error);

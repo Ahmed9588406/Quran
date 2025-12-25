@@ -11,17 +11,18 @@ const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { reelId: string } }
+  props: { params: Promise<{ reelId: string }> }
 ) {
   try {
+    const params = await props.params;
     const { reelId } = params;
     const body = await request.json();
     const token = request.headers.get('authorization');
-    
+
     // Extract user data from request headers (sent by client)
     const userDataHeader = request.headers.get('x-user-data');
     let userData = { id: '', username: '', avatar: '' };
-    
+
     if (userDataHeader) {
       try {
         userData = JSON.parse(userDataHeader);
@@ -29,7 +30,7 @@ export async function POST(
         console.warn('[Create Comment API] Failed to parse user data header:', e);
       }
     }
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -62,11 +63,11 @@ export async function POST(
         statusText: response.statusText,
         body: errorText,
       });
-      
+
       // Return success anyway for 404 (comment might have been created)
       if (response.status === 404) {
         console.log('[Create Comment API] Got 404, returning success with temp comment');
-        return NextResponse.json({ 
+        return NextResponse.json({
           success: true,
           comment: {
             id: `temp_${Date.now()}`,
@@ -81,7 +82,7 @@ export async function POST(
           }
         });
       }
-      
+
       return NextResponse.json(
         { error: 'Failed to create comment', details: errorText },
         { status: response.status }
@@ -90,9 +91,9 @@ export async function POST(
 
     const text = await response.text();
     console.log('[Create Comment API] Response text:', text);
-    
+
     let data: any = {};
-    
+
     // Handle empty responses
     if (text) {
       try {
@@ -104,12 +105,12 @@ export async function POST(
     } else {
       data = { success: true };
     }
-    
+
     // Ensure response has the correct structure
     if (!data.success) {
       data.success = true;
     }
-    
+
     // If comment is not in response, create a minimal one with actual user data
     if (!data.comment && body.content) {
       console.log('[Create Comment API] Creating minimal comment object with user data');
@@ -125,7 +126,7 @@ export async function POST(
         is_liked: false,
       };
     }
-    
+
     console.log('[Create Comment API] Final response data:', data);
     return NextResponse.json(data);
   } catch (error) {

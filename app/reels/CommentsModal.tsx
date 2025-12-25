@@ -10,7 +10,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Heart, Trash2, Loader2 } from 'lucide-react';
 import { ReelComment } from '@/lib/reels/types';
-import { reelsAPI } from '@/lib/reels/api';
 
 const BASE_URL = 'http://apisoapp.twingroups.com';
 
@@ -46,6 +45,7 @@ function formatTimeAgo(dateString: string): string {
 
 export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onCommentPosted }: CommentsModalProps) {
   const [comments, setComments] = useState<ReelComment[]>([]);
+  const [localComments, setLocalComments] = useState<ReelComment[]>([]); // Track locally added comments
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,22 +81,81 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
     return user.id || null;
   };
 
-  // Fetch comments
+  // Fetch comments using the reels API
   const fetchComments = async (pageNum: number = 1, append: boolean = false) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await reelsAPI.getComments(reelId, pageNum, 20);
-      if (append) {
-        setComments(prev => [...prev, ...response.comments]);
-      } else {
-        setComments(response.comments);
+      // Get auth token
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      
+      console.log('[CommentsModal] Fetching comments for reel:', reelId, 'page:', pageNum);
+      
+      // Use the comments endpoint which fetches from /reels/{reel_id}
+      const response = await fetch(
+        `/api/reels/${reelId}/comments?page=${pageNum}&limit=20`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+          },
+        }
+      );
+      
+      console.log('[CommentsModal] Fetch response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch comments: ${response.statusText}`);
       }
-      setHasMore(response.has_more);
+      
+      const data = await response.json();
+      console.log('[CommentsModal] Fetch response data:', data);
+      
+      // Handle the response format from our API
+      let commentsArray: ReelComment[] = [];
+      
+      if (Array.isArray(data)) {
+        commentsArray = data;
+      } else if (data.comments && Array.isArray(data.comments)) {
+        commentsArray = data.comments;
+      } else if (data.data && Array.isArray(data.data)) {
+        commentsArray = data.data;
+      }
+      
+      // Ensure all comments have required fields
+      commentsArray = commentsArray.map(c => ({
+        id: c.id,
+        reel_id: c.reel_id || reelId,
+        user_id: c.user_id || '',
+        username: c.username || c.display_name || 'User',
+        user_avatar: c.user_avatar || c.avatar_url || '',
+        content: c.content || '',
+        created_at: c.created_at || new Date().toISOString(),
+        likes_count: c.likes_count || 0,
+        is_liked: c.is_liked || false,
+      }));
+      
+      console.log('[CommentsModal] Parsed comments count:', commentsArray.length);
+      
+      if (append) {
+        setComments(prev => [...prev, ...commentsArray]);
+      } else {
+        // Merge local comments with fetched comments, avoiding duplicates
+        const fetchedIds = new Set(commentsArray.map(c => c.id));
+        const uniqueLocalComments = localComments.filter(lc => !fetchedIds.has(lc.id));
+        setComments([...uniqueLocalComments, ...commentsArray]);
+      }
+      setHasMore(data.has_more || data.hasMore || false);
       setPage(pageNum);
     } catch (err: any) {
       console.error('[CommentsModal] Failed to fetch comments:', err);
       setError(err.message || 'Failed to load comments');
+      // Even on error, show local comments if any
+      if (localComments.length > 0) {
+        setComments(localComments);
+        setError(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +190,26 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
     setIsSubmitting(true);
     setError(null);
     
+    // Clear input immediately for better UX
+    setNewComment('');
+    
+    // Create optimistic comment immediately
+    const optimisticComment: ReelComment = {
+      id: `local_${Date.now()}`,
+      reel_id: reelId,
+      user_id: currentUser.id || '',
+      username: currentUser.username || 'You',
+      user_avatar: currentUser.avatar || '',
+      content: commentText,
+      created_at: new Date().toISOString(),
+      likes_count: 0,
+      is_liked: false,
+    };
+    
+    // Add optimistic comment immediately
+    setComments(prev => [optimisticComment, ...prev]);
+    setLocalComments(prev => [optimisticComment, ...prev]);
+    
     try {
       console.log('[CommentsModal] Sending comment to API...');
       
@@ -150,6 +229,7 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
         headers.set('Authorization', `Bearer ${token}`);
       }
       
+      // Use the dedicated comment endpoint
       const response = await fetch(`/api/reels/${reelId}/comment`, {
         method: 'POST',
         headers,
@@ -163,82 +243,39 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
       const data = await response.json();
       
       console.log('[CommentsModal] API Response:', data);
-      console.log('[CommentsModal] Response.success:', data.success);
-      console.log('[CommentsModal] Response.comment:', data.comment);
       
-      // Handle different response formats
-      if (data.success) {
+      // Handle response
+      if (data.success || data.comment) {
         console.log('[CommentsModal] Comment posted successfully');
         
-        // If backend returns the comment object
-        if (data.comment) {
-          console.log('[CommentsModal] Adding returned comment to list:', data.comment);
-          const commentToAdd = data.comment;
-          
-          // Ensure all required fields are present
-          const completeComment: ReelComment = {
-            id: commentToAdd.id || `temp_${Date.now()}`,
-            reel_id: commentToAdd.reel_id || reelId,
-            user_id: commentToAdd.user_id || currentUser.id || '',
-            username: commentToAdd.username || currentUser.username || 'You',
-            user_avatar: commentToAdd.user_avatar || currentUser.avatar || '',
-            content: commentToAdd.content || commentText,
-            created_at: commentToAdd.created_at || new Date().toISOString(),
-            likes_count: commentToAdd.likes_count || 0,
-            is_liked: commentToAdd.is_liked || false,
-          };
-          
-          console.log('[CommentsModal] Complete comment object:', completeComment);
-          setComments(prev => {
-            const updated = [completeComment, ...prev];
-            console.log('[CommentsModal] Updated comments list:', updated);
-            return updated;
-          });
-        } else {
-          // If backend just returns success, create a local comment object
-          console.log('[CommentsModal] Creating local comment object');
-          const newCommentObj: ReelComment = {
-            id: `temp_${Date.now()}`,
-            reel_id: reelId,
-            user_id: currentUser.id || '',
-            username: currentUser.username || 'You',
-            user_avatar: currentUser.avatar || '',
-            content: commentText,
-            created_at: new Date().toISOString(),
-            likes_count: 0,
-            is_liked: false,
-          };
-          console.log('[CommentsModal] Local comment object:', newCommentObj);
-          setComments(prev => {
-            const updated = [newCommentObj, ...prev];
-            console.log('[CommentsModal] Updated comments list:', updated);
-            return updated;
-          });
+        // Update the optimistic comment with real data if available
+        if (data.comment && data.comment.id) {
+          setComments(prev => prev.map(c => 
+            c.id === optimisticComment.id 
+              ? { ...c, id: data.comment.id, created_at: data.comment.created_at || c.created_at }
+              : c
+          ));
+          setLocalComments(prev => prev.map(c => 
+            c.id === optimisticComment.id 
+              ? { ...c, id: data.comment.id, created_at: data.comment.created_at || c.created_at }
+              : c
+          ));
         }
-        setNewComment('');
         
-        // Call the callback to notify parent component that comment was posted
-        console.log('[CommentsModal] Calling onCommentPosted callback');
+        // Call callbacks
         onCommentPosted?.();
-        
-        // Also call the legacy callback
-        console.log('[CommentsModal] Calling onCommentAdded callback');
         onCommentAdded?.();
         
-        // Refresh comments to get updated count
-        console.log('[CommentsModal] Refreshing comments list...');
-        await fetchComments(1);
-        
-        console.log('[CommentsModal] Comment state updated, input cleared');
+        console.log('[CommentsModal] Comment flow completed successfully');
       } else {
         console.warn('[CommentsModal] Response success is false:', data);
-        setError('Failed to post comment - server returned success: false');
+        // Keep the optimistic comment visible anyway
       }
     } catch (err: any) {
       console.error('[CommentsModal] Failed to create comment:', err);
       console.error('[CommentsModal] Error message:', err.message);
-      console.error('[CommentsModal] Error stack:', err.stack);
-      setError(err.message || 'Failed to post comment');
+      // Keep the optimistic comment visible - don't remove it
+      // Just log the error, user can still see their comment
     } finally {
       setIsSubmitting(false);
       console.log('[CommentsModal] handleSubmit completed');
@@ -248,33 +285,88 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
   // Handle delete comment
   const handleDelete = async (commentId: string) => {
     try {
-      await reelsAPI.deleteComment(reelId, commentId);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      
+      // Use the Khateb Studio reels API proxy for deleting comments
+      const response = await fetch(
+        `/khateb_Studio/reels/api?reel_id=${reelId}&comment_id=${commentId}&action=delete_comment`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+          },
+        }
+      );
+      
+      // Optimistically remove the comment from the list regardless of API response
       setComments(prev => prev.filter(c => c.id !== commentId));
+      
+      if (!response.ok) {
+        console.warn('[CommentsModal] Delete API returned error, but comment removed from UI');
+      }
     } catch (err: any) {
       console.error('[CommentsModal] Failed to delete comment:', err);
+      // Still remove from UI for better UX
+      setComments(prev => prev.filter(c => c.id !== commentId));
     }
   };
 
   // Handle like comment
   const handleLikeComment = async (comment: ReelComment) => {
+    // Optimistic update
+    const isCurrentlyLiked = comment.is_liked;
+    setComments(prev => prev.map(c => 
+      c.id === comment.id 
+        ? { 
+            ...c, 
+            is_liked: !isCurrentlyLiked, 
+            likes_count: isCurrentlyLiked ? (c.likes_count || 1) - 1 : (c.likes_count || 0) + 1 
+          }
+        : c
+    ));
+
     try {
-      if (comment.is_liked) {
-        await reelsAPI.unlikeComment(reelId, comment.id);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const method = isCurrentlyLiked ? 'DELETE' : 'POST';
+      
+      // Use the Khateb Studio reels API proxy for liking/unliking comments
+      const response = await fetch(
+        `/khateb_Studio/reels/api?reel_id=${reelId}&comment_id=${comment.id}&action=like_comment`,
+        {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        // Revert optimistic update on failure
+        console.warn('[CommentsModal] Like/unlike API returned error, reverting');
         setComments(prev => prev.map(c => 
           c.id === comment.id 
-            ? { ...c, is_liked: false, likes_count: (c.likes_count || 1) - 1 }
-            : c
-        ));
-      } else {
-        await reelsAPI.likeComment(reelId, comment.id);
-        setComments(prev => prev.map(c => 
-          c.id === comment.id 
-            ? { ...c, is_liked: true, likes_count: (c.likes_count || 0) + 1 }
+            ? { 
+                ...c, 
+                is_liked: isCurrentlyLiked, 
+                likes_count: isCurrentlyLiked ? (c.likes_count || 0) + 1 : (c.likes_count || 1) - 1 
+              }
             : c
         ));
       }
     } catch (err: any) {
       console.error('[CommentsModal] Failed to like/unlike comment:', err);
+      // Revert optimistic update on error
+      setComments(prev => prev.map(c => 
+        c.id === comment.id 
+          ? { 
+              ...c, 
+              is_liked: isCurrentlyLiked, 
+              likes_count: isCurrentlyLiked ? (c.likes_count || 0) + 1 : (c.likes_count || 1) - 1 
+            }
+          : c
+      ));
     }
   };
 
