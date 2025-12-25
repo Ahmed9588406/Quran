@@ -12,6 +12,7 @@ type CalendarDay = {
   iso: string; // yyyy-mm-dd
   inCurrentMonth: boolean;
   isToday: boolean;
+  hijri?: { year: number; month: number; day: number };
 };
 
 type EventItem = {
@@ -19,10 +20,31 @@ type EventItem = {
   title: string;
   time?: string;
   color?: string; // tailwind bg class or hex
+  isKhotba?: boolean;
 };
 
 const STORAGE_KEY = "quran_schedule_events_v2";
 const defaultColors = ["bg-gray-400", "bg-orange-400", "bg-red-500", "bg-green-500", "bg-blue-500"];
+
+// Hijri date conversion
+const HIJRI_MONTHS_AR = [
+  'محرم', 'صفر', 'ربيع الأول', 'ربيع الثاني',
+  'جمادى الأولى', 'جمادى الآخرة', 'رجب', 'شعبان',
+  'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة'
+];
+
+function gregorianToHijri(date: Date): { year: number; month: number; day: number } {
+  const jd = Math.floor((date.getTime() / 86400000) + 2440587.5);
+  const l = jd - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  const l2 = l - 10631 * n + 354;
+  const j = Math.floor((10985 - l2) / 5316) * Math.floor((50 * l2) / 17719) + Math.floor(l2 / 5670) * Math.floor((43 * l2) / 15238);
+  const l3 = l2 - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+  const month = Math.floor((24 * l3) / 709);
+  const day = l3 - Math.floor((709 * month) / 24);
+  const year = 30 * n + j - 30;
+  return { year, month, day };
+}
 
 function toISODate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -31,17 +53,10 @@ function toISODate(d: Date) {
 function startOfMonth(year: number, month: number) {
   return new Date(year, month, 1);
 }
-function endOfMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0);
-}
 
 function buildMonthMatrix(year: number, month: number): CalendarDay[][] {
   const first = startOfMonth(year, month);
-  const last = endOfMonth(year, month);
-
-  const startWeekDay = first.getDay(); // 0..6 where 0 = Sunday
-
-  // first cell date = first - startWeekDay days
+  const startWeekDay = first.getDay();
   const startDate = new Date(first);
   startDate.setDate(first.getDate() - startWeekDay);
 
@@ -58,7 +73,8 @@ function buildMonthMatrix(year: number, month: number): CalendarDay[][] {
         date: new Date(cur),
         iso,
         inCurrentMonth: cur.getMonth() === month,
-        isToday: iso === todayISO, // Use the actual today's date for comparison
+        isToday: iso === todayISO,
+        hijri: gregorianToHijri(cur),
       });
       cur.setDate(cur.getDate() + 1);
     }
@@ -77,25 +93,53 @@ export default function SchedulePage() {
   const [selectedIso, setSelectedIso] = useState<string>(toISODate(today));
   const [viewType, setViewType] = useState<'monthly' | 'weekly' | 'daily'>('monthly');
 
-  const [events, setEvents] = useState<Record<string, EventItem[]>>({
-    // Use dynamic dates based on current date
-    [toISODate(today)]: [{ id: "e1", title: "Lesson on the pillars of prayer", time: "" }],
-    [toISODate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1))]: [{ id: "e2", title: "Lesson on the pillars of prayer", time: "" }],
-    // Keep one example event for a specific future date
-    "2025-07-25": [{ id: "e3", title: "Pillars of Prayer #hotbs", time: "" }],
-  });
+  const [events, setEvents] = useState<Record<string, EventItem[]>>({});
 
   const router = useRouter();
 
-  // load from localStorage
+  // load from localStorage (both regular events and scheduled khotbas)
   useEffect(() => {
     try {
+      // Load regular events
       const raw = localStorage.getItem(STORAGE_KEY);
+      let loadedEvents: Record<string, EventItem[]> = {};
+      
       if (raw) {
-        const parsedEvents = JSON.parse(raw);
-        // Merge with default events, preferring localStorage data
-        setEvents({ ...events, ...parsedEvents });
+        loadedEvents = JSON.parse(raw);
       }
+      
+      // Load scheduled khotbas
+      const scheduledKhotbas = localStorage.getItem('scheduled_khotbas');
+      if (scheduledKhotbas) {
+        const khotbas = JSON.parse(scheduledKhotbas);
+        // Merge khotbas into events
+        for (const [date, khotbaList] of Object.entries(khotbas)) {
+          if (!loadedEvents[date]) {
+            loadedEvents[date] = [];
+          }
+          // Add khotbas that aren't already in events
+          const existingIds = new Set(loadedEvents[date].map(e => e.id));
+          for (const khotba of khotbaList as EventItem[]) {
+            if (!existingIds.has(khotba.id)) {
+              loadedEvents[date].push({
+                ...khotba,
+                color: khotba.color || 'bg-green-500',
+              });
+            }
+          }
+        }
+      }
+      
+      // Add default events if nothing loaded
+      if (Object.keys(loadedEvents).length === 0) {
+        const today = new Date();
+        loadedEvents = {
+          [toISODate(today)]: [{ id: "e1", title: "Lesson on the pillars of prayer", time: "" }],
+          [toISODate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1))]: [{ id: "e2", title: "Lesson on the pillars of prayer", time: "" }],
+        };
+      }
+      
+      setEvents(loadedEvents);
     } catch (e) {
       // ignore
     }
@@ -104,7 +148,25 @@ export default function SchedulePage() {
   // persist to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+      // Only save non-khotba events to regular storage
+      const scheduledKhotbas = JSON.parse(localStorage.getItem('scheduled_khotbas') || '{}');
+      const scheduledIds = new Set<string>();
+      for (const khotbaList of Object.values(scheduledKhotbas)) {
+        for (const khotba of khotbaList as EventItem[]) {
+          scheduledIds.add(khotba.id);
+        }
+      }
+      
+      // Filter out scheduled khotbas from regular events
+      const regularEvents: Record<string, EventItem[]> = {};
+      for (const [date, eventList] of Object.entries(events)) {
+        const filtered = eventList.filter(e => !scheduledIds.has(e.id));
+        if (filtered.length > 0) {
+          regularEvents[date] = filtered;
+        }
+      }
+      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(regularEvents));
     } catch (e) {
       // ignore
     }
@@ -344,6 +406,22 @@ export default function SchedulePage() {
             </div>
           </div>
 
+          {/* Legend */}
+          <div className="mb-4 flex items-center gap-6 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-50 border border-green-200 rounded"></div>
+              <span>Friday / الجمعة</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded"></div>
+              <span>Scheduled Khotba / خطبة مجدولة</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-[#8A1538] rounded-full"></div>
+              <span>Today / اليوم</span>
+            </div>
+          </div>
+
           {/* Calendar area */}
           <div className="bg-white border border-[#e0d5d3] rounded-lg overflow-hidden shadow-sm">
             {/* Monthly view */}
@@ -353,38 +431,60 @@ export default function SchedulePage() {
                   const dayEvents = events[day.iso] ?? [];
                   const isSelected = selectedIso === day.iso;
                   const isToday = day.isToday;
+                  const isFriday = day.date.getDay() === 5;
+                  const hasKhotba = dayEvents.some(ev => ev.isKhotba || ev.color === 'bg-green-500');
+                  
                   return (
                     <button
                       key={day.iso}
-                      // single click now only selects the day (avoid opening modal immediately)
                       onClick={() => setSelectedIso(day.iso)}
-                      // double click navigates to prepare_khotba page
                       onDoubleClick={(e) => { e.stopPropagation(); openPrepareKhotba(day.iso); }}
-                      className={`min-h-[150px] p-4 text-left border-r border-b border-[#e0d5d3] transition-colors relative ${isSelected ? "bg-[#fff7f6]" : "hover:bg-gray-50"} ${day.inCurrentMonth ? "" : "bg-gray-50"}`}
+                      className={`min-h-[150px] p-3 text-left border-r border-b border-[#e0d5d3] transition-colors relative 
+                        ${isSelected ? "bg-[#fff7f6]" : "hover:bg-gray-50"} 
+                        ${day.inCurrentMonth ? "" : "bg-gray-50 opacity-60"}
+                        ${isFriday && day.inCurrentMonth ? "bg-green-50/50" : ""}
+                        ${hasKhotba ? "ring-2 ring-inset ring-green-400" : ""}
+                      `}
                     >
-                      <div className="flex justify-between items-center mb-3">
+                      <div className="flex justify-between items-start mb-2">
                         <div>
                           {isToday ? (
                             <div className="flex items-center gap-2">
                               <div className="w-8 h-8 bg-[#8A1538] text-white rounded-full flex items-center justify-center text-sm font-semibold">{day.date.getDate()}</div>
-                              <span className="text-xs text-[#8A1538] font-medium">Today</span>
                             </div>
                           ) : (
-                            <span className={`text-base ${day.inCurrentMonth ? 'text-gray-800' : 'text-gray-400'}`}>{day.date.getDate()}</span>
+                            <span className={`text-base font-medium ${day.inCurrentMonth ? 'text-gray-800' : 'text-gray-400'}`}>{day.date.getDate()}</span>
+                          )}
+                          {/* Hijri date */}
+                          {day.hijri && day.inCurrentMonth && (
+                            <div className="text-xs text-[#8A1538] mt-0.5" dir="rtl">
+                              {day.hijri.day}
+                            </div>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {day.date.toLocaleDateString('en-US', { weekday: 'short' })}
+                        <div className="text-right">
+                          <div className="text-xs text-gray-500">
+                            {day.date.toLocaleDateString('en-US', { weekday: 'short' })}
+                          </div>
+                          {isFriday && day.inCurrentMonth && (
+                            <div className="text-[10px] text-green-600 font-medium">الجمعة</div>
+                          )}
+                          {isToday && (
+                            <div className="text-[10px] text-[#8A1538] font-medium">Today</div>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2">
-                        {dayEvents.map(ev => (
-                          <div key={ev.id} className={`${ev.color ?? 'bg-gray-400'} text-white text-sm px-3 py-2 rounded flex items-center justify-between`}>
-                            <span className="truncate pr-2">{ev.title}{ev.time ? ` • ${ev.time}` : ''}</span>
-                            <button onClick={(e) => { e.stopPropagation(); deleteEvent(day.iso, ev.id); }} className="ml-2 text-xs opacity-80">✕</button>
+                      <div className="flex flex-col gap-1.5">
+                        {dayEvents.slice(0, 3).map(ev => (
+                          <div key={ev.id} className={`${ev.color ?? 'bg-gray-400'} text-white text-xs px-2 py-1.5 rounded flex items-center justify-between`}>
+                            <span className="truncate pr-1">{ev.title}</span>
+                            <button onClick={(e) => { e.stopPropagation(); deleteEvent(day.iso, ev.id); }} className="ml-1 text-[10px] opacity-80 hover:opacity-100">✕</button>
                           </div>
                         ))}
+                        {dayEvents.length > 3 && (
+                          <div className="text-xs text-gray-500 text-center">+{dayEvents.length - 3} more</div>
+                        )}
                       </div>
                     </button>
                   );

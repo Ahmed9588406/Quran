@@ -26,124 +26,88 @@ const leaderboardData = [
   { rank: 9, name: "Alaa Essam", avatar: "https://i.pravatar.cc/80?img=16", totalPoints: 1630, accuracy: 80, isCurrentUser: true },
 ];
 
-// Top 3 Podium Component - matching the exact image layout
+// Rank Card Component
+function RankCard({ user, rank }: { user: typeof leaderboardData[0]; rank: number }) {
+  const isFirst = rank === 1;
+  const isSecond = rank === 2;
+
+  let cardBg = "bg-white";
+  let borderColor = "border-gray-200";
+  let avatarSize = "w-[85px] h-[85px]";
+  let avatarBorder = "border-[#D4B896]";
+  let badgeIcon = "/icons/Leaderboard/2nd.svg";
+  let badgeSize = 35;
+  let badgePos = "-top-1 -left-1";
+  let nameSize = "text-[13px] font-medium";
+  let elevation = "";
+
+  if (isFirst) {
+    cardBg = "bg-gradient-to-br from-[#FFF8F0] to-[#FFF0E6]";
+    borderColor = "border-[#D4AF37]";
+    avatarSize = "w-[100px] h-[100px]";
+    avatarBorder = "border-[#D4AF37]";
+    badgeIcon = "/icons/Leaderboard/1st.svg";
+    badgeSize = 40;
+    badgePos = "-top-3 left-1/2 -translate-x-1/2";
+    nameSize = "text-[14px] font-semibold";
+    elevation = "-mb-12 -mt-8";
+  } else if (!isSecond) {
+    avatarBorder = "border-[#E8D4B8]";
+    badgeIcon = "/icons/Leaderboard/3rd.svg";
+    badgeSize = 30;
+  }
+
+  return (
+    <div className={`${elevation} flex-1 ${cardBg} rounded-2xl border-2 ${borderColor} p-6 flex flex-col items-center shadow-sm`}>
+      <div className="relative mb-4">
+        <div className={`${avatarSize} rounded-full overflow-hidden border-[3px] ${avatarBorder} bg-gray-100`}>
+          <img
+            src={user?.avatar}
+            alt={user?.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <img
+          src={badgeIcon}
+          height={badgeSize}
+          width={badgeSize}
+          className={`absolute ${badgePos}`}
+        />
+      </div>
+
+      <span className={`${nameSize} text-gray-800 mb-4 text-center`}>{user?.name}</span>
+
+      <div className="flex items-center gap-6 text-[11px] text-gray-500 w-full justify-center">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-1">
+            <img src="/icons/Leaderboard/Accuracy.svg" height={20} width={20} className="rounded-full" />
+            <span className="font-medium text-gray-700">{user?.accuracy}%</span>
+          </div>
+          <span className="text-[9px] text-gray-400 mt-0.5">Accuracy</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-1">
+            <img src="/icons/Leaderboard/thunder.svg" height={20} width={20} className="rounded-full" />
+            <span className="font-medium text-gray-700">{user?.totalPoints.toLocaleString()}</span>
+          </div>
+          <span className="text-[9px] text-gray-400 mt-0.5">Total Points</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Top 3 Podium Component
 function TopThreePodium() {
   const first = leaderboardData.find(u => u.rank === 1);
   const second = leaderboardData.find(u => u.rank === 2);
   const third = leaderboardData.find(u => u.rank === 3);
 
   return (
-    <div className="flex items-end justify-center gap-12 mb-12 mt-4 px-4">
-      {/* 2nd Place - Left */}
-      <div className="flex flex-col items-center">
-        <div className="relative mb-2">
-          <div className="w-[85px] h-[85px] rounded-full overflow-hidden border-[3px] border-[#D4B896] bg-gray-100">
-            <img
-              src={second?.avatar}
-              alt={second?.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          {/* Rank badge - top left */}
-          <img
-            src="/icons/Leaderboard/2nd.svg"
-            height={35}
-            width={35}
-            className="absolute -top-1 -left-1"
-          />
-        </div>
-        <span className="text-[13px] font-medium text-gray-800 mb-2">{second?.name}</span>
-        <div className="flex items-center gap-6 text-[11px] text-gray-500">
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="w-[6px] h-[6px] rounded-full bg-[#C9A96F]"></span>
-              <span className="font-medium text-gray-700">{second?.accuracy}%</span>
-            </div>
-            <span className="text-[9px] text-gray-400 mt-0.5">Accuracy</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="text-amber-500 text-xs">⚡</span>
-              <span className="font-medium text-gray-700">{second?.totalPoints.toLocaleString()}</span>
-            </div>
-            <span className="text-[9px] text-gray-400 mt-0.5">Total Points</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 1st Place - Center (Elevated) */}
-      <div className="flex flex-col items-center -mt-6">
-        <div className="relative mb-2">
-          <div className="w-[100px] h-[100px] rounded-full overflow-hidden border-[3px] border-[#D4AF37] bg-gray-100">
-            <img
-              src={first?.avatar}
-              alt={first?.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          {/* Crown/1st badge - top center */}
-          <img
-            src="/icons/Leaderboard/1st.svg"
-            height={40}
-            width={40}
-            className="absolute -top-3 left-1/2 -translate-x-1/2"
-          />
-        </div>
-        <span className="text-[14px] font-semibold text-gray-800 mb-2">{first?.name}</span>
-        <div className="flex items-center gap-6 text-[11px] text-gray-500">
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="w-[6px] h-[6px] rounded-full bg-[#C9A96F]"></span>
-              <span className="font-medium text-gray-700">{first?.accuracy}%</span>
-            </div>
-            <span className="text-[9px] text-gray-400 mt-0.5">Accuracy</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="text-amber-500 text-xs">⚡</span>
-              <span className="font-medium text-gray-700">{first?.totalPoints.toLocaleString()}</span>
-            </div>
-            <span className="text-[9px] text-gray-400 mt-0.5">Total Points</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3rd Place - Right */}
-      <div className="flex flex-col items-center">
-        <div className="relative mb-2">
-          <div className="w-[85px] h-[85px] rounded-full overflow-hidden border-[3px] border-[#E8D4B8] bg-gray-100">
-            <img
-              src={third?.avatar}
-              alt={third?.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          {/* Rank badge - top right */}
-          <img
-            src="/icons/Leaderboard/3rd.svg"
-            height={30}
-            width={30}
-            className="absolute -top-1 -left-1"
-          />
-        </div>
-        <span className="text-[13px] font-medium text-gray-800 mb-2">{third?.name}</span>
-        <div className="flex items-center gap-6 text-[11px] text-gray-500">
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="w-[6px] h-[6px] rounded-full bg-[#C9A96F]"></span>
-              <span className="font-medium text-gray-700">{third?.accuracy}%</span>
-            </div>
-            <span className="text-[9px] text-gray-400 mt-0.5">Accuracy</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1">
-              <span className="text-amber-500 text-xs">⚡</span>
-              <span className="font-medium text-gray-700">{third?.totalPoints.toLocaleString()}</span>
-            </div>
-            <span className="text-[9px] text-gray-400 mt-0.5">Total Points</span>
-          </div>
-        </div>
-      </div>
+    <div className="flex items-start justify-center gap-6 mb-12 mt-4 px-4">
+      {second && <RankCard user={second} rank={2} />}
+      {first && <RankCard user={first} rank={1} />}
+      {third && <RankCard user={third} rank={3} />}
     </div>
   );
 }

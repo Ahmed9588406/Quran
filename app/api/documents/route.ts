@@ -1,6 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = 'https://javabacked.twingroups.com/api/v1/documents/upload';
+const BASE_URL = 'https://javabacked.twingroups.com/api/v1/documents';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders() });
+}
+
+// GET /api/documents - Fetch user's documents
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const authHeader = request.headers.get('authorization');
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+
+    // Fetch documents from backend
+    const url = new URL(`${BASE_URL}`);
+    url.searchParams.append('userId', userId);
+
+    console.log('Fetching documents from:', url.toString());
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { Authorization: authHeader }),
+      },
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      console.error('Failed to fetch documents:', responseText);
+      return NextResponse.json(
+        { error: 'Failed to fetch documents', details: responseText },
+        { status: response.status, headers: corsHeaders() }
+      );
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: 200, headers: corsHeaders() });
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +87,7 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
 
     // Build URL with query parameters (userId is required in query)
-    const url = new URL(BASE_URL);
+    const url = new URL(`${BASE_URL}/upload`);
     url.searchParams.append('userId', userId);
     if (liveStreamId) {
       url.searchParams.append('liveStreamId', liveStreamId);

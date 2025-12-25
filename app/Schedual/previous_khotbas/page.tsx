@@ -1,13 +1,12 @@
 'use client'
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { Bell, Menu, Moon, MessageCircle, FileText, Download, Eye, Trash2, Calendar, Clock, ArrowLeft } from "lucide-react";
-import dynamic from "next/dynamic";
+import { FileText, Download, Eye, Trash2, Calendar, Clock } from "lucide-react";
 import Sidebar from "../../khateeb_Profile/Sidebar";
 import MessagesModal from "../../user/messages";
 import StartNewMessage from "../../user/start_new_message";
+import KhatebNavbar from "../../khateb_Studio/KhatebNavbar";
 
 interface Document {
   id: string;
@@ -30,104 +29,6 @@ interface Document {
   user_id?: string;
   liveStreamId?: string;
   live_stream_id?: string;
-}
-
-function NavBar({
-  onToggleSidebar,
-  isSidebarOpen,
-  onOpenMessages,
-}: {
-  onToggleSidebar?: () => void;
-  isSidebarOpen?: boolean;
-  onOpenMessages?: () => void;
-}) {
-  const [isNotifOpen, setNotifOpen] = useState(false);
-  const [isProfileOpen, setProfileOpen] = useState(false);
-  const [isAskOpen, setAskOpen] = useState(false);
-
-  const NotificationPanel = dynamic(() => import("../../user/notification"), { ssr: false });
-  const ProfileModal = dynamic(() => import("../../user/profile_modal"), { ssr: false });
-  const AskImamModal = dynamic(() => import("../../user/askimam"), { ssr: false });
-  const SheikhModal = dynamic(() => import("../../user/sheikh_modal"), { ssr: false });
-
-  const toggleTheme = () => {
-    try {
-      const isDark = document.documentElement.classList.toggle("dark");
-      localStorage.setItem("theme", isDark ? "dark" : "light");
-    } catch {
-      // ignore
-    }
-  };
-
-  return (
-    <header className="fixed top-0 left-0 right-0 w-full z-50 bg-[#fff6f3] border-b border-[#f0e6e5]">
-      <div className="w-full px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              type="button"
-              aria-label="Toggle menu"
-              onClick={() => onToggleSidebar?.()}
-              aria-expanded={!!isSidebarOpen}
-              className="p-3 rounded-md text-gray-600 hover:bg-gray-100"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <Link href="/user" className="block w-12 h-12 relative">
-              <Image src="/figma-assets/logo_wesal.png" alt="WESAL" fill style={{ objectFit: "contain" }} priority />
-            </Link>
-          </div>
-
-          <div className="flex-1 flex justify-center px-6 max-w-2xl mx-auto">
-            <div className="w-full">
-              <div className="relative">
-                <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                  </svg>
-                </span>
-                <input
-                  aria-label="Search"
-                  placeholder="Search documents..."
-                  className="w-full h-11 rounded-full pl-12 pr-12 bg-gray-50 text-base text-gray-700 placeholder-gray-400 border border-transparent focus:outline-none focus:ring-0"
-                />
-              </div>
-            </div>
-          </div>
-
-          <nav className="flex items-center gap-2 flex-shrink-0 relative">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#f0e6e5] bg-[#fff6f3] text-[#7b2030] text-sm font-medium hover:bg-gray-50"
-              onClick={() => setAskOpen(true)}
-            >
-              <span>Ask Imam ?</span>
-            </button>
-            <button aria-label="Toggle theme" className="p-3 rounded-full text-gray-600 hover:bg-gray-100" onClick={toggleTheme}>
-              <Moon className="w-6 h-6" />
-            </button>
-            <button aria-label="Messages" className="p-3 rounded-full text-gray-600 hover:bg-gray-100" onClick={() => onOpenMessages?.()}>
-              <MessageCircle className="w-6 h-6" />
-            </button>
-            <button aria-label="Notifications" onClick={() => setNotifOpen((s) => !s)} className="relative p-3 rounded-full text-gray-600 hover:bg-gray-100" type="button">
-              <Bell className="w-6 h-6" />
-              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center px-[7px] py-[2px] text-[11px] font-semibold leading-none text-white bg-[#ff6b6b] rounded-full">3</span>
-            </button>
-            <div className="absolute right-0 top-14 z-50">
-              <NotificationPanel isOpen={isNotifOpen} onClose={() => setNotifOpen(false)} />
-            </div>
-            <button type="button" onClick={() => setProfileOpen(true)} className="ml-2 w-10 h-10 rounded-full overflow-hidden relative shadow-sm ring-1 ring-[#f0e6e5]" aria-label="Open profile">
-              <img src="/icons/settings/profile.png" alt="Profile" className="w-full h-full object-cover" loading="lazy" draggable={false} />
-            </button>
-            <div className="absolute right-0 top-14 z-50">
-              <ProfileModal isOpen={isProfileOpen} onClose={() => setProfileOpen(false)} />
-            </div>
-          </nav>
-        </div>
-      </div>
-      <AskImamModal isOpen={isAskOpen} onClose={() => setAskOpen(false)} />
-      <SheikhModal />
-    </header>
-  );
 }
 
 function DocumentCard({ document, onDelete, onView }: { document: Document; onDelete: (id: string) => void; onView: (url: string) => void }) {
@@ -377,7 +278,7 @@ export default function PreviousKhotbasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar 
+      <KhatebNavbar 
         onToggleSidebar={() => setSidebarOpen((s) => !s)} 
         isSidebarOpen={isSidebarOpen} 
         onOpenMessages={() => setMessagesOpen(true)} 
@@ -389,13 +290,7 @@ export default function PreviousKhotbasPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
-              <button 
-                onClick={() => router.back()} 
-                className="flex items-center gap-2 text-[#8A1538] hover:underline"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span>Back</span>
-              </button>
+              
               <div>
                 <h1 className="text-3xl font-bold text-gray-800">Previous Khotbas</h1>
                 <p className="text-gray-500 mt-1">View and manage your uploaded documents</p>

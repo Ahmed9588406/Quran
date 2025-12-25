@@ -1,16 +1,81 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Menu, Moon, MessageCircle, Download, FileText, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Bell, Menu, Moon, MessageCircle, Download, FileText, AlignLeft, AlignCenter, AlignRight, Calendar, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import dynamic from "next/dynamic";
 import Sidebar from "../../khateeb_Profile/Sidebar";
 import MessagesModal from "../../user/messages";
 import StartNewMessage from "../../user/start_new_message";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+
+// Hijri date conversion utilities
+const HIJRI_MONTHS_AR = [
+  'محرم', 'صفر', 'ربيع الأول', 'ربيع الثاني',
+  'جمادى الأولى', 'جمادى الآخرة', 'رجب', 'شعبان',
+  'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة'
+];
+
+const WEEKDAYS_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Simple Gregorian to Hijri conversion (approximate)
+function gregorianToHijri(date: Date): { year: number; month: number; day: number } {
+  const jd = Math.floor((date.getTime() / 86400000) + 2440587.5);
+  const l = jd - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  const l2 = l - 10631 * n + 354;
+  const j = Math.floor((10985 - l2) / 5316) * Math.floor((50 * l2) / 17719) + Math.floor(l2 / 5670) * Math.floor((43 * l2) / 15238);
+  const l3 = l2 - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+  const month = Math.floor((24 * l3) / 709);
+  const day = l3 - Math.floor((709 * month) / 24);
+  const year = 30 * n + j - 30;
+  return { year, month, day };
+}
+
+function toISODate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+type CalendarDay = {
+  date: Date;
+  iso: string;
+  inCurrentMonth: boolean;
+  isToday: boolean;
+  hijri: { year: number; month: number; day: number };
+};
+
+function buildMonthMatrix(year: number, month: number): CalendarDay[][] {
+  const first = new Date(year, month, 1);
+  const startWeekDay = first.getDay();
+  const startDate = new Date(first);
+  startDate.setDate(first.getDate() - startWeekDay);
+
+  const matrix: CalendarDay[][] = [];
+  const cur = new Date(startDate);
+  const today = new Date();
+  const todayISO = toISODate(today);
+
+  for (let week = 0; week < 6; week++) {
+    const row: CalendarDay[] = [];
+    for (let day = 0; day < 7; day++) {
+      const iso = toISODate(cur);
+      row.push({
+        date: new Date(cur),
+        iso,
+        inCurrentMonth: cur.getMonth() === month,
+        isToday: iso === todayISO,
+        hijri: gregorianToHijri(cur),
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    matrix.push(row);
+  }
+  return matrix;
+}
 
 function NavBar({
   onToggleSidebar,
@@ -163,6 +228,7 @@ export default function PrepareKhotbaPage() {
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -183,10 +249,218 @@ export default function PrepareKhotbaPage() {
   const [fontSize, setFontSize] = useState(16);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
+  // Calendar state
+  const [isCalendarOpen, setCalendarOpen] = useState(false);
+  const [selectedKhotbaDate, setSelectedKhotbaDate] = useState<Date | null>(date ? new Date(date) : null);
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduleSuccess, setScheduleSuccess] = useState(false);
+
+  // Document selection state
+  const [isDocumentModalOpen, setDocumentModalOpen] = useState(false);
+  const [documentMode, setDocumentMode] = useState<'upload' | 'previous'>('upload');
+  const [previousDocuments, setPreviousDocuments] = useState<any[]>([]);
+  const [selectedPreviousDoc, setSelectedPreviousDoc] = useState<any | null>(null);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+
   const dummyUsers = [
     { id: "u1", name: "John Doe", avatar: "https://i.pravatar.cc/80?img=1" },
     { id: "u2", name: "Jane Smith", avatar: "https://i.pravatar.cc/80?img=2" },
   ];
+
+  // Calendar matrix
+  const calendarMatrix = useMemo(() => buildMonthMatrix(calendarYear, calendarMonth), [calendarYear, calendarMonth]);
+
+  // Get Hijri date for selected date
+  const selectedHijri = useMemo(() => {
+    if (!selectedKhotbaDate) return null;
+    return gregorianToHijri(selectedKhotbaDate);
+  }, [selectedKhotbaDate]);
+
+  // Calendar navigation
+  const prevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarYear(y => y - 1);
+      setCalendarMonth(11);
+    } else {
+      setCalendarMonth(m => m - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarYear(y => y + 1);
+      setCalendarMonth(0);
+    } else {
+      setCalendarMonth(m => m + 1);
+    }
+  };
+
+  // Fetch previous documents from API
+  const fetchPreviousDocuments = async () => {
+    setIsLoadingDocs(true);
+    try {
+      const userId = localStorage.getItem('user_id');
+      const accessToken = localStorage.getItem('access_token');
+      
+      if (!userId) {
+        alert('User not authenticated. Please log in.');
+        setIsLoadingDocs(false);
+        return;
+      }
+
+      console.log('Fetching documents for user:', userId);
+
+      const response = await fetch(`/api/documents/user/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+        },
+      });
+
+      console.log('Response status:', response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Documents data:', data);
+        // Handle different response formats
+        const docs = Array.isArray(data) ? data : (data.documents || data.data || []);
+        setPreviousDocuments(docs);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fetch documents:', errorData);
+        setPreviousDocuments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      setPreviousDocuments([]);
+    } finally {
+      setIsLoadingDocs(false);
+    }
+  };
+
+  // Open document selection modal
+  const openDocumentModal = () => {
+    setDocumentModalOpen(true);
+    setDocumentMode('previous'); // Default to previous documents tab
+    fetchPreviousDocuments();
+  };
+
+  // Select a previous document
+  const selectPreviousDocument = (doc: any) => {
+    setSelectedPreviousDoc(doc);
+    setUploadedDocuments([doc]);
+    setDocumentModalOpen(false);
+  };
+
+  // Check if date is in the future (tomorrow or later)
+  const isFutureDate = (date: Date): boolean => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    
+    return checkDate >= tomorrow;
+  };
+
+  // Schedule khotba with selected date
+  const scheduleKhotba = async () => {
+    if (!selectedKhotbaDate) {
+      alert('Please select a future date first.');
+      return;
+    }
+
+    if (!isFutureDate(selectedKhotbaDate)) {
+      alert('Please select a future date (tomorrow or later).');
+      return;
+    }
+
+    if (uploadedDocuments.length === 0) {
+      alert('Please upload a document first.');
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      const documentId = uploadedDocuments[uploadedDocuments.length - 1]?.id;
+
+      if (!documentId) {
+        alert('No document ID found. Please upload a document first.');
+        setIsScheduling(false);
+        return;
+      }
+
+      // Set time to 12:00 PM for the selected date
+      const scheduleDate = new Date(selectedKhotbaDate);
+      scheduleDate.setHours(12, 0, 0, 0);
+      
+      // Format date as ISO string: 2025-10-23T12:00:00.000
+      const airTime = scheduleDate.toISOString().slice(0, -1); // Remove 'Z' at the end
+
+      console.log('Scheduling khotba:', {
+        documentId,
+        airTime,
+        selectedDate: selectedKhotbaDate.toISOString(),
+      });
+
+      const response = await fetch('/api/documents/airtime', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+        },
+        body: JSON.stringify({
+          documentId,
+          airTime,
+        }),
+      });
+
+      const responseData = await response.json();
+      console.log('Schedule response:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.details || responseData.error || 'Failed to schedule khotba');
+      }
+
+      setScheduleSuccess(true);
+      setTimeout(() => {
+        setScheduleSuccess(false);
+        setCalendarOpen(false);
+      }, 2000);
+
+      // Store scheduled date in localStorage for the Schedule page
+      const scheduledKhotbas = JSON.parse(localStorage.getItem('scheduled_khotbas') || '{}');
+      const isoDate = toISODate(selectedKhotbaDate);
+      scheduledKhotbas[isoDate] = [
+        ...(scheduledKhotbas[isoDate] || []),
+        {
+          id: documentId,
+          title: khotbaTitle || 'Scheduled Khotba / خطبة مجدولة',
+          airTime,
+          color: 'bg-green-500',
+          isKhotba: true,
+        }
+      ];
+      localStorage.setItem('scheduled_khotbas', JSON.stringify(scheduledKhotbas));
+      
+      // Dispatch custom event to notify other components (like the Calendar in khateb_Studio)
+      window.dispatchEvent(new CustomEvent('khotba-scheduled', { 
+        detail: { isoDate, documentId, title: khotbaTitle } 
+      }));
+
+    } catch (error) {
+      console.error('Error scheduling khotba:', error);
+      alert(`Failed to schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsScheduling(false);
+    }
+  };
 
   // Check if user is a preacher
   useEffect(() => {
@@ -226,6 +500,29 @@ export default function PrepareKhotbaPage() {
     checkAuthorization();
   }, [router]);
 
+  // File size validation (in bytes)
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_FILE_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain'
+  ];
+
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File "${file.name}" is too large. Maximum size is 10MB. Current size: ${(file.size / 1024 / 1024).toFixed(1)}MB`;
+    }
+
+    // Check file type
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      return `File "${file.name}" has unsupported format. Allowed formats: PDF, DOC, DOCX, TXT`;
+    }
+
+    return null; // File is valid
+  };
+
   const handleAddFile = () => {
     setUploadModalOpen(true);
   };
@@ -233,6 +530,34 @@ export default function PrepareKhotbaPage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
+      // Validate all files first
+      const validationErrors: string[] = [];
+      const validFiles: File[] = [];
+
+      for (const file of Array.from(files)) {
+        const error = validateFile(file);
+        if (error) {
+          validationErrors.push(error);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      // Show validation errors if any
+      if (validationErrors.length > 0) {
+        alert(`Upload failed:\n\n${validationErrors.join('\n\n')}`);
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+
+      // If no valid files, return
+      if (validFiles.length === 0) {
+        return;
+      }
+
       setIsUploading(true);
       
       try {
@@ -249,15 +574,14 @@ export default function PrepareKhotbaPage() {
           return;
         }
 
-        // Upload each file
-        const uploadPromises = Array.from(files).map(async (file) => {
-          console.log('Uploading file:', file.name, file.type, file.size);
+        // Upload each valid file and collect results
+        const uploadResults: any[] = [];
+        for (const file of validFiles) {
+          console.log('Uploading file:', file.name, file.type, `${(file.size / 1024 / 1024).toFixed(1)}MB`);
           
           const formData = new FormData();
           formData.append('file', file);
           formData.append('userId', userId);
-          // Optional: Add liveStreamId if needed
-          // formData.append('liveStreamId', 'your-stream-id');
 
           const response = await fetch('/api/documents', {
             method: 'POST',
@@ -270,12 +594,10 @@ export default function PrepareKhotbaPage() {
           console.log('Response status:', response.status);
 
           if (!response.ok) {
-            // Try to get response as text first
             const responseText = await response.text();
             console.error('Upload failed - Status:', response.status);
             console.error('Upload failed - Response text:', responseText);
             
-            // Try to parse as JSON
             let error;
             try {
               error = JSON.parse(responseText);
@@ -284,19 +606,37 @@ export default function PrepareKhotbaPage() {
             }
             
             console.error('Upload failed - Parsed error:', error);
-            const errorMsg = error.details || error.error || error.message || responseText || `Upload failed with status ${response.status}`;
+            
+            // Handle specific error types
+            let errorMsg = 'Upload failed';
+            if (error.details) {
+              try {
+                const details = JSON.parse(error.details);
+                if (details.message?.includes('Maximum upload size exceeded')) {
+                  errorMsg = `File "${file.name}" exceeds server upload limit. Please use a smaller file (under 10MB).`;
+                } else {
+                  errorMsg = details.message || error.details;
+                }
+              } catch {
+                errorMsg = error.details;
+              }
+            } else if (error.error) {
+              errorMsg = error.error;
+            } else if (error.message) {
+              errorMsg = error.message;
+            }
+            
             throw new Error(errorMsg);
           }
 
           const result = await response.json();
           console.log('Upload success:', result);
-          return result;
-        });
-
-        await Promise.all(uploadPromises);
+          uploadResults.push(result);
+        }
         
         // Add files to local state after successful upload
-        setSelectedFiles(prev => [...prev, ...Array.from(files)]);
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+        setUploadedDocuments(prev => [...prev, ...uploadResults]);
         setIsUploading(false);
         setUploadSuccessOpen(true);
         
@@ -318,15 +658,35 @@ export default function PrepareKhotbaPage() {
     const files = e.dataTransfer.files;
     
     if (files && files.length) {
+      // Validate all files first
+      const validationErrors: string[] = [];
+      const validFiles: File[] = [];
+
+      for (const file of Array.from(files)) {
+        const error = validateFile(file);
+        if (error) {
+          validationErrors.push(error);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      // Show validation errors if any
+      if (validationErrors.length > 0) {
+        alert(`Upload failed:\n\n${validationErrors.join('\n\n')}`);
+        return;
+      }
+
+      // If no valid files, return
+      if (validFiles.length === 0) {
+        return;
+      }
+
       setIsUploading(true);
       
       try {
-        // Get user ID from localStorage
         const userId = localStorage.getItem('user_id');
         const accessToken = localStorage.getItem('access_token');
-        
-        console.log('User ID:', userId);
-        console.log('Has access token:', !!accessToken);
         
         if (!userId) {
           alert('User not authenticated. Please log in.');
@@ -334,15 +694,14 @@ export default function PrepareKhotbaPage() {
           return;
         }
 
-        // Upload each file
-        const uploadPromises = Array.from(files).map(async (file) => {
-          console.log('Uploading file:', file.name, file.type, file.size);
+        // Upload each valid file and collect results
+        const uploadResults: any[] = [];
+        for (const file of validFiles) {
+          console.log('Uploading file:', file.name, file.type, `${(file.size / 1024 / 1024).toFixed(1)}MB`);
           
           const formData = new FormData();
           formData.append('file', file);
           formData.append('userId', userId);
-          // Optional: Add liveStreamId if needed
-          // formData.append('liveStreamId', 'your-stream-id');
 
           const response = await fetch('/api/documents', {
             method: 'POST',
@@ -352,15 +711,8 @@ export default function PrepareKhotbaPage() {
             body: formData,
           });
 
-          console.log('Response status:', response.status);
-
           if (!response.ok) {
-            // Try to get response as text first
             const responseText = await response.text();
-            console.error('Upload failed - Status:', response.status);
-            console.error('Upload failed - Response text:', responseText);
-            
-            // Try to parse as JSON
             let error;
             try {
               error = JSON.parse(responseText);
@@ -368,20 +720,35 @@ export default function PrepareKhotbaPage() {
               error = { error: responseText || `HTTP ${response.status}` };
             }
             
-            console.error('Upload failed - Parsed error:', error);
-            const errorMsg = error.details || error.error || error.message || responseText || `Upload failed with status ${response.status}`;
+            // Handle specific error types
+            let errorMsg = 'Upload failed';
+            if (error.details) {
+              try {
+                const details = JSON.parse(error.details);
+                if (details.message?.includes('Maximum upload size exceeded')) {
+                  errorMsg = `File "${file.name}" exceeds server upload limit. Please use a smaller file (under 10MB).`;
+                } else {
+                  errorMsg = details.message || error.details;
+                }
+              } catch {
+                errorMsg = error.details;
+              }
+            } else if (error.error) {
+              errorMsg = error.error;
+            } else if (error.message) {
+              errorMsg = error.message;
+            }
+            
             throw new Error(errorMsg);
           }
 
           const result = await response.json();
           console.log('Upload success:', result);
-          return result;
-        });
-
-        await Promise.all(uploadPromises);
+          uploadResults.push(result);
+        }
         
-        // Add files to local state after successful upload
-        setSelectedFiles(prev => [...prev, ...Array.from(files)]);
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+        setUploadedDocuments(prev => [...prev, ...uploadResults]);
         setIsUploading(false);
         setUploadSuccessOpen(true);
         
@@ -544,6 +911,40 @@ export default function PrepareKhotbaPage() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Set Khotba Button */}
+              <button 
+                onClick={() => {
+                  if (uploadedDocuments.length === 0 && !selectedPreviousDoc) {
+                    // Open document selection modal first
+                    openDocumentModal();
+                  } else if (!selectedKhotbaDate) {
+                    setCalendarOpen(true);
+                  } else if (!isFutureDate(selectedKhotbaDate)) {
+                    alert('Please select a future date (tomorrow or later).');
+                    setCalendarOpen(true);
+                  } else {
+                    scheduleKhotba();
+                  }
+                }}
+                disabled={isScheduling}
+                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isScheduling ? (
+                  <>
+                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    <span>Setting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-5 h-5" />
+                    <span>Set Khotba</span>
+                  </>
+                )}
+              </button>
+
               <button 
                 onClick={exportToPDF}
                 disabled={isExporting}
@@ -572,7 +973,7 @@ export default function PrepareKhotbaPage() {
                 <span className="ml-1">Add file</span>
               </button>
 
-              <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" onChange={handleFileChange} multiple style={{ display: "none" }} />
+              <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={handleFileChange} multiple style={{ display: "none" }} />
             </div>
           </div>
 
@@ -640,10 +1041,85 @@ export default function PrepareKhotbaPage() {
               className="mt-4 w-full text-5xl font-semibold text-[#2b2b2b] bg-transparent border-none focus:outline-none focus:ring-0"
               style={{ textAlign: textAlign }}
             />
-            {formattedDate ? (
+            
+            {/* Date Selection Section */}
+            <div className="mt-6 p-4 bg-[#fff8f0] rounded-lg border border-[#f5e8dc]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Calendar className="w-6 h-6 text-[#8A1538]" />
+                  <div>
+                    <div className="text-sm text-gray-500">Khotba Date / تاريخ الخطبة</div>
+                    {selectedKhotbaDate ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="text-lg font-semibold text-gray-800">
+                          {selectedKhotbaDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        </div>
+                        {selectedHijri && (
+                          <div className="text-base text-[#8A1538] font-medium" dir="rtl">
+                            {selectedHijri.day} {HIJRI_MONTHS_AR[selectedHijri.month - 1]} {selectedHijri.year} هـ
+                          </div>
+                        )}
+                        {selectedKhotbaDate && !isFutureDate(selectedKhotbaDate) && (
+                          <div className="text-sm text-red-600 font-medium">
+                            ⚠️ Please select a future date (tomorrow or later)
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-gray-400">No date selected / لم يتم اختيار تاريخ</div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setCalendarOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-[#8A1538] text-[#8A1538] rounded-lg hover:bg-[#fff0f0] transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>{selectedKhotbaDate ? 'Change Date' : 'Select Date'}</span>
+                  </button>
+                  {selectedKhotbaDate && uploadedDocuments.length > 0 && isFutureDate(selectedKhotbaDate) && (
+                    <button
+                      onClick={scheduleKhotba}
+                      disabled={isScheduling}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors disabled:opacity-50"
+                    >
+                      {isScheduling ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                            <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+                          </svg>
+                          <span>Scheduling...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Schedule Khotba</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Instructions */}
+              <div className="mt-3 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <span>📅</span>
+                  <span>Select a future date to schedule your khotba (tomorrow or later)</span>
+                </div>
+                {uploadedDocuments.length === 0 && (
+                  <div className="flex items-center gap-2 mt-1 text-amber-600">
+                    <span>📄</span>
+                    <span>Upload a document first to enable scheduling</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {formattedDate && !selectedKhotbaDate && (
               <div className="mt-4 text-base text-gray-600">Selected date: <span className="font-medium text-gray-800">{formattedDate}</span></div>
-            ) : (
-              <p className="mt-4 text-base text-gray-500">Provide a 2-3 sentence description.</p>
             )}
           </div>
 
@@ -706,7 +1182,9 @@ export default function PrepareKhotbaPage() {
                       <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-[#8A1538]" />
                         <span className="text-gray-700">{file.name}</span>
-                        <span className="text-sm text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                        <span className="text-sm text-gray-500">
+                          ({file.size > 1024 * 1024 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`})
+                        </span>
                       </div>
                       <button
                         onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== index))}
@@ -746,6 +1224,10 @@ export default function PrepareKhotbaPage() {
                 <h2 className="text-[32px] font-medium text-[#333333] text-center leading-[1em] tracking-[-0.04em]">
                   Drag and drop file to upload
                 </h2>
+                <div className="text-center text-gray-600">
+                  <div className="text-sm mb-2">Supported formats: PDF, DOC, DOCX, TXT</div>
+                  <div className="text-sm">Maximum file size: 10MB</div>
+                </div>
               </div>
             </div>
 
@@ -790,6 +1272,360 @@ export default function PrepareKhotbaPage() {
               <div className="text-[18px] font-bold text-[#2F2F2F] text-center">Upload Complete!</div>
               <div className="text-[16px] text-[#6F6F6F] text-center">Great! Your file was uploaded successfully. You can now access it from your dashboard.</div>
               <button onClick={() => { setUploadSuccessOpen(false); }} className="mt-4 w-[166px] h-12 bg-[#8A1538] rounded-lg flex items-center justify-center text-white font-medium">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Modal */}
+      {isCalendarOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCalendarOpen(false)} />
+          <div className="relative z-10 w-[700px] bg-white rounded-2xl shadow-xl overflow-hidden">
+            {/* Calendar Header */}
+            <div className="bg-[#8A1538] text-white p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-semibold">Select Khotba Date / اختر تاريخ الخطبة</h2>
+                <button onClick={() => setCalendarOpen(false)} className="text-white/80 hover:text-white">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              {selectedKhotbaDate && selectedHijri && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-lg">{selectedKhotbaDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                    <div className="text-white/80">{WEEKDAYS_EN[selectedKhotbaDate.getDay()]}</div>
+                  </div>
+                  <div className="text-right" dir="rtl">
+                    <div className="text-lg">{selectedHijri.day} {HIJRI_MONTHS_AR[selectedHijri.month - 1]} {selectedHijri.year} هـ</div>
+                    <div className="text-white/80">{WEEKDAYS_AR[selectedKhotbaDate.getDay()]}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Calendar Navigation */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-full">
+                <ChevronLeft className="w-5 h-5 text-gray-600" />
+              </button>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-gray-800">
+                  {new Date(calendarYear, calendarMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </div>
+                <div className="text-sm text-[#8A1538]" dir="rtl">
+                  {HIJRI_MONTHS_AR[gregorianToHijri(new Date(calendarYear, calendarMonth, 15)).month - 1]} {gregorianToHijri(new Date(calendarYear, calendarMonth, 15)).year} هـ
+                </div>
+              </div>
+              <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-full">
+                <ChevronRight className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Weekday Headers */}
+            <div className="grid grid-cols-7 border-b">
+              {WEEKDAYS_EN.map((day, i) => (
+                <div key={day} className="py-3 text-center">
+                  <div className="text-sm font-medium text-gray-600">{day}</div>
+                  <div className="text-xs text-[#8A1538]" dir="rtl">{WEEKDAYS_AR[i]}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="p-4">
+              {calendarMatrix.map((week, weekIdx) => (
+                <div key={weekIdx} className="grid grid-cols-7 gap-1">
+                  {week.map((day) => {
+                    const isSelected = selectedKhotbaDate && toISODate(selectedKhotbaDate) === day.iso;
+                    const isFriday = day.date.getDay() === 5;
+                    const isPastDate = !isFutureDate(day.date);
+                    const isDisabled = isPastDate || !day.inCurrentMonth;
+                    
+                    return (
+                      <button
+                        key={day.iso}
+                        onClick={() => {
+                          if (!isDisabled) {
+                            setSelectedKhotbaDate(day.date);
+                          }
+                        }}
+                        disabled={isDisabled}
+                        className={`
+                          p-2 rounded-lg text-center transition-all min-h-[70px] flex flex-col items-center justify-center
+                          ${!day.inCurrentMonth ? 'opacity-40' : ''}
+                          ${isPastDate ? 'opacity-30 cursor-not-allowed bg-gray-100' : ''}
+                          ${isSelected ? 'bg-[#8A1538] text-white' : day.isToday ? 'bg-[#fff0f0] border-2 border-[#8A1538] opacity-50' : !isDisabled ? 'hover:bg-gray-100' : ''}
+                          ${isFriday && !isSelected && !isPastDate ? 'bg-green-50' : ''}
+                          ${!isPastDate && day.inCurrentMonth ? 'cursor-pointer' : ''}
+                        `}
+                      >
+                        <div className={`text-lg font-medium ${isSelected ? 'text-white' : day.isToday ? 'text-[#8A1538]' : isPastDate ? 'text-gray-400' : ''}`}>
+                          {day.date.getDate()}
+                        </div>
+                        <div className={`text-xs ${isSelected ? 'text-white/80' : isPastDate ? 'text-gray-300' : 'text-[#8A1538]'}`} dir="rtl">
+                          {day.hijri.day}
+                        </div>
+                        {isFriday && (
+                          <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-white/70' : isPastDate ? 'text-gray-300' : 'text-green-600'}`}>
+                            الجمعة
+                          </div>
+                        )}
+                        {isPastDate && day.inCurrentMonth && (
+                          <div className="text-[8px] text-gray-400 mt-0.5">Past</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Footer */}
+            <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-50 border border-green-200 rounded"></div>
+                  <span>Friday / الجمعة</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-[#fff0f0] border-2 border-[#8A1538] rounded opacity-50"></div>
+                  <span>Today (Past) / اليوم</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-gray-100 rounded opacity-50"></div>
+                  <span>Past Dates / تواريخ سابقة</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setCalendarOpen(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setCalendarOpen(false)}
+                  disabled={!selectedKhotbaDate || !isFutureDate(selectedKhotbaDate)}
+                  className="px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirm Date
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Success Modal */}
+      {scheduleSuccess && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative z-20 w-[400px] p-8 bg-white rounded-2xl shadow-xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <div className="text-xl font-semibold text-gray-800">Khotba Scheduled!</div>
+            <div className="text-gray-600 text-center">
+              Your khotba has been scheduled for<br />
+              <span className="font-medium text-[#8A1538]">
+                {selectedKhotbaDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Selection Modal */}
+      {isDocumentModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDocumentModalOpen(false)} />
+          <div className="relative z-10 w-[700px] max-h-[80vh] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-[#8A1538] text-white p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-semibold">Select Document / اختر المستند</h2>
+                <button onClick={() => setDocumentModalOpen(false)} className="text-white/80 hover:text-white">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-white/80 mt-2">Choose to upload a new document or select from your previous uploads</p>
+            </div>
+
+            {/* Mode Tabs */}
+            <div className="flex border-b">
+              <button
+                onClick={() => {
+                  setDocumentMode('previous');
+                  fetchPreviousDocuments();
+                }}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  documentMode === 'previous' 
+                    ? 'bg-[#fff8f0] text-[#8A1538] border-b-2 border-[#8A1538]' 
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  <span>Previous Documents / المستندات السابقة</span>
+                </div>
+              </button>
+              <button
+                onClick={() => setDocumentMode('upload')}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  documentMode === 'upload' 
+                    ? 'bg-[#fff8f0] text-[#8A1538] border-b-2 border-[#8A1538]' 
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span>Upload New / رفع جديد</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {documentMode === 'previous' ? (
+                /* Previous Documents List */
+                <div>
+                  {isLoadingDocs ? (
+                    <div className="flex items-center justify-center py-12">
+                      <svg className="animate-spin w-8 h-8 text-[#8A1538]" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" />
+                      </svg>
+                      <span className="ml-3 text-gray-600">Loading documents...</span>
+                    </div>
+                  ) : previousDocuments.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-600 mb-2">No previous documents / لا توجد مستندات سابقة</h3>
+                      <p className="text-gray-500">Upload a new document to get started</p>
+                      <button
+                        onClick={() => setDocumentMode('upload')}
+                        className="mt-4 px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029]"
+                      >
+                        Upload New Document
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="text-sm text-gray-500 mb-4">
+                        Found {previousDocuments.length} document(s) - Select one to schedule
+                      </div>
+                      {previousDocuments.map((doc: any) => (
+                        <button
+                          key={doc.id}
+                          onClick={() => selectPreviousDocument(doc)}
+                          className={`w-full p-4 rounded-lg border-2 text-left transition-all hover:border-[#8A1538] hover:bg-[#fff8f0] ${
+                            selectedPreviousDoc?.id === doc.id 
+                              ? 'border-[#8A1538] bg-[#fff8f0]' 
+                              : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-6 h-6 text-red-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-800 truncate">
+                                {doc.originalName || doc.fileName || `Document ${doc.id}`}
+                              </h4>
+                              <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                {doc.uploadedAt && (
+                                  <span>Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</span>
+                                )}
+                                {doc.airTime && (
+                                  <span className="text-green-600">Scheduled: {new Date(doc.airTime).toLocaleDateString()}</span>
+                                )}
+                              </div>
+                            </div>
+                            {selectedPreviousDoc?.id === doc.id && (
+                              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                <Check className="w-4 h-4 text-white" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Upload New Document */
+                <div
+                  onDrop={onDrop}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${
+                    dragOver ? 'border-[#8A1538] bg-[#fff8f0]' : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-medium text-gray-800 mb-2">Drag and drop file to upload</h3>
+                      <p className="text-gray-500 mb-1">Supported formats: PDF, DOC, DOCX, TXT</p>
+                      <p className="text-gray-500">Maximum file size: 10MB</p>
+                    </div>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-6 py-3 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors"
+                    >
+                      Select File
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {selectedPreviousDoc ? (
+                  <span className="text-green-600 font-medium">
+                    ✓ Selected: {selectedPreviousDoc.originalName || selectedPreviousDoc.fileName || `Document ${selectedPreviousDoc.id}`}
+                  </span>
+                ) : uploadedDocuments.length > 0 ? (
+                  <span className="text-green-600 font-medium">
+                    ✓ {uploadedDocuments.length} document(s) ready
+                  </span>
+                ) : (
+                  <span>Select or upload a document to continue</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setDocumentModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setDocumentModalOpen(false);
+                    if (uploadedDocuments.length > 0 || selectedPreviousDoc) {
+                      setCalendarOpen(true);
+                    }
+                  }}
+                  disabled={uploadedDocuments.length === 0 && !selectedPreviousDoc}
+                  className="px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue to Date Selection
+                </button>
+              </div>
             </div>
           </div>
         </div>

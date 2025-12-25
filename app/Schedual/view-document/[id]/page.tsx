@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { X, Download, ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Download, ArrowLeft, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function ViewDocumentPage() {
   const params = useParams();
@@ -12,23 +12,28 @@ export default function ViewDocumentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [pdfLib, setPdfLib] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1.2);
-  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
-  const [pdfLib, setPdfLib] = useState<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const documentName = 'Document';
 
-  // Load PDF.js
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load PDF.js library
   useEffect(() => {
     const loadPdfJs = async () => {
       try {
         const pdfjsLib = await import('pdfjs-dist');
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        const version = pdfjsLib.version;
+        console.log('PDF.js version:', version);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
         setPdfLib(pdfjsLib);
       } catch (err) {
         console.error('Failed to load PDF.js:', err);
-        setError('Failed to load PDF viewer');
+        setError('Failed to load PDF viewer library');
         setIsLoading(false);
       }
     };
@@ -99,7 +104,12 @@ export default function ViewDocumentPage() {
       setPdfData(data);
 
       // Load PDF with PDF.js
-      const loadingTask = pdfLib.getDocument({ data });
+      const loadingTask = pdfLib.getDocument({ 
+        data,
+        useWorkerFetch: false,
+        isEvalSupported: false,
+        useSystemFonts: true,
+      });
       const pdf = await loadingTask.promise;
       
       console.log('PDF parsed, pages:', pdf.numPages);
@@ -159,8 +169,55 @@ export default function ViewDocumentPage() {
     }
   };
 
+  const handleZoomIn = () => setScale(s => Math.min(s + 0.2, 3));
+  const handleZoomOut = () => setScale(s => Math.max(s - 0.2, 0.5));
+  const handlePrevPage = () => setCurrentPage(p => Math.max(1, p - 1));
+  const handleNextPage = () => setCurrentPage(p => Math.min(totalPages, p + 1));
+
+  const toggleFullscreen = () => {
+    if (!isFullscreen) {
+      containerRef.current?.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+    setIsFullscreen(!isFullscreen);
+  };
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case "+":
+        case "=":
+          handleZoomIn();
+          break;
+        case "-":
+          handleZoomOut();
+          break;
+        case "ArrowLeft":
+          handlePrevPage();
+          break;
+        case "ArrowRight":
+          handleNextPage();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [totalPages]);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div ref={containerRef} className="min-h-screen bg-white flex flex-col">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 w-full z-50 bg-[#fff6f3] border-b border-[#f0e6e5]">
         <div className="w-full px-6 lg:px-8">
@@ -182,8 +239,9 @@ export default function ViewDocumentPage() {
               {pdfDoc && (
                 <div className="flex items-center gap-2 mr-4">
                   <button
-                    onClick={() => setScale(s => Math.max(s - 0.2, 0.5))}
-                    className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg"
+                    onClick={handleZoomOut}
+                    className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg transition-colors"
+                    title="Zoom Out (-)"
                   >
                     <ZoomOut className="w-5 h-5" />
                   </button>
@@ -191,8 +249,9 @@ export default function ViewDocumentPage() {
                     {Math.round(scale * 100)}%
                   </span>
                   <button
-                    onClick={() => setScale(s => Math.min(s + 0.2, 3))}
-                    className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg"
+                    onClick={handleZoomIn}
+                    className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg transition-colors"
+                    title="Zoom In (+)"
                   >
                     <ZoomIn className="w-5 h-5" />
                   </button>
@@ -200,9 +259,25 @@ export default function ViewDocumentPage() {
               )}
 
               <button
+                onClick={loadPdfData}
+                className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg transition-colors"
+                title="Toggle Fullscreen"
+              >
+                {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              </button>
+
+              <button
                 onClick={handleDownload}
                 disabled={isLoading || !pdfData}
-                className="flex items-center gap-2 px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] disabled:opacity-50 transition-colors"
               >
                 <Download className="w-4 h-4" />
                 <span>Download</span>
@@ -210,7 +285,7 @@ export default function ViewDocumentPage() {
 
               <button
                 onClick={() => router.back()}
-                className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg"
+                className="p-2 text-gray-600 hover:text-[#8A1538] hover:bg-white rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -241,7 +316,7 @@ export default function ViewDocumentPage() {
               <p className="text-gray-500 text-sm">{error}</p>
               <button 
                 onClick={loadPdfData} 
-                className="px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029]"
+                className="px-4 py-2 bg-[#8A1538] text-white rounded-lg hover:bg-[#6d1029] transition-colors"
               >
                 Try Again
               </button>
@@ -259,9 +334,9 @@ export default function ViewDocumentPage() {
         <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40">
           <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-full shadow-lg border border-gray-200">
             <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              onClick={handlePrevPage}
               disabled={currentPage <= 1}
-              className="p-2 text-gray-600 hover:text-[#8A1538] rounded-lg disabled:opacity-50"
+              className="p-2 text-gray-600 hover:text-[#8A1538] rounded-lg disabled:opacity-50 transition-colors"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -269,9 +344,9 @@ export default function ViewDocumentPage() {
               Page {currentPage} of {totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              onClick={handleNextPage}
               disabled={currentPage >= totalPages}
-              className="p-2 text-gray-600 hover:text-[#8A1538] rounded-lg disabled:opacity-50"
+              className="p-2 text-gray-600 hover:text-[#8A1538] rounded-lg disabled:opacity-50 transition-colors"
             >
               <ChevronRight className="w-5 h-5" />
             </button>

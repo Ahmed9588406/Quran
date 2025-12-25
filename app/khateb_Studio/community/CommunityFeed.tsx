@@ -113,14 +113,14 @@ const normalizeMediaUrl = (media?: Media | any): string | null => {
   }
   
   // Relative URL - prepend base
-  return `https://apisoapp.twingroups.com${url.startsWith('/') ? '' : '/'}${url}`;
+  return `http://apisoapp.twingroups.com${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 // Helper to normalize avatar URLs
 const normalizeAvatarUrl = (url?: string): string => {
   if (!url) return DEFAULT_AVATAR;
   if (url.startsWith("http")) return url;
-  return `https://apisoapp.twingroups.com${url}`;
+  return `http://apisoapp.twingroups.com${url}`;
 };
 
 /**

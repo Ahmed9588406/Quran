@@ -104,7 +104,7 @@ export default function Sidebar({
     { id: "studio", label: "Khateeb Studio", icon: <Monitor className="w-5 h-5" />, href: "/khateb_Studio", highlight: true },
     { id: "reels", label: "Reels", icon: <Film className="w-5 h-5" />, href: "/khateb_Studio/reels" },
     { id: "go_live", label: "Go Live", icon: <Video className="w-5 h-5" />, href: "/go-live" },
-    { id: "content", label: "Content", icon: <FileText className="w-5 h-5" />, href: "/content" },
+    { id: "content", label: "Content", icon: <FileText className="w-5 h-5" />, href: "/Schedual/previous_khotbas" },
     { id: "fatwas", label: "Fatwas", icon: <BookOpen className="w-5 h-5" />, href: "/khateb_Studio/fatwas" },
     { id: "archive", label: "Archive", icon: <Archive className="w-5 h-5" />, href: "/archive" },
   ];
