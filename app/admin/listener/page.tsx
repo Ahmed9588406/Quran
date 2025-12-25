@@ -1,12 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Script from "next/script";
 
-// Use environment variable or fallback to hardcoded value
 const JANUS_SERVER = process.env.NEXT_PUBLIC_JANUS_SERVER || "http://192.168.1.29:8088/janus";
-// Use local proxy to avoid CORS issues with backend API
 const BACKEND_BASE = "/api/admin/stream";
 
 declare const Janus: any;
@@ -25,12 +23,18 @@ export default function ListenerPage() {
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
   const [alerts, setAlerts] = useState<{ id: number; message: string; type: string }[]>([]);
   const [janusLoaded, setJanusLoaded] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
 
   const janusRef = useRef<any>(null);
   const discoveryHandleRef = useRef<any>(null);
   const subscribedRef = useRef(false);
   const streamCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number | null>(null);
 
   const showAlert = useCallback((message: string, type: string) => {
     const id = Date.now();
@@ -38,27 +42,89 @@ export default function ListenerPage() {
     setTimeout(() => setAlerts((prev) => prev.filter((a) => a.id !== id)), 5000);
   }, []);
 
-  // Notify backend when user joins
+  // Audio visualization
+  const startVisualization = useCallback(() => {
+    const canvas = canvasRef.current;
+    const analyser = analyserRef.current;
+    if (!canvas || !analyser) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const draw = () => {
+      animationRef.current = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw audio bars
+      const barCount = 64;
+      const barWidth = width / barCount - 2;
+      const barSpacing = 2;
+
+      for (let i = 0; i < barCount; i++) {
+        const dataIndex = Math.floor(i * bufferLength / barCount);
+        const value = dataArray[dataIndex];
+        const barHeight = (value / 255) * height * 0.8;
+        
+        const x = i * (barWidth + barSpacing);
+        const y = height - barHeight;
+
+        // Gradient colors matching theme
+        const gradient = ctx.createLinearGradient(x, y, x, height);
+        gradient.addColorStop(0, "#10b981"); // emerald-500
+        gradient.addColorStop(0.5, "#06b6d4"); // cyan-500
+        gradient.addColorStop(1, "#8b5cf6"); // violet-500
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, barHeight, 2);
+        ctx.fill();
+      }
+    };
+
+    draw();
+  }, []);
+
+  const setupAudioAnalyser = useCallback((stream: MediaStream) => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      const audioContext = audioContextRef.current;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      startVisualization();
+    } catch (err) {
+      console.error("Failed to setup audio analyser:", err);
+    }
+  }, [startVisualization]);
+
   const notifyJoin = useCallback(async () => {
     try {
       await fetch(`${BACKEND_BASE}/${liveStreamId}?action=join&userId=${userIdRef.current}`, { method: "POST" });
-      console.log("Notified backend: user joined");
     } catch (err) {
       console.error("Failed to notify join:", err);
     }
   }, [liveStreamId]);
 
-  // Notify backend when user leaves
   const notifyLeave = useCallback(async () => {
     try {
       await fetch(`${BACKEND_BASE}/${liveStreamId}?action=leave&userId=${userIdRef.current}`, { method: "POST" });
-      console.log("Notified backend: user left");
     } catch (err) {
       console.error("Failed to notify leave:", err);
     }
   }, [liveStreamId]);
 
-  // Handle stream ended
   const handleStreamEnded = useCallback((views: number) => {
     setStatus("ended");
     setStatusText("Stream Ended");
@@ -67,115 +133,67 @@ export default function ListenerPage() {
     setShowPlayButton(false);
     showAlert("The broadcaster has ended this stream", "warning");
     
-    if (streamCheckIntervalRef.current) {
-      clearInterval(streamCheckIntervalRef.current);
-      streamCheckIntervalRef.current = null;
-    }
-    
-    if (janusRef.current) {
-      janusRef.current.destroy();
-      janusRef.current = null;
-    }
-    
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    if (streamCheckIntervalRef.current) clearInterval(streamCheckIntervalRef.current);
+    if (janusRef.current) janusRef.current.destroy();
     notifyLeave();
   }, [showAlert, notifyLeave]);
 
-  // Check stream status from backend
   const checkStreamStatus = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch(`${BACKEND_BASE}/${liveStreamId}?action=info`);
-      if (!response.ok) {
-        console.warn("Stream status check failed with status:", response.status);
-        return true; // Assume still active
-      }
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.warn("Failed to parse stream status response:", text.substring(0, 100));
-        return true; // Assume still active
-      }
+      if (!response.ok) return true;
+      const data = await response.json();
       
       if (data.status === "ENDED") {
         handleStreamEnded(data.totalViews);
         return false;
       }
-      
       setListenerCount(data.listenerCount || 0);
       return true;
-    } catch (error) {
-      console.error("Error checking stream status:", error);
-      return true; // Assume still active on error
+    } catch {
+      return true;
     }
   }, [liveStreamId, handleStreamEnded]);
 
-  // Attach remote stream to audio element
   const attachRemoteStreamToAudio = useCallback((stream: MediaStream) => {
     const audioEl = audioRef.current;
     if (!audioEl) return;
     
     audioEl.srcObject = stream;
-    console.log("Attached stream to audio element");
     setShowAudioPlayer(true);
+    setupAudioAnalyser(stream);
 
     audioEl.play().then(() => {
-      try {
-        audioEl.muted = false;
-        setStatus("live");
-        setStatusText("🎶 Playing live audio");
-        showAlert("Connected to live stream!", "success");
-      } catch (e) {
-        console.warn("Could not unmute:", e);
-        setShowPlayButton(true);
-      }
-    }).catch((err) => {
-      console.warn("Autoplay prevented:", err);
+      audioEl.muted = false;
+      setStatus("live");
+      setStatusText("Playing live audio");
+      showAlert("Connected to live stream!", "success");
+    }).catch(() => {
       setStatus("live");
       setStatusText("Ready to play");
-      showAlert("Click the button below to start audio", "info");
+      showAlert("Click play to start audio", "info");
       setShowPlayButton(true);
     });
-  }, [showAlert]);
+  }, [showAlert, setupAudioAnalyser]);
 
-  // Subscribe to a publisher feed
   const subscribeToFeed = useCallback((feedId: number) => {
     if (subscribedRef.current || !janusRef.current) return;
-    
-    console.log("Subscribing to feed:", feedId);
     
     janusRef.current.attach({
       plugin: "janus.plugin.videoroom",
       success: function (subHandle: any) {
-        console.log("Subscriber handle attached:", subHandle.getId());
-
-        const subReq = {
-          request: "join",
-          room: roomId,
-          ptype: "subscriber",
-          feed: feedId,
-          offer_audio: true,
-          offer_video: false
-        };
-        subHandle.send({ message: subReq });
+        subHandle.send({ message: { request: "join", room: roomId, ptype: "subscriber", feed: feedId, offer_audio: true, offer_video: false } });
 
         subHandle.onmessage = function (msg: any, jsep: any) {
-          console.log("Subscriber onmessage:", msg);
           if (jsep) {
             subHandle.createAnswer({
-              jsep: jsep,
-              media: {
-                audioSend: false,
-                videoSend: false,
-                audioRecv: true,
-                videoRecv: false
-              },
+              jsep,
+              media: { audioSend: false, videoSend: false, audioRecv: true, videoRecv: false },
               success: function (jsepAnswer: any) {
-                console.log("Subscriber created answer, sending start");
                 subHandle.send({ message: { request: "start" }, jsep: jsepAnswer });
               },
-              error: function (err: any) {
-                console.error("createAnswer error:", err);
+              error: function () {
                 setStatus("idle");
                 setStatusText("Connection error");
                 showAlert("Failed to receive stream", "danger");
@@ -185,26 +203,18 @@ export default function ListenerPage() {
         };
 
         subHandle.onremotestream = function (stream: MediaStream) {
-          console.log("Subscriber got remote stream:", stream);
           attachRemoteStreamToAudio(stream);
           subscribedRef.current = true;
         };
 
-        subHandle.onremotetrack = function (track: MediaStreamTrack, mid: string, on: boolean) {
-          console.log("Subscriber onremotetrack:", track, mid, on);
-          if (track && track.kind === "audio" && on) {
-            const stream = new MediaStream([track]);
-            attachRemoteStreamToAudio(stream);
+        subHandle.onremotetrack = function (track: MediaStreamTrack, _mid: string, on: boolean) {
+          if (track?.kind === "audio" && on) {
+            attachRemoteStreamToAudio(new MediaStream([track]));
             subscribedRef.current = true;
           }
         };
-
-        subHandle.oncleanup = function () {
-          console.log("Subscriber cleaned up");
-        };
       },
-      error: function (err: any) {
-        console.error("Subscriber attach error:", err);
+      error: function () {
         setStatus("idle");
         setStatusText("Failed to subscribe");
         showAlert("Error subscribing to stream", "danger");
@@ -212,274 +222,275 @@ export default function ListenerPage() {
     });
   }, [roomId, showAlert, attachRemoteStreamToAudio]);
 
-  // Attach discovery handle to find publishers
   const attachDiscoveryHandle = useCallback(() => {
     if (!janusRef.current) return;
-    
     setStatusText("Joining room...");
-    setStatus("connecting");
     
     janusRef.current.attach({
       plugin: "janus.plugin.videoroom",
       success: function (handle: any) {
         discoveryHandleRef.current = handle;
-        console.log("Discovery handle attached:", handle.getId());
-
-        const joinReq = {
-          request: "join",
-          room: roomId,
-          ptype: "publisher",
-          display: "Listener",
-          audio: false,
-          video: false
-        };
-        handle.send({ message: joinReq });
+        handle.send({ message: { request: "join", room: roomId, ptype: "publisher", display: "Listener", audio: false, video: false } });
         setStatusText("Waiting for broadcaster...");
       },
-      error: function (err: any) {
-        console.error("Discovery attach error:", err);
+      error: function () {
         setStatus("idle");
         setStatusText("Failed to join");
         showAlert("Error joining room", "danger");
       },
-      onmessage: function (msg: any, jsep: any) {
-        console.log("Discovery handle onmessage:", msg);
-
-        let publishers: any[] = [];
-        if (Array.isArray(msg.publishers)) {
-          publishers = msg.publishers;
-        } else if (msg.plugindata?.data?.publishers) {
-          publishers = msg.plugindata.data.publishers;
-        } else if (Array.isArray(msg.participants)) {
-          publishers = msg.participants.filter((p: any) => p.publisher);
-        }
-
-        if (publishers && publishers.length > 0) {
-          const feedId = publishers[0].id;
-          console.log("Found publisher feed:", feedId);
+      onmessage: function (msg: any) {
+        const publishers = msg.publishers || msg.plugindata?.data?.publishers || msg.participants?.filter((p: any) => p.publisher) || [];
+        if (publishers.length > 0) {
           setStatusText("Connecting to stream...");
-          subscribeToFeed(feedId);
-        } else {
-          setStatusText("Waiting for broadcaster...");
+          subscribeToFeed(publishers[0].id);
         }
-      },
-      oncleanup: function () {
-        console.log("Discovery handle cleaned up");
       }
     });
   }, [roomId, showAlert, subscribeToFeed]);
 
-  // Start Janus connection
   const startJanus = useCallback(() => {
     setStatusText("Connecting to server...");
-    setStatus("connecting");
-    
-    console.log("Initializing Janus with server:", JANUS_SERVER);
     
     Janus.init({
       debug: "all",
       callback: function () {
-        console.log("Janus initialized, creating session...");
         janusRef.current = new Janus({
           server: JANUS_SERVER,
-          success: function () {
-            console.log("Janus session created successfully");
-            attachDiscoveryHandle();
-          },
+          success: function () { attachDiscoveryHandle(); },
           error: function (err: any) {
-            console.error("Janus error:", err);
             setStatus("idle");
             setStatusText("Connection error");
-            showAlert("Failed to connect to stream server: " + err, "danger");
-          },
-          destroyed: function () {
-            console.log("Janus session destroyed");
+            showAlert("Failed to connect: " + err, "danger");
           }
         });
       }
     });
   }, [attachDiscoveryHandle, showAlert]);
 
-  // Initialize the listener
   const initialize = useCallback(async () => {
     if (!roomId || !liveStreamId) {
-      showAlert("Missing room ID or stream ID in URL", "danger");
+      showAlert("Missing room ID or stream ID", "danger");
       setStatus("idle");
-      setStatusText("Configuration error");
       return;
     }
 
-    console.log("Initializing listener for room:", roomId, "stream:", liveStreamId);
-
-    // Check if stream is still active
     const isActive = await checkStreamStatus();
-    if (!isActive) {
-      return;
-    }
+    if (!isActive) return;
 
-    // Notify backend that user joined
     notifyJoin();
-    
-    // Start Janus connection
     startJanus();
 
-    // Start polling for stream status
     streamCheckIntervalRef.current = setInterval(async () => {
       const active = await checkStreamStatus();
-      if (!active && streamCheckIntervalRef.current) {
-        clearInterval(streamCheckIntervalRef.current);
-        streamCheckIntervalRef.current = null;
-      }
+      if (!active && streamCheckIntervalRef.current) clearInterval(streamCheckIntervalRef.current);
     }, 5000);
   }, [roomId, liveStreamId, checkStreamStatus, notifyJoin, startJanus, showAlert]);
 
-  // Initialize when Janus is loaded
-  useEffect(() => {
-    if (janusLoaded) {
-      initialize();
-    }
-  }, [janusLoaded, initialize]);
+  useEffect(() => { if (janusLoaded) initialize(); }, [janusLoaded, initialize]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       notifyLeave();
-      if (streamCheckIntervalRef.current) {
-        clearInterval(streamCheckIntervalRef.current);
-      }
-      if (janusRef.current) {
-        janusRef.current.destroy();
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (streamCheckIntervalRef.current) clearInterval(streamCheckIntervalRef.current);
+      if (janusRef.current) janusRef.current.destroy();
     };
   }, [notifyLeave]);
 
-  // Handle beforeunload
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      notifyLeave();
-    };
+    const handleBeforeUnload = () => notifyLeave();
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [notifyLeave]);
 
-  // Manual play button handler
   const manualPlay = () => {
     const audioEl = audioRef.current;
     if (!audioEl) return;
-    
     audioEl.muted = false;
-    audioEl.volume = 1;
+    audioEl.volume = volume;
     audioEl.play().then(() => {
       setStatus("live");
-      setStatusText("🎶 Playing live audio");
+      setStatusText("Playing live audio");
       showAlert("Audio started!", "success");
       setShowPlayButton(false);
-    }).catch((err) => {
-      console.error("Manual play error:", err);
-      showAlert("Failed to play audio: " + err.message, "danger");
-    });
+    }).catch((err) => showAlert("Failed to play: " + err.message, "danger"));
   };
 
-  const statusIndicatorClass = {
-    idle: "bg-gray-400",
-    connecting: "bg-yellow-400 animate-pulse",
-    live: "bg-green-500 animate-pulse",
-    ended: "bg-red-500",
+  const toggleMute = () => {
+    if (audioRef.current) {
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (audioRef.current) audioRef.current.volume = newVolume;
   };
 
   return (
     <>
       <Script src="https://code.jquery.com/jquery-3.6.0.min.js" strategy="beforeInteractive" />
       <Script src="https://webrtc.github.io/adapter/adapter-latest.js" strategy="beforeInteractive" />
-      <Script
-        src="https://cdn.jsdelivr.net/gh/meetecho/janus-gateway/html/janus.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log("Janus script loaded");
-          setJanusLoaded(true);
-        }}
-        onError={(e) => {
-          console.error("Failed to load Janus script:", e);
-          showAlert("Failed to load streaming library", "danger");
-        }}
+      <Script src="https://cdn.jsdelivr.net/gh/meetecho/janus-gateway/html/janus.js" strategy="afterInteractive"
+        onLoad={() => setJanusLoaded(true)}
+        onError={() => showAlert("Failed to load streaming library", "danger")}
       />
 
-      <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg">
-          <div className="text-center mb-6">
-            <span className="text-5xl">🎧</span>
-            <h1 className="text-2xl font-bold text-gray-800 mt-3">Live Stream</h1>
-            <p className="text-gray-500">
-              Room ID: <strong className="text-indigo-600">{roomId || "Missing"}</strong>
-            </p>
-          </div>
+      <div className="min-h-screen bg-[#0a0a0f] text-white relative overflow-hidden">
+        {/* Ambient Effects */}
+        <div className="fixed inset-0 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-violet-500/5 rounded-full blur-[150px]" />
+        </div>
 
-          {/* Status Card */}
-          <div className="bg-gray-50 rounded-xl p-5 mb-6 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className={`w-3 h-3 rounded-full ${statusIndicatorClass[status]}`} />
-              <span className="text-lg font-semibold text-gray-800">{statusText}</span>
-            </div>
-          </div>
+        <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            {/* Main Card */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-violet-500/20 rounded-3xl blur-xl" />
+              
+              <div className="relative bg-[#12121a]/90 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden">
+                {/* Header */}
+                <div className="p-6 text-center border-b border-white/5">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-4">
+                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <h1 className="text-xl font-semibold text-white">Live Stream</h1>
+                  <p className="text-sm text-gray-400 mt-1">Room <span className="text-emerald-400 font-medium">{roomId || "—"}</span></p>
+                </div>
 
-          {/* Listener Count - Only show when not ended */}
-          {status !== "ended" && (
-            <div className="bg-gray-50 rounded-xl p-4 text-center mb-6">
-              <p className="text-xs text-gray-500 mb-1">Current Listeners</p>
-              <p className="text-3xl font-bold text-indigo-600">{listenerCount}</p>
-            </div>
-          )}
+                {/* Status */}
+                <div className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-white/5 border border-white/5">
+                    <span className={`w-2.5 h-2.5 rounded-full ${
+                      status === "live" ? "bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50" :
+                      status === "connecting" ? "bg-amber-400 animate-pulse" :
+                      status === "ended" ? "bg-red-400" : "bg-gray-400"
+                    }`} />
+                    <span className={`text-sm font-medium ${
+                      status === "live" ? "text-emerald-400" :
+                      status === "connecting" ? "text-amber-400" :
+                      status === "ended" ? "text-red-400" : "text-gray-400"
+                    }`}>{statusText}</span>
+                  </div>
+                </div>
 
-          {/* Alerts */}
-          <div className="space-y-2 mb-6">
-            {alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={`p-3 rounded-lg text-sm ${
-                  alert.type === "success" ? "bg-green-100 text-green-700" :
-                  alert.type === "danger" ? "bg-red-100 text-red-700" :
-                  alert.type === "warning" ? "bg-yellow-100 text-yellow-700" :
-                  "bg-blue-100 text-blue-700"
-                }`}
-              >
-                {alert.message}
+                {/* Audio Visualizer */}
+                {status === "live" && showAudioPlayer && (
+                  <div className="px-6 pb-4">
+                    <div className="rounded-xl bg-white/5 border border-white/5 p-4 overflow-hidden">
+                      <canvas ref={canvasRef} width={320} height={80} className="w-full h-20" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Listener Count */}
+                {status !== "ended" && (
+                  <div className="px-6 pb-4">
+                    <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 border border-white/5">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-sm text-gray-400">Listeners</span>
+                      </div>
+                      <span className="text-2xl font-bold text-cyan-400">{listenerCount}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Volume Control */}
+                {status === "live" && showAudioPlayer && (
+                  <div className="px-6 pb-4">
+                    <div className="flex items-center gap-4 py-3 px-4 rounded-xl bg-white/5 border border-white/5">
+                      <button onClick={toggleMute} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                        {isMuted ? (
+                          <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          </svg>
+                        )}
+                      </button>
+                      <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange}
+                        className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-emerald-400/50"
+                      />
+                      <span className="text-xs text-gray-400 w-8 text-right">{Math.round(volume * 100)}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Alerts */}
+                {alerts.length > 0 && (
+                  <div className="px-6 pb-4 space-y-2">
+                    {alerts.map((alert) => (
+                      <div key={alert.id} className={`flex items-center gap-2 p-3 rounded-xl text-sm ${
+                        alert.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                        alert.type === "danger" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                        alert.type === "warning" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                        "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                      }`}>
+                        {alert.type === "success" && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                        {alert.type === "danger" && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>}
+                        {alert.type === "warning" && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>}
+                        {alert.type === "info" && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                        <span>{alert.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Play Button */}
+                {showPlayButton && (
+                  <div className="px-6 pb-6">
+                    <button onClick={manualPlay} className="w-full py-4 rounded-xl font-medium text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center justify-center gap-2">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Play Audio
+                    </button>
+                  </div>
+                )}
+
+                {/* Stream Ended */}
+                {status === "ended" && (
+                  <div className="px-6 pb-6 text-center">
+                    <div className="py-8">
+                      <div className="w-20 h-20 mx-auto rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
+                        <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                      </div>
+                      <h2 className="text-lg font-semibold text-red-400 mb-2">Stream Ended</h2>
+                      <p className="text-gray-400 text-sm mb-4">This live stream has ended</p>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+                        <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span className="text-sm text-gray-300">Total Views: <span className="font-semibold text-cyan-400">{totalViews}</span></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hidden Audio Element */}
+                <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
               </div>
-            ))}
+            </div>
+
+            {/* Footer */}
+            <p className="text-center text-gray-500 text-xs mt-6">Mosque Live Streaming</p>
           </div>
-
-          {/* Audio Player */}
-          {showAudioPlayer && (
-            <div className="bg-gray-50 rounded-xl p-4 mb-6">
-              <audio ref={audioRef} autoPlay playsInline controls className="w-full" />
-            </div>
-          )}
-
-          {/* Hidden audio element for when player is not shown */}
-          {!showAudioPlayer && <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />}
-
-          {/* Play Button */}
-          {showPlayButton && (
-            <button
-              onClick={manualPlay}
-              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-            >
-              🔊 Unmute & Play Audio
-            </button>
-          )}
-
-          {/* Stream Ended */}
-          {status === "ended" && (
-            <div className="text-center py-8">
-              <span className="text-5xl block mb-4">📡</span>
-              <h2 className="text-xl font-bold text-red-600 mb-2">Stream Ended</h2>
-              <p className="text-gray-500">This live stream has ended.</p>
-              <p className="text-gray-600 mt-4">
-                Total Views: <strong className="text-indigo-600">{totalViews}</strong>
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </>

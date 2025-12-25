@@ -102,7 +102,7 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, authorName,
         <div className="p-4">
           <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 rounded-full overflow-hidden ">
-              <Image src={authorAvatar} alt={authorName} fill style={{ objectFit: "cover" }} />
+              <img src={authorAvatar} alt={authorName}  style={{ objectFit: "cover" }} />
             </div>
             <div className="flex-1">
                 <div className="text-sm font-medium text-[#333333]">{authorName}</div>

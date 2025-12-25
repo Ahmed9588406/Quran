@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, Menu, Moon, MessageCircle, Search as SearchIcon, User, LogOut } from "lucide-react";
+import NotificationPanel from "./NotificationPanel";
+import { useNotifications } from "../components/NotificationProvider";
 
 type Props = {
   onToggleSidebar?: () => void;
@@ -22,6 +24,7 @@ interface PreacherInfo {
 
 export default function KhatebNavbar({ onToggleSidebar, isSidebarOpen, onOpenMessages, onCreateClick }: Props) {
   const router = useRouter();
+  const { unreadCount } = useNotifications();
   const [preacherInfo, setPreacherInfo] = useState<PreacherInfo>({
     id: "",
     name: "Preacher",
@@ -29,6 +32,7 @@ export default function KhatebNavbar({ onToggleSidebar, isSidebarOpen, onOpenMes
     role: "preacher",
   });
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Load preacher info from localStorage
@@ -155,9 +159,13 @@ export default function KhatebNavbar({ onToggleSidebar, isSidebarOpen, onOpenMes
               <MessageCircle className="w-6 h-6" />
             </button>
 
-            <button aria-label="Notifications" className="relative p-3 rounded-full text-gray-600 hover:bg-gray-100" type="button">
+            <button aria-label="Notifications" className="relative p-3 rounded-full text-gray-600 hover:bg-gray-100" type="button" onClick={() => setShowNotifications(!showNotifications)}>
               <Bell className="w-6 h-6" />
-              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center px-[7px] py-0.5 text-[11px] font-semibold leading-none text-white bg-[#ff6b6b] rounded-full">3</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center px-[7px] py-0.5 text-[11px] font-semibold leading-none text-white bg-[#ff6b6b] rounded-full">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
 
             {/* Profile Section with Name */}
@@ -241,6 +249,9 @@ export default function KhatebNavbar({ onToggleSidebar, isSidebarOpen, onOpenMes
           </nav>
         </div>
       </div>
+
+      {/* Notification Panel */}
+      <NotificationPanel isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
     </header>
   );
 }

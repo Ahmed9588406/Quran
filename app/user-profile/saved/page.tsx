@@ -68,11 +68,38 @@ export default function SavedPostsPage() {
         ? data 
         : data.posts || data.data || [];
 
-      // Mark all items as saved since they're from the saved endpoint
-      const normalizedItems = items.map((item: SavedPost) => ({
-        ...item,
-        saved_by_current_user: true,
-      }));
+      // Normalize media URLs and mark all items as saved
+      const normalizedItems = items.map((item: SavedPost) => {
+        const normalized = {
+          ...item,
+          saved_by_current_user: true,
+        };
+        
+        // Normalize media URLs
+        if (Array.isArray(item.media)) {
+          normalized.media = item.media.map((m: Media) => {
+            const url = m.url?.startsWith('http') 
+              ? m.url 
+              : m.url?.startsWith('/') 
+                ? `https://apisoapp.twingroups.com${m.url}`
+                : m.url ? `https://apisoapp.twingroups.com/${m.url}` : m.url;
+            
+            return {
+              ...m,
+              url: url,
+            };
+          });
+        }
+        
+        // Normalize avatar URL
+        if (item.avatar_url && !item.avatar_url.startsWith('http')) {
+          normalized.avatar_url = item.avatar_url.startsWith('/')
+            ? `https://apisoapp.twingroups.com${item.avatar_url}`
+            : `https://apisoapp.twingroups.com/${item.avatar_url}`;
+        }
+        
+        return normalized;
+      });
 
       if (type === "posts") {
         setPosts(prev => append ? [...prev, ...normalizedItems] : normalizedItems);
@@ -111,7 +138,7 @@ export default function SavedPostsPage() {
           if (data.avatar_url) {
             const avatarUrl = data.avatar_url.startsWith("http")
               ? data.avatar_url
-              : `http://apisoapp.twingroups.com${data.avatar_url}`;
+              : `https://apisoapp.twingroups.com${data.avatar_url}`;
             setCurrentUserAvatar(avatarUrl);
           }
           if (data.display_name || data.username) {
@@ -290,7 +317,7 @@ function ReelThumbnail({ reel, onUnsave }: ReelThumbnailProps) {
   const thumbnailUrl = videoMedia?.url
     ? videoMedia.url.startsWith("http")
       ? videoMedia.url
-      : `http://apisoapp.twingroups.com${videoMedia.url}`
+      : `https://apisoapp.twingroups.com${videoMedia.url}`
     : null;
 
   const handleUnsave = async (e: React.MouseEvent) => {

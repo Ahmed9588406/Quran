@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 
-const BASE_URL = 'http://apisoapp.twingroups.com';
+const BASE_URL = 'https://apisoapp.twingroups.com';
 
 function corsHeaders() {
   return {
@@ -19,6 +19,30 @@ function getCookieFromHeader(cookieHeader: string | null, name: string) {
     if (k === name) return decodeURIComponent(v.join('='));
   }
   return null;
+}
+
+// Helper to normalize any URL that starts with /
+function normalizeUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  if (typeof url !== 'string') return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${BASE_URL}${url}`;
+  return `${BASE_URL}/${url}`;
+}
+
+// Helper to determine media type from URL
+function getMediaType(url: string): string {
+  const lower = url.toLowerCase();
+  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') || lower.endsWith('.avi')) {
+    return 'video';
+  }
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp')) {
+    return 'image';
+  }
+  if (lower.includes('/video') || lower.includes('video/')) {
+    return 'video';
+  }
+  return 'image';
 }
 
 export async function OPTIONS() {
@@ -82,22 +106,31 @@ export async function GET(request: Request) {
           const normalized: any = {
             ...post,
             user_id: post.user_id || userId,
-            avatar_url: post.avatar_url?.startsWith('/') ? `${BASE_URL}${post.avatar_url}` : post.avatar_url,
+            avatar_url: normalizeUrl(post.avatar_url),
           };
 
           // Handle media - convert string URLs to object format
           if (Array.isArray(post.media)) {
             normalized.media = post.media.map((m: any) => {
+              // Handle string format: "/uploads/posts/post_xxx.png"
               if (typeof m === 'string') {
-                // If media is just a string URL, convert to object format
-                const url = m.startsWith('/') ? `${BASE_URL}${m}` : m;
-                const mediaType = m.toLowerCase().endsWith('.mp4') || m.toLowerCase().endsWith('.webm') ? 'video/mp4' : 'image/jpeg';
-                return { url, media_type: mediaType };
-              } else if (typeof m === 'object' && m !== null) {
-                // If media is already an object, normalize the URL
+                const fullUrl = normalizeUrl(m);
+                return { 
+                  url: fullUrl, 
+                  media_url: fullUrl, 
+                  media_type: getMediaType(m) 
+                };
+              }
+              
+              // Handle object format
+              if (typeof m === 'object' && m !== null) {
+                const rawUrl = m.url || m.media_url || m.file_url || m.path;
+                const fullUrl = normalizeUrl(rawUrl);
                 return {
                   ...m,
-                  url: m.url?.startsWith('/') ? `${BASE_URL}${m.url}` : m.url,
+                  url: fullUrl,
+                  media_url: fullUrl,
+                  media_type: m.media_type || (fullUrl ? getMediaType(fullUrl) : 'image'),
                 };
               }
               return m;
@@ -133,12 +166,8 @@ export async function GET(request: Request) {
 
     // Normalize avatar_url and cover_url if relative
     if (data?.user) {
-      if (typeof data.user.avatar_url === 'string' && data.user.avatar_url.startsWith('/')) {
-        data.user.avatar_url = `${BASE_URL}${data.user.avatar_url}`;
-      }
-      if (typeof data.user.cover_url === 'string' && data.user.cover_url?.startsWith('/')) {
-        data.user.cover_url = `${BASE_URL}${data.user.cover_url}`;
-      }
+      data.user.avatar_url = normalizeUrl(data.user.avatar_url);
+      data.user.cover_url = normalizeUrl(data.user.cover_url);
     }
 
     return NextResponse.json(data, { status: 200, headers: corsHeaders() });

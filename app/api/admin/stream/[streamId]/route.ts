@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE = "https://noneffusive-reminiscent-tanna.ngrok-free.dev/api/v1";
+// Use the stable backend URL instead of ngrok
+const API_BASE = "https://javabacked.twingroups.com/api/v1";
 
 // Helper to safely parse JSON response
 async function safeJsonParse(response: Response) {

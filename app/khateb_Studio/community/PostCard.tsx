@@ -103,13 +103,13 @@ const normalizeMediaUrl = (media?: Media | any): string | null => {
     return url;
   }
   
-  return `http://apisoapp.twingroups.com${url.startsWith('/') ? '' : '/'}${url}`;
+  return `https://apisoapp.twingroups.com${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 const normalizeAvatarUrl = (url?: string): string => {
   if (!url) return DEFAULT_AVATAR;
   if (url.startsWith("http")) return url;
-  return `http://apisoapp.twingroups.com${url}`;
+  return `https://apisoapp.twingroups.com${url}`;
 };
 
 function Avatar({ src, alt, size = 32 }: { src?: string; alt: string; size?: number }) {

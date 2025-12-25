@@ -15,6 +15,7 @@ import UploadSuccessModal from "../UploadSuccessModal";
 import GoLiveModal from "../GoLiveModal";
 import AudioModal from "../Audio_modal";
 import MicrophoneSettingsModal from "../MicrophoneSettingsModal";
+import PDFViewerModal from "../PDFViewerModal";
 
 const StartNewMessage = dynamic(() => import("../../user/start_new_message"), { ssr: false });
 
@@ -42,13 +43,62 @@ function StatCard({ title, subtitle, icon }: StatCardProps) {
   );
 }
 
-// Calendar Component
-function Calendar() {
+// Helper function to format date as ISO string (YYYY-MM-DD)
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+// Scheduled Khotba type
+interface ScheduledKhotba {
+  id: string | number;
+  title?: string;
+  airTime?: string;
+  color?: string;
+  isKhotba?: boolean;
+}
+
+// Calendar Component with Scheduled Khotba Dots
+function Calendar({ onKhotbaClick }: { onKhotbaClick?: (khotba: ScheduledKhotba, date: string) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [scheduledKhotbas, setScheduledKhotbas] = useState<Record<string, ScheduledKhotba[]>>({});
   const today = new Date();
   
   const monthName = currentDate.toLocaleString("default", { month: "long" });
   const year = currentDate.getFullYear();
+
+  // Load scheduled khotbas from localStorage
+  useEffect(() => {
+    const loadScheduledKhotbas = () => {
+      try {
+        const stored = localStorage.getItem('scheduled_khotbas');
+        if (stored) {
+          setScheduledKhotbas(JSON.parse(stored));
+        }
+      } catch (error) {
+        console.error('Error loading scheduled khotbas:', error);
+      }
+    };
+
+    loadScheduledKhotbas();
+
+    // Listen for storage changes (in case khotba is scheduled in another tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'scheduled_khotbas') {
+        loadScheduledKhotbas();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom event when khotba is scheduled in same tab
+    const handleKhotbaScheduled = () => loadScheduledKhotbas();
+    window.addEventListener('khotba-scheduled', handleKhotbaScheduled);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('khotba-scheduled', handleKhotbaScheduled);
+    };
+  }, []);
 
   const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -56,26 +106,46 @@ function Calendar() {
   const daysInMonth = lastDay.getDate();
 
   const prevMonthLastDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
-  const prevMonthDays = Array.from({ length: startingDayOfWeek }, (_, i) => ({
-    day: prevMonthLastDay - startingDayOfWeek + i + 1,
-    isCurrentMonth: false,
-  }));
+  
+  // Build previous month days with full date info
+  const prevMonthDays = Array.from({ length: startingDayOfWeek }, (_, i) => {
+    const day = prevMonthLastDay - startingDayOfWeek + i + 1;
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, day);
+    return {
+      day,
+      isCurrentMonth: false,
+      isoDate: toISODate(date),
+    };
+  });
 
-  const currentMonthDays = Array.from({ length: daysInMonth }, (_, i) => ({
-    day: i + 1,
-    isCurrentMonth: true,
-    isToday:
-      i + 1 === today.getDate() &&
-      currentDate.getMonth() === today.getMonth() &&
-      currentDate.getFullYear() === today.getFullYear(),
-  }));
+  // Build current month days with full date info
+  const currentMonthDays = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    return {
+      day,
+      isCurrentMonth: true,
+      isToday:
+        day === today.getDate() &&
+        currentDate.getMonth() === today.getMonth() &&
+        currentDate.getFullYear() === today.getFullYear(),
+      isoDate: toISODate(date),
+    };
+  });
 
   const totalDaysShown = prevMonthDays.length + currentMonthDays.length;
   const remainingDays = 42 - totalDaysShown;
-  const nextMonthDays = Array.from({ length: Math.min(remainingDays, 7) }, (_, i) => ({
-    day: i + 1,
-    isCurrentMonth: false,
-  }));
+  
+  // Build next month days with full date info
+  const nextMonthDays = Array.from({ length: Math.min(remainingDays, 7) }, (_, i) => {
+    const day = i + 1;
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, day);
+    return {
+      day,
+      isCurrentMonth: false,
+      isoDate: toISODate(date),
+    };
+  });
 
   const allDays = [...prevMonthDays, ...currentMonthDays, ...nextMonthDays];
 
@@ -85,6 +155,25 @@ function Calendar() {
 
   const goToNextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  // Check if a date has scheduled khotbas
+  const hasScheduledKhotba = (isoDate: string): boolean => {
+    return scheduledKhotbas[isoDate] && Array.isArray(scheduledKhotbas[isoDate]) && scheduledKhotbas[isoDate].length > 0;
+  };
+
+  // Get scheduled khotbas for a date
+  const getScheduledKhotbas = (isoDate: string): ScheduledKhotba[] => {
+    return scheduledKhotbas[isoDate] || [];
+  };
+
+  // Handle date click
+  const handleDateClick = (isoDate: string) => {
+    const khotbas = getScheduledKhotbas(isoDate);
+    if (khotbas.length > 0 && onKhotbaClick) {
+      // Open the first khotba for this date
+      onKhotbaClick(khotbas[0], isoDate);
+    }
   };
 
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
@@ -126,17 +215,42 @@ function Calendar() {
 
       {/* Calendar days */}
       <div className="grid grid-cols-7 gap-2">
-        {allDays.slice(0, 42).map((dayObj, index) => (
-          <div
-            key={index}
-            className={`w-[27px] h-[27px] flex items-center justify-center text-[15px] font-medium rounded-full cursor-pointer transition-colors
-              ${!dayObj.isCurrentMonth ? "text-[#8A1538] opacity-20" : "text-[#8A1538]"}
-              ${"isToday" in dayObj && dayObj.isToday ? "bg-[#CFAE70] text-white" : "hover:bg-gray-100"}
-            `}
-          >
-            {dayObj.day}
-          </div>
-        ))}
+        {allDays.slice(0, 42).map((dayObj, index) => {
+          const hasKhotba = hasScheduledKhotba(dayObj.isoDate);
+          const isToday = "isToday" in dayObj && dayObj.isToday;
+          
+          return (
+            <div
+              key={index}
+              className="relative flex flex-col items-center"
+              title={hasKhotba ? "Click to view Khotba PDF" : undefined}
+            >
+              <div
+                onClick={() => hasKhotba && handleDateClick(dayObj.isoDate)}
+                className={`w-[27px] h-[27px] flex items-center justify-center text-[15px] font-medium rounded-full cursor-pointer transition-all
+                  ${!dayObj.isCurrentMonth ? "text-[#8A1538] opacity-20" : "text-[#8A1538]"}
+                  ${isToday ? "bg-[#CFAE70] text-white" : "hover:bg-gray-100"}
+                  ${hasKhotba && !isToday ? "ring-2 ring-green-500 ring-offset-1 hover:ring-green-600 hover:scale-110" : ""}
+                  ${hasKhotba ? "cursor-pointer" : ""}
+                `}
+              >
+                {dayObj.day}
+              </div>
+              {/* Green dot indicator for scheduled khotbas */}
+              {hasKhotba && (
+                <div className="absolute -bottom-1 w-[6px] h-[6px] rounded-full bg-green-500" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Legend */}
+      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-center gap-2 text-xs text-gray-500">
+        <div className="flex items-center gap-1">
+          <div className="w-[6px] h-[6px] rounded-full bg-green-500" />
+          <span>Scheduled Khotba (click to view PDF)</span>
+        </div>
       </div>
     </div>
   );
@@ -260,6 +374,15 @@ export default function DynamicKhateebStudioPage({ params }: { params: Promise<{
   const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
   const [isAudioOpen, setIsAudioOpen] = useState(false);
   const [isMicSettingsOpen, setIsMicSettingsOpen] = useState(false);
+  const [liveRoomInfo, setLiveRoomInfo] = useState<{ roomId: number; liveStreamId: number; topic?: string } | null>(null);
+  
+  // PDF Viewer state
+  const [isPDFViewerOpen, setIsPDFViewerOpen] = useState(false);
+  const [selectedKhotbaDoc, setSelectedKhotbaDoc] = useState<{
+    id: string | number;
+    title?: string;
+    date?: string;
+  } | null>(null);
 
   const router = useRouter();
 
@@ -490,7 +613,21 @@ export default function DynamicKhateebStudioPage({ params }: { params: Promise<{
 
               {/* Right Column - Calendar & Prepare Khotba */}
               <div className="flex flex-col gap-4">
-                <Calendar />
+                <Calendar 
+                  onKhotbaClick={(khotba, date) => {
+                    setSelectedKhotbaDoc({
+                      id: khotba.id,
+                      title: khotba.title || "Khotba Document",
+                      date: new Date(date).toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }),
+                    });
+                    setIsPDFViewerOpen(true);
+                  }}
+                />
                 <PrepareKhotbaCard />
               </div>
             </div>
@@ -582,17 +719,42 @@ export default function DynamicKhateebStudioPage({ params }: { params: Promise<{
       <GoLiveModal
         open={isGoLiveOpen}
         onClose={() => setIsGoLiveOpen(false)}
-        onStartLive={() => {
+        onStartLive={(roomInfo) => {
           setIsGoLiveOpen(false);
+          if (roomInfo) {
+            setLiveRoomInfo(roomInfo);
+          }
           setIsAudioOpen(true);
         }}
       />
 
       {/* Audio / Live room bottom modal */}
-      <AudioModal open={isAudioOpen} onClose={() => setIsAudioOpen(false)} participantsCount={1} />
+      <AudioModal 
+        open={isAudioOpen} 
+        onClose={() => {
+          setIsAudioOpen(false);
+          setLiveRoomInfo(null);
+        }} 
+        participantsCount={0}
+        roomId={liveRoomInfo?.roomId}
+        liveStreamId={liveRoomInfo?.liveStreamId}
+        topic={liveRoomInfo?.topic}
+      />
 
       {/* Microphone settings modal */}
       <MicrophoneSettingsModal open={isMicSettingsOpen} onClose={() => setIsMicSettingsOpen(false)} />
+
+      {/* PDF Viewer Modal for Khotba Documents */}
+      <PDFViewerModal
+        isOpen={isPDFViewerOpen}
+        onClose={() => {
+          setIsPDFViewerOpen(false);
+          setSelectedKhotbaDoc(null);
+        }}
+        documentId={selectedKhotbaDoc?.id || ""}
+        documentTitle={selectedKhotbaDoc?.title}
+        documentDate={selectedKhotbaDoc?.date}
+      />
     </div>
   );
 }

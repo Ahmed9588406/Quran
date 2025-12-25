@@ -1,16 +1,23 @@
 "use client";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import NavBar from "../user/navbar";
 import LeftSide from "../user/leftside";
 import RightSide from "../user/rightside";
 import Leaderboard from "../user/leaderboard";
-import Image from "next/image"; // { added import }
+import Image from "next/image";
+import QRScanModal from "./qr_scan";
 
 export default function Page() {
+  const router = useRouter();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isScanModalOpen, setScanModalOpen] = useState(false);
+
+  const handleJoinStream = (roomId: number, liveStreamId: number) => {
+    router.push(`/qr/listen?roomId=${roomId}&liveStreamId=${liveStreamId}`);
+  };
 
   return (
-    // make page exactly viewport height and prevent scrolling; set page background image
     <div
       className="h-screen overflow-hidden bg-white text-black"
       style={{
@@ -25,6 +32,14 @@ export default function Page() {
         isOpen={isSidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNavigate={() => setSidebarOpen(false)}
+        onOpenScan={() => setScanModalOpen(true)}
+      />
+
+      {/* QR Scan Modal */}
+      <QRScanModal
+        isOpen={isScanModalOpen}
+        onClose={() => setScanModalOpen(false)}
+        onJoinStream={handleJoinStream}
       />
 
       {/* Main layout: NavBar + content */}
@@ -34,13 +49,13 @@ export default function Page() {
           isSidebarOpen={isSidebarOpen}
         />
 
-        {/* content area: fill remaining viewport height (header is h-14 = 56px) */}
+        {/* content area */}
         <div
           className="flex-1 px-4 py-6 max-w-7xl mx-auto w-full overflow-hidden mr-8"
           style={{ height: "calc(100vh - 56px)" }}
         >
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 h-full">
-            {/* Main central content (Khotba card replaces QR area) */}
+            {/* Main central content */}
             <main className="bg-[#fffaf8] border border-[#f0e6e5] rounded-2xl p-6 h-full flex items-center justify-center">
               <div className="max-w-md w-full text-center">
                 <div className="mx-auto w-32 h-32 rounded-xl overflow-hidden shadow-lg mb-4">
@@ -100,16 +115,22 @@ export default function Page() {
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <button className="inline-block bg-[#7b2030] text-white px-6 py-2 rounded-md font-medium hover:bg-[#6a1826]">
+                <div className="mt-4 flex flex-col gap-3">
+                  <button 
+                    onClick={() => setScanModalOpen(true)}
+                    className="inline-block bg-[#7b2030] text-white px-6 py-2 rounded-md font-medium hover:bg-[#6a1826] w-full"
+                  >
+                    📷 Scan QR Code
+                  </button>
+                  <button className="inline-block bg-[#cfae70] text-white px-6 py-2 rounded-md font-medium hover:bg-[#b89a5c] w-full">
                     Join Room
                   </button>
                 </div>
               </div>
             </main>
 
-            {/* Right column: RightSide and Leaderboard under it */}
-            <aside className=" h-full overflow-hidden ">
+            {/* Right column */}
+            <aside className="h-full overflow-hidden">
               <div className="flex flex-col gap-6 h-full">
                 <div className="flex-shrink-0">
                   <RightSide />

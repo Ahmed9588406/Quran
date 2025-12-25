@@ -119,18 +119,22 @@ function formatRelativeTime(dateString?: string): string {
   return date.toLocaleDateString();
 }
 
+const BASE_URL = "https://apisoapp.twingroups.com";
+
 // Helper to normalize avatar URLs
 const normalizeAvatarUrl = (url?: string): string => {
   if (!url) return DEFAULT_AVATAR;
-  if (url.startsWith("http")) return url;
-  return `http://apisoapp.twingroups.com${url}`;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/")) return `${BASE_URL}${url}`;
+  return `${BASE_URL}/${url}`;
 };
 
 // Helper to normalize media URLs
 const normalizeMediaUrl = (url?: string): string | null => {
   if (!url) return null;
-  if (url.startsWith("http")) return url;
-  return `http://apisoapp.twingroups.com${url}`;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/")) return `${BASE_URL}${url}`;
+  return `${BASE_URL}/${url}`;
 };
 
 /**
@@ -365,17 +369,26 @@ interface MediaGridProps {
 }
 
 function MediaGrid({ media, onImageClick }: MediaGridProps) {
-  // Check for video types - handle both "video" and "video/mp4", "video/webm", etc.
-  const isVideo = (m: Media) => m.media_type === "video" || m.media_type?.startsWith("video/");
+  // Better video detection - check for "video" anywhere in media_type
+  const isVideo = (m: Media) => {
+    const type = m.media_type?.toLowerCase() || '';
+    return type === 'video' || type.startsWith('video/') || type.includes('video');
+  };
+  
   const imageMedia = media.filter(m => !isVideo(m));
   const videoMedia = media.filter(m => isVideo(m));
   const totalImages = imageMedia.length;
+
+  // Debug log
+  console.log("PostCard MediaGrid - Total media:", media.length, "Images:", imageMedia.length, "Videos:", videoMedia.length);
+  media.forEach((m, i) => console.log(`  Media ${i}:`, m.url, "type:", m.media_type));
 
   // Render videos first (full width) with better styling
   const renderVideos = () => (
     <>
       {videoMedia.map((item, index) => {
         const mediaUrl = normalizeMediaUrl(item.url);
+        console.log("PostCard rendering video:", mediaUrl, "original:", item.url);
         if (!mediaUrl) return null;
         return (
           <div key={`video-${index}`} className="relative aspect-video bg-black rounded-lg overflow-hidden mb-2">
@@ -385,10 +398,15 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
               controls
               preload="metadata"
               playsInline
+              onLoadStart={() => console.log("PostCard video loading:", mediaUrl)}
+              onCanPlay={() => console.log("PostCard video ready:", mediaUrl)}
               onError={(e) => {
-                console.error("Video failed to load:", mediaUrl);
+                console.error("PostCard video failed to load:", mediaUrl, e);
                 const target = e.target as HTMLVideoElement;
-                target.style.display = 'none';
+                // Show error message
+                if (target.parentElement) {
+                  target.parentElement.innerHTML = `<div class="flex items-center justify-center h-full text-white text-sm bg-gray-800 rounded-lg">Video failed to load</div>`;
+                }
               }}
             />
           </div>
@@ -475,41 +493,8 @@ function MediaGrid({ media, onImageClick }: MediaGridProps) {
     );
   }
 
-  // This line should never be reached but kept for safety
-  return (
-    <div className="mt-3">
-      {renderVideos()}
-      <div className="grid grid-cols-2 gap-1">
-        {imageMedia.slice(0, 2).map((item, index) => {
-          const mediaUrl = normalizeMediaUrl(item.url);
-          if (!mediaUrl) return null;
-          const isLastVisible = index === 3 && remainingCount > 0;
-          return (
-            <div 
-              key={index} 
-              className="relative aspect-square cursor-pointer overflow-hidden"
-              onClick={() => onImageClick(index)}
-            >
-              <img
-                src={mediaUrl}
-                alt={`Post media ${index + 1}`}
-                className="w-full h-full object-cover hover:scale-105 transition-transform"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                }}
-              />
-              {isLastVisible && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <span className="text-white text-2xl font-bold">+{remainingCount}</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // Fallback - should not reach here but kept for safety
+  return null;
 }
 
 /**
@@ -526,6 +511,13 @@ interface LightboxProps {
 function Lightbox({ media, currentIndex, onClose, onPrev, onNext }: LightboxProps) {
   const currentMedia = media[currentIndex];
   const mediaUrl = normalizeMediaUrl(currentMedia?.url);
+  
+  // Check if current media is a video
+  const isVideo = (m: Media) => {
+    const type = m.media_type?.toLowerCase() || '';
+    return type === 'video' || type.startsWith('video/') || type.includes('video');
+  };
+  const isCurrentVideo = isVideo(currentMedia);
 
   if (!mediaUrl) {
     return null;
@@ -553,11 +545,27 @@ function Lightbox({ media, currentIndex, onClose, onPrev, onNext }: LightboxProp
       )}
       
       <div className="max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={mediaUrl}
-          alt={`Image ${currentIndex + 1}`}
-          className="max-w-full max-h-[90vh] object-contain"
-        />
+        {isCurrentVideo ? (
+          <video
+            src={mediaUrl}
+            className="max-w-full max-h-[90vh] object-contain"
+            controls
+            autoPlay
+            playsInline
+            onError={(e) => {
+              console.error("Video failed to load in lightbox:", mediaUrl);
+            }}
+          />
+        ) : (
+          <img
+            src={mediaUrl}
+            alt={`Image ${currentIndex + 1}`}
+            className="max-w-full max-h-[90vh] object-contain"
+            onError={(e) => {
+              console.error("Image failed to load in lightbox:", mediaUrl);
+            }}
+          />
+        )}
       </div>
       
       {currentIndex < media.length - 1 && (
@@ -1038,6 +1046,17 @@ export default function PostCard({
         {/* Media Grid */}
         {media && media.length > 0 && (
           <MediaGrid media={media} onImageClick={handleImageClick} />
+        )}
+
+        {/* Lightbox Modal */}
+        {lightboxIndex !== null && media && media.length > 0 && (
+          <Lightbox
+            media={media}
+            currentIndex={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+            onPrev={() => setLightboxIndex(Math.max(0, lightboxIndex - 1))}
+            onNext={() => setLightboxIndex(Math.min(media.length - 1, lightboxIndex + 1))}
+          />
         )}
 
         {/* Actions (replace the existing actions JSX with this changed block) */}

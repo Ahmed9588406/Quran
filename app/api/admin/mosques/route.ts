@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE = "https://noneffusive-reminiscent-tanna.ngrok-free.dev/api/v1";
+// Use the stable backend URL
+const API_BASE = "https://javabacked.twingroups.com/api/v1";
 
 export async function GET(request: NextRequest) {
   const token = request.headers.get("authorization");

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const BASE_URL = 'http://apisoapp.twingroups.com';
+const BASE_URL = 'https://apisoapp.twingroups.com';
 
 function corsHeaders() {
   return {
@@ -8,6 +8,30 @@ function corsHeaders() {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
+}
+
+// Helper to normalize any URL that starts with /
+function normalizeUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  if (typeof url !== 'string') return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${BASE_URL}${url}`;
+  return `${BASE_URL}/${url}`;
+}
+
+// Helper to determine media type from URL
+function getMediaType(url: string): string {
+  const lower = url.toLowerCase();
+  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') || lower.endsWith('.avi')) {
+    return 'video';
+  }
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp')) {
+    return 'image';
+  }
+  if (lower.includes('/video') || lower.includes('video/')) {
+    return 'video';
+  }
+  return 'image';
 }
 
 export async function OPTIONS() {
@@ -55,27 +79,43 @@ export async function GET(
       data.posts = data.posts.map((post: Record<string, unknown>) => {
         const normalized = { ...post };
         
-        if (typeof post.avatar_url === 'string' && post.avatar_url.startsWith('/')) {
-          normalized.avatar_url = `${BASE_URL}${post.avatar_url}`;
-        }
+        // Normalize avatar_url
+        normalized.avatar_url = normalizeUrl(post.avatar_url as string);
         
         // Handle media - convert string URLs to object format
         if (Array.isArray(post.media)) {
           normalized.media = post.media.map((m: unknown) => {
-            // Handle both string and object formats
+            // Handle string format: "/uploads/posts/post_xxx.png"
             if (typeof m === 'string') {
-              // If media is just a string URL, convert to object format
-              const url = m.startsWith('/') ? `${BASE_URL}${m}` : m;
-              const mediaType = m.toLowerCase().endsWith('.mp4') || m.toLowerCase().endsWith('.webm') ? 'video/mp4' : 'image/jpeg';
-              return { url, media_type: mediaType };
-            } else if (typeof m === 'object' && m !== null) {
-              // If media is already an object, normalize the URL
-              const normalizedMedia = { ...m as Record<string, unknown> };
-              if (typeof (m as Record<string, unknown>).url === 'string' && (m as Record<string, unknown>).url.startsWith('/')) {
-                normalizedMedia.url = `${BASE_URL}${(m as Record<string, unknown>).url}`;
+              const fullUrl = normalizeUrl(m);
+              return { 
+                url: fullUrl, 
+                media_url: fullUrl, 
+                media_type: getMediaType(m) 
+              };
+            }
+            
+            // Handle object format
+            if (typeof m === 'object' && m !== null) {
+              const mediaObj = m as Record<string, unknown>;
+              const normalizedMedia: Record<string, unknown> = { ...mediaObj };
+              
+              // Try to get URL from various fields
+              const rawUrl = mediaObj.url || mediaObj.media_url || mediaObj.file_url || mediaObj.path;
+              if (typeof rawUrl === 'string') {
+                const fullUrl = normalizeUrl(rawUrl);
+                normalizedMedia.url = fullUrl;
+                normalizedMedia.media_url = fullUrl;
               }
+              
+              // Ensure media_type is set
+              if (!normalizedMedia.media_type && normalizedMedia.url) {
+                normalizedMedia.media_type = getMediaType(normalizedMedia.url as string);
+              }
+              
               return normalizedMedia;
             }
+            
             return m;
           });
         }

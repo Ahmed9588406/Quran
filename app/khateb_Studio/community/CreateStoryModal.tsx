@@ -6,6 +6,7 @@ import Image from 'next/image';
 interface CreateStoryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onStoryCreated?: () => void;
 }
 
 interface StoryResponse {
@@ -16,7 +17,7 @@ interface StoryResponse {
   expires_at: string;
 }
 
-export default function CreateStoryModal({ isOpen, onClose }: CreateStoryModalProps) {
+export default function CreateStoryModal({ isOpen, onClose, onStoryCreated }: CreateStoryModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>('');
@@ -67,7 +68,7 @@ export default function CreateStoryModal({ isOpen, onClose }: CreateStoryModalPr
       formData.append('media', selectedFile);
       formData.append('caption', caption);
 
-      const response = await fetch('http://apisoapp.twingroups.com/stories', {
+      const response = await fetch('https://apisoapp.twingroups.com/stories', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -87,6 +88,11 @@ export default function CreateStoryModal({ isOpen, onClose }: CreateStoryModalPr
         setSelectedFile(null);
         setPreview('');
         setCaption('');
+        
+        // Call the callback to refresh stories
+        if (onStoryCreated) {
+          onStoryCreated();
+        }
         
         setTimeout(() => {
           setSuccess(false);

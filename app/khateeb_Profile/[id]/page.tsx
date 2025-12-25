@@ -347,7 +347,7 @@ export default function KhateebProfilePage() {
                 <div className="bg-[#FFF9F3] rounded-lg border border-[#f0e6e5] p-4 relative">
                   <div className="flex items-start gap-3 cursor-text" onClick={() => setShowCreateModal(true)}>
                     <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                      <Image src={profileData.avatar} alt={profileData.name} fill style={{ objectFit: "cover" }} />
+                      <img src={profileData.avatar} alt={profileData.name}  style={{ objectFit: "cover" }} />
                     </div>
                     <div className="flex-1">
                       <div className="w-full h-10 rounded-full border border-transparent bg-[#fffaf7] text-xs text-[#B3B3B3] flex items-center px-4">
@@ -399,7 +399,7 @@ export default function KhateebProfilePage() {
       case "about":
         return <AboutSection workExperiences={workExperiences} placesLived={placesLived} contactInfo={contactInfo} isOwnProfile={isOwnProfile} />;
       case "stories":
-        return <MyStories userId={preacherId} />;
+        return <MyStories userId={preacherId} isOwnProfile={isOwnProfile} />;
       default:
         return null;
     }
@@ -414,7 +414,7 @@ export default function KhateebProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 mt-10">
+    <div className="min-h-screen bg-gray-50 mt-15">
       <NavBar onToggleSidebar={() => setSidebarOpen((s) => !s)} isSidebarOpen={isSidebarOpen} />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} activeView="profile" />
       <ProfileHeader name={profileData.name} avatar={profileData.avatar} posts={profileData.posts} followers={profileData.followers} following={profileData.following} bio={profileData.bio} tags={profileData.tags} isOwnProfile={isOwnProfile} />

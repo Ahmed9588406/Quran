@@ -20,7 +20,7 @@ import { chatAPI } from "@/lib/chat/api";
 const MessagesModal = dynamic(() => import("../user/messages"), { ssr: false });
 
 const DEFAULT_AVATAR = "/icons/settings/profile.png";
-const BASE_URL = "http://apisoapp.twingroups.com";
+const BASE_URL = "https://apisoapp.twingroups.com";
 
 interface UserProfile {
   id: string;

@@ -226,7 +226,7 @@ export function KhatebReelsFeed({ initialReels, currentUserId }: KhatebReelsFeed
   const [error, setError] = useState<Error | null>(null);
   const [hasMore, setHasMore] = useState(false);
 
-  // Fetch khateb's reels from the endpoint
+  // Fetch khateb's reels from the proxy endpoint to avoid CORS
   useEffect(() => {
     const fetchKhatebReels = async () => {
       if (!currentUserId) {
@@ -240,7 +240,8 @@ export function KhatebReelsFeed({ initialReels, currentUserId }: KhatebReelsFeed
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
         
-        const response = await fetch(`${BASE_URL}/users/${currentUserId}/reels`, {
+        // Use proxy API route to avoid CORS issues
+        const response = await fetch(`/api/users/${currentUserId}/reels`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -296,7 +297,8 @@ export function KhatebReelsFeed({ initialReels, currentUserId }: KhatebReelsFeed
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
       
-      const response = await fetch(`${BASE_URL}/users/${currentUserId}/reels`, {
+      // Use proxy API route to avoid CORS issues
+      const response = await fetch(`/api/users/${currentUserId}/reels`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

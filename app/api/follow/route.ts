@@ -2,13 +2,13 @@
  * Follow API Route
  * 
  * Proxies follow/unfollow requests to the external API.
- * Endpoint: POST http://apisoapp.twingroups.com/follow/{{user_id}}
+ * Endpoint: POST https://apisoapp.twingroups.com/follow/{{user_id}}
  * Body: {"target_user_id":"..."}
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'http://apisoapp.twingroups.com';
+const BACKEND_URL = 'https://apisoapp.twingroups.com';
 
 /**
  * Get current user ID from token (decode JWT or fetch from API)
