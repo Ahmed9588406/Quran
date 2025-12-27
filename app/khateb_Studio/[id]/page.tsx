@@ -45,7 +45,11 @@ function StatCard({ title, subtitle, icon }: StatCardProps) {
 
 // Helper function to format date as ISO string (YYYY-MM-DD)
 function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Use local date parts to avoid timezone shifts when converting to ISO
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 // Scheduled Khotba type
@@ -58,7 +62,7 @@ interface ScheduledKhotba {
 }
 
 // Calendar Component with Scheduled Khotba Dots
-function Calendar({ onKhotbaClick }: { onKhotbaClick?: (khotba: ScheduledKhotba, date: string) => void }) {
+function Calendar({ onKhotbaClick, preacherId }: { onKhotbaClick?: (khotba: ScheduledKhotba, date: string) => void; preacherId?: string | null }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scheduledKhotbas, setScheduledKhotbas] = useState<Record<string, ScheduledKhotba[]>>({});
   const today = new Date();
@@ -68,7 +72,7 @@ function Calendar({ onKhotbaClick }: { onKhotbaClick?: (khotba: ScheduledKhotba,
 
   // Load scheduled khotbas from localStorage
   useEffect(() => {
-    const loadScheduledKhotbas = () => {
+    const loadScheduledKhotbasFromStorage = () => {
       try {
         const stored = localStorage.getItem('scheduled_khotbas');
         if (stored) {
@@ -79,19 +83,19 @@ function Calendar({ onKhotbaClick }: { onKhotbaClick?: (khotba: ScheduledKhotba,
       }
     };
 
-    loadScheduledKhotbas();
+    loadScheduledKhotbasFromStorage();
 
     // Listen for storage changes (in case khotba is scheduled in another tab)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'scheduled_khotbas') {
-        loadScheduledKhotbas();
+        loadScheduledKhotbasFromStorage();
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     
     // Also listen for custom event when khotba is scheduled in same tab
-    const handleKhotbaScheduled = () => loadScheduledKhotbas();
+    const handleKhotbaScheduled = () => loadScheduledKhotbasFromStorage();
     window.addEventListener('khotba-scheduled', handleKhotbaScheduled);
 
     return () => {
@@ -99,6 +103,56 @@ function Calendar({ onKhotbaClick }: { onKhotbaClick?: (khotba: ScheduledKhotba,
       window.removeEventListener('khotba-scheduled', handleKhotbaScheduled);
     };
   }, []);
+
+  // Fetch calendar entries from API for the current month
+  useEffect(() => {
+    const fetchCalendar = async () => {
+      try {
+        if (!preacherId) return;
+
+        const month = currentDate.getMonth() + 1;
+        const monthYear = `${currentDate.getFullYear()}-${String(month).padStart(2, '0')}`;
+
+        // Get access token from localStorage to authenticate the request
+        const accessToken = localStorage.getItem('access_token');
+        const headers: HeadersInit = {};
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        // Use local proxy to avoid CORS issues (server-side fetch)
+        const res = await fetch(`/api/calendar?userId=${encodeURIComponent(preacherId)}&monthYear=${encodeURIComponent(monthYear)}`, {
+          headers,
+        });
+        if (!res.ok) {
+          console.warn('Failed to fetch calendar:', res.statusText);
+          return;
+        }
+
+        const data: Array<{ day: number; documentId: number }> = await res.json();
+
+        // Build mapping from ISO date (YYYY-MM-DD) => ScheduledKhotba[]
+        const mapping: Record<string, ScheduledKhotba[]> = {};
+        data.forEach((item) => {
+          const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), item.day);
+          const iso = toISODate(date);
+          mapping[iso] = mapping[iso] || [];
+          mapping[iso].push({ id: item.documentId });
+        });
+
+        setScheduledKhotbas(mapping);
+        try {
+          localStorage.setItem('scheduled_khotbas', JSON.stringify(mapping));
+        } catch (e) {
+          // ignore storage errors
+        }
+      } catch (error) {
+        console.error('Error fetching calendar data:', error);
+      }
+    };
+
+    fetchCalendar();
+  }, [currentDate, preacherId]);
 
   const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -227,10 +281,9 @@ function Calendar({ onKhotbaClick }: { onKhotbaClick?: (khotba: ScheduledKhotba,
             >
               <div
                 onClick={() => hasKhotba && handleDateClick(dayObj.isoDate)}
-                className={`w-[27px] h-[27px] flex items-center justify-center text-[15px] font-medium rounded-full cursor-pointer transition-all
+                className={`w-[27px] h-[27px] flex items-center justify-center text-[15px] font-medium rounded-full transition-all
                   ${!dayObj.isCurrentMonth ? "text-[#8A1538] opacity-20" : "text-[#8A1538]"}
-                  ${isToday ? "bg-[#CFAE70] text-white" : "hover:bg-gray-100"}
-                  ${hasKhotba && !isToday ? "ring-2 ring-green-500 ring-offset-1 hover:ring-green-600 hover:scale-110" : ""}
+                  ${isToday ? "bg-[#CFAE70] text-white" : hasKhotba && dayObj.isCurrentMonth ? "bg-green-500 text-white hover:bg-green-600" : "hover:bg-gray-100"}
                   ${hasKhotba ? "cursor-pointer" : ""}
                 `}
               >
@@ -614,6 +667,7 @@ export default function DynamicKhateebStudioPage({ params }: { params: Promise<{
               {/* Right Column - Calendar & Prepare Khotba */}
               <div className="flex flex-col gap-4">
                 <Calendar 
+                  preacherId={preacherId}
                   onKhotbaClick={(khotba, date) => {
                     setSelectedKhotbaDoc({
                       id: khotba.id,
