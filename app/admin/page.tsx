@@ -112,22 +112,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Ambient background effects */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: "4s" }} />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: "5s", animationDelay: "1s" }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-500/5 rounded-full blur-[150px] animate-pulse" style={{ animationDuration: "6s", animationDelay: "2s" }} />
-      </div>
-
-      {/* Grid pattern overlay */}
-      <div 
-        className="fixed inset-0 opacity-[0.015] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)`,
-          backgroundSize: "50px 50px"
-        }}
-      />
+    <div className="min-h-screen bg-gray-50 text-gray-800">
 
       <div className="relative z-10">
         <AdminHeader 
@@ -144,10 +129,10 @@ export default function AdminDashboard() {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-32">
                 <div className="relative">
-                  <div className="w-16 h-16 border-4 border-emerald-500/20 rounded-full" />
-                  <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-emerald-500 rounded-full animate-spin" />
+                  <div className="w-16 h-16 border-4 border-gray-200 rounded-full" />
+                  <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-[#8A1538] rounded-full animate-spin" />
                 </div>
-                <p className="mt-6 text-gray-400 text-sm animate-pulse">Loading dashboard data...</p>
+                <p className="mt-6 text-gray-500 text-sm animate-pulse">Loading dashboard data...</p>
               </div>
             ) : (
               <>
