@@ -1,32 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: Request, context?: { params?: { id?: string } }) {
+export async function GET(
+	request: NextRequest,
+	props: { params: Promise<{ id: string }> }
+) {
+	const { id } = await props.params;
+
 	// 10s timeout
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 10000);
 
 	try {
-		// Try to obtain id from context.params (normal case) or fallback to parsing the request URL
-		let id: string | undefined = context?.params?.id;
-		if (!id) {
-			try {
-				const url = new URL(request.url);
-				// extract last non-empty segment
-				const segments = url.pathname.split('/').filter(Boolean);
-				// find 'fatwas' segment and take next segment if available
-				const idx = segments.findIndex((s) => s === 'fatwas');
-				if (idx >= 0 && idx + 1 < segments.length) {
-					id = segments[idx + 1];
-				} else {
-					// as fallback, take the last segment
-					id = segments[segments.length - 1];
-				}
-			} catch {
-				// ignore
-			}
-		}
-
 		if (!id) {
 			clearTimeout(timeout);
 			return NextResponse.json({ error: 'id required' }, { status: 400 });

@@ -95,7 +95,7 @@ export default function MessageBubble({ message, isSent, onDelete }: MessageBubb
               <DocumentMessage 
                 url={url} 
                 filename={filename}
-                fileSize={attachment.size}
+                fileSize={attachment.size?.toString()}
                 isSent={isSent} 
               />
             </div>

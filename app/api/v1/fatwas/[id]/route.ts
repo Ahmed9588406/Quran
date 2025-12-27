@@ -1,14 +1,18 @@
-import { NextResponse } from 'next/server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_BASE = 'http://192.168.1.29:8080/api/v1';
 
-export async function GET(request: Request, context?: { params?: { id?: string } }) {
+export async function GET(
+	request: NextRequest,
+	props: { params: Promise<{ id: string }> }
+) {
+	const { id } = await props.params;
+
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 10000);
 
 	try {
-		const id = context?.params?.id;
-
 		if (!id) {
 			clearTimeout(timeout);
 			return NextResponse.json({ error: 'id required' }, { status: 400 });

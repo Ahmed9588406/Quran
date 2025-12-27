@@ -147,6 +147,8 @@ export interface CreateReelResponse {
  * Comment data model
  */
 export interface ReelComment {
+  display_name: string;
+  avatar_url: string;
   id: string;
   reel_id: string;
   user_id: string;

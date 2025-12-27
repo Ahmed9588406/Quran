@@ -1,87 +1,92 @@
 /**
  * Reels Comments API Route
  * 
- * Proxies fetch comments requests to the external reels API.
- * Endpoint: GET /reels/{reel_id} - returns reel with embedded comments
+ * Fetches comments for a reel from GET /reels/{reel_id}
+ * The backend returns comments embedded in the reel response.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
-export async function GET(
-  request: NextRequest,
-  props: { params: Promise<{ reelId: string }> }
-) {
-  try {
-    const params = await props.params;
-    const { reelId } = params;
-    const token = request.headers.get('authorization');
-
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = token;
-    }
-
-    console.log('[Reels Comments API] Fetching reel with comments:', reelId);
-
-    // Use the correct endpoint: /reels/{reel_id}
-    const response = await fetch(`${BACKEND_URL}/reels/${reelId}`, {
-      method: 'GET',
-      headers,
-    });
-
-    console.log('[Reels Comments API] Response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Reels Comments API] Backend error:', {
-        status: response.status,
-        body: errorText,
-      });
-      
-      return NextResponse.json(
-        { error: 'Failed to fetch comments', comments: [], has_more: false },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    console.log('[Reels Comments API] Response data:', JSON.stringify(data).substring(0, 500));
-
-    // Extract comments from the reel response
-    let comments: any[] = [];
-    
-    if (data.success && data.reel && Array.isArray(data.reel.comments)) {
-      // Transform comments to match expected format
-      comments = data.reel.comments.map((c: any) => ({
-        id: c.id,
+// Helper function to transform comment data
+function transformComment(comment: any, reelId: string) {
+    return {
+        id: comment.id,
         reel_id: reelId,
-        user_id: c.user_id || c.author_id || '',
-        username: c.display_name || c.username || 'User',
-        user_avatar: c.avatar_url || '',
-        content: c.content,
-        created_at: c.created_at,
-        likes_count: c.likes_count || 0,
-        is_liked: c.is_liked || false,
-      }));
+        user_id: comment.user_id || comment.author_id || '',
+        username: comment.display_name || comment.username || 'User',
+        user_avatar: comment.avatar_url || '',
+        content: comment.content,
+        created_at: comment.created_at,
+        likes_count: comment.likes_count || 0,
+        is_liked: comment.is_liked || false,
+    };
+}
+
+export async function GET(
+    request: NextRequest,
+    props: { params: Promise<{ reelId: string }> }
+) {
+    try {
+        const params = await props.params;
+        const { reelId } = params;
+        const token = request.headers.get('authorization');
+
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+        };
+
+        if (token) {
+            headers['Authorization'] = token;
+        }
+
+        console.log('[Reels Comments API] Fetching reel with comments:', reelId);
+
+        // Fetch the reel which includes comments
+        const response = await fetch(`${BACKEND_URL}/reels/${reelId}`, {
+            method: 'GET',
+            headers,
+        });
+
+        console.log('[Reels Comments API] Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            console.error('[Reels Comments API] Backend error:', errorText);
+            
+            // Return empty comments for errors
+            return NextResponse.json({
+                comments: [],
+                has_more: false,
+                total: 0,
+            });
+        }
+
+        const data = await response.json();
+        console.log('[Reels Comments API] Response success:', data.success);
+
+        // Extract and transform comments from the reel response
+        let comments: any[] = [];
+        
+        if (data.success && data.reel && Array.isArray(data.reel.comments)) {
+            comments = data.reel.comments.map((c: any) => transformComment(c, reelId));
+        }
+
+        console.log('[Reels Comments API] Returning', comments.length, 'comments');
+
+        return NextResponse.json({
+            comments,
+            has_more: false,
+            total: data.reel?.comments_count || comments.length,
+        });
+    } catch (error) {
+        console.error('[Reels Comments API] Error:', error);
+        return NextResponse.json({
+            comments: [],
+            has_more: false,
+            total: 0,
+            error: 'Internal server error',
+        });
     }
-
-    console.log('[Reels Comments API] Returning', comments.length, 'comments');
-
-    return NextResponse.json({
-      comments,
-      has_more: false, // This endpoint returns all comments at once
-      total: data.reel?.comments_count || comments.length,
-    });
-  } catch (error) {
-    console.error('[Reels Comments API] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', comments: [], has_more: false },
-      { status: 500 }
-    );
-  }
 }

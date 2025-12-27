@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -142,10 +143,12 @@ export default function ViewDocumentPage() {
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
 
+      // Provide the canvas element as required by RenderParameters
       await page.render({
+        canvas,
         canvasContext: context,
-        viewport: viewport,
-      } as any).promise;
+        viewport,
+      }).promise;
       
       console.log('Page', pageNum, 'rendered');
     } catch (err) {

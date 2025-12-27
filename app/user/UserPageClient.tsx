@@ -270,22 +270,29 @@ export default function UserPageClient({ userId, initialUserData }: UserPageClie
         onClose={() => setIsLeftOpen(false)}
         onNavigate={(view) => {
           setActiveView(view || "");
-          setIsLeftOpen(false);
-        }}
-        activeView={activeView}
-        onOpenScan={() => setIsScanOpen(true)}
-        permanent={false}
-      />
+            setIsLeftOpen(false);
+          }}
+          activeView={activeView}
+          onOpenScan={() => setIsScanOpen(true)}
+          permanent={false}
+          />
 
-      {/* Leaderboard - visible on lg+ */}
-      <div className="hidden lg:block fixed left-[56px] top-20 z-30 pointer-events-auto">
-        <Leaderboard />
-      </div>
+          {/* RightSide & Leaderboard - visible on lg+ */}
+          <div className="hidden lg:block fixed left-14 top-20 z-30 pointer-events-auto">
+            <div className="flex flex-col gap-4 w-[350px] max-w-[calc(100vw-3rem)]">
+              <div className="w-full">
+                <RightSide />
+              </div>
+              <div className="w-full">
+                <Leaderboard />
+              </div>
+            </div>
+          </div>
 
       {/* RightSide - visible on lg+ as fixed column */}
       <aside className="hidden lg:block fixed right-4 top-20 z-30 pointer-events-auto">
         <div className="w-[320px] max-h-[calc(100vh-100px)] rounded-lg overflow-auto shadow-sm">
-          <RightSide />
+          {/*Active Users*/}
         </div>
       </aside>
 

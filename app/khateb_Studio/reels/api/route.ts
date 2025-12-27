@@ -5,27 +5,26 @@ const BACKEND_URL = 'http://apisoapp.twingroups.com';
 // Helper function to transform external reel data to internal format
 // Supports both Feed format and User Reels format
 function transformReel(item: any, defaultUser?: { id: string }) {
-    // Determine fields based on source format
     const id = item.id;
 
-    // Feed format uses author_id, User format implies user is known (or not provided in item)
+    // Feed format uses author_id
     const userId = item.author_id || defaultUser?.id || '';
 
-    // Feed format uses username/avatar_url, User format might be missing them
-    const username = item.username || 'Unknown User';
+    // Feed format uses display_name and username
+    const username = item.display_name || item.username || 'Unknown User';
     const userAvatar = item.avatar_url || null;
 
-    // Feed format uses media_url, User format uses video_url (or potentially media_url)
+    // Feed format uses media_url
     const videoUrl = item.media_url || item.video_url;
 
-    // Feed format uses caption, User format uses content
-    const content = item.caption || item.content;
+    // Feed format uses caption
+    const content = item.caption || item.content || '';
 
     // Like stats
     const likesCount = item.likes_count ?? 0;
     const commentsCount = item.comments_count ?? 0;
 
-    // Authored/Liked status
+    // Liked status - feed uses liked_by_me
     const isLiked = item.liked_by_me ?? item.liked_by_current_user ?? false;
 
     return {
@@ -40,17 +39,20 @@ function transformReel(item: any, defaultUser?: { id: string }) {
         likes_count: likesCount,
         comments_count: commentsCount,
         is_liked: isLiked,
-        is_saved: false, // Default
-        is_following: false, // Default
+        is_saved: item.is_saved ?? false,
+        is_following: item.is_following ?? false,
         created_at: item.created_at,
         // Include comments if present
         comments: item.comments ? item.comments.map((comment: any) => ({
             id: comment.id,
+            reel_id: id,
+            user_id: comment.user_id || comment.author_id || '',
             content: comment.content,
             created_at: comment.created_at,
-            username: comment.username,
-            display_name: comment.display_name,
-            avatar_url: comment.avatar_url
+            username: comment.display_name || comment.username || 'User',
+            user_avatar: comment.avatar_url || '',
+            likes_count: comment.likes_count || 0,
+            is_liked: comment.is_liked || false,
         })) : undefined
     };
 }
@@ -268,6 +270,8 @@ async function fetchReelsFeed(page: string, limit: string | null, authHeader: st
         url.searchParams.append('limit', limit);
     }
 
+    console.log('[KhatebReels API] Fetching reels feed:', url.toString());
+
     const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
@@ -277,14 +281,32 @@ async function fetchReelsFeed(page: string, limit: string | null, authHeader: st
         next: { revalidate: 60 }
     });
 
+    console.log('[KhatebReels API] Feed response status:', response.status);
+
     if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error('[KhatebReels API] Feed error:', errorText);
         throw new Error(`Feed API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const reels = Array.isArray(data.reels) ? data.reels.map((item: any) => transformReel(item)) : [];
+    console.log('[KhatebReels API] Feed response:', { 
+        success: data.success, 
+        reelsCount: data.reels?.length || 0,
+        page: data.page 
+    });
 
-    return { ...data, reels };
+    // Transform reels array
+    const reels = Array.isArray(data.reels) 
+        ? data.reels.map((item: any) => transformReel(item)) 
+        : [];
+
+    return { 
+        success: data.success ?? true,
+        reels,
+        page: data.page || parseInt(page),
+        has_more: reels.length >= parseInt(limit || '20'),
+    };
 }
 
 async function fetchReelById(id: string, authHeader: string | null) {

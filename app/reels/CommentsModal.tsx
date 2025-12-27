@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 /**
@@ -129,11 +130,13 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
         reel_id: c.reel_id || reelId,
         user_id: c.user_id || '',
         username: c.username || c.display_name || 'User',
+        display_name: c.display_name || c.username || 'User',
         user_avatar: c.user_avatar || c.avatar_url || '',
+        avatar_url: c.avatar_url || c.user_avatar || '',
         content: c.content || '',
         created_at: c.created_at || new Date().toISOString(),
-        likes_count: c.likes_count || 0,
-        is_liked: c.is_liked || false,
+        likes_count: typeof c.likes_count === 'number' ? c.likes_count : 0,
+        is_liked: Boolean(c.is_liked),
       }));
       
       console.log('[CommentsModal] Parsed comments count:', commentsArray.length);
@@ -194,17 +197,19 @@ export function CommentsModal({ isOpen, onClose, reelId, onCommentAdded, onComme
     setNewComment('');
     
     // Create optimistic comment immediately
-    const optimisticComment: ReelComment = {
-      id: `local_${Date.now()}`,
-      reel_id: reelId,
-      user_id: currentUser.id || '',
-      username: currentUser.username || 'You',
-      user_avatar: currentUser.avatar || '',
-      content: commentText,
-      created_at: new Date().toISOString(),
-      likes_count: 0,
-      is_liked: false,
-    };
+        const optimisticComment: ReelComment = {
+          id: `local_${Date.now()}`,
+          reel_id: reelId,
+          user_id: currentUser.id || '',
+          username: currentUser.username || 'You',
+          display_name: currentUser.username || 'You',
+          user_avatar: currentUser.avatar || '',
+          avatar_url: currentUser.avatar || '',
+          content: commentText,
+          created_at: new Date().toISOString(),
+          likes_count: 0,
+          is_liked: false,
+        };
     
     // Add optimistic comment immediately
     setComments(prev => [optimisticComment, ...prev]);

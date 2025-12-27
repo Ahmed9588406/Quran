@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -220,7 +220,7 @@ function NavBar({
   );
 }
 
-export default function PrepareKhotbaPage() {
+function PrepareKhotbaPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const date = searchParams?.get("date") ?? "";
@@ -1649,5 +1649,13 @@ export default function PrepareKhotbaPage() {
         onSelect={handleSelectUser}
       />
     </div>
+  );
+}
+
+export default function PrepareKhotbaPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <PrepareKhotbaPageInner />
+    </Suspense>
   );
 }
