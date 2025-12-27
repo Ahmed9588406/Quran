@@ -1,7 +1,5 @@
 "use client";
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import Image from "next/image";
-import { MapPin } from "lucide-react";
 
 type Mosque = {
   name: string;
@@ -221,7 +219,7 @@ export default function RightSide() {
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/10">
               {/* mosque svg */}
-              <Image
+              <img
                 src="/icons/mosque-location.svg"
                 alt="Mosque"
                 width={28}
