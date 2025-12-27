@@ -208,12 +208,12 @@ function BroadcasterPageInner() {
         onLoad={() => setJanusLoaded(true)}
       />
 
-      <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-[#8A1538] via-[#6d1029] to-[#4a0a1c] flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg">
           <div className="text-center mb-6">
             <span className="text-5xl">🎤</span>
             <h1 className="text-2xl font-bold text-gray-800 mt-3">Live Broadcasting</h1>
-            <p className="text-gray-500">Room ID: <strong className="text-indigo-600">{roomId || "Missing"}</strong></p>
+            <p className="text-gray-500">Room ID: <strong className="text-[#8A1538]">{roomId || "Missing"}</strong></p>
           </div>
 
           <div className="bg-gray-50 rounded-xl p-5 mb-6 text-center">
@@ -226,11 +226,11 @@ function BroadcasterPageInner() {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <p className="text-xs text-gray-500 mb-1">Listeners</p>
-              <p className="text-3xl font-bold text-indigo-600">{listenerCount}</p>
+              <p className="text-3xl font-bold text-[#8A1538]">{listenerCount}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <p className="text-xs text-gray-500 mb-1">Duration</p>
-              <p className="text-3xl font-bold text-indigo-600">{duration}</p>
+              <p className="text-3xl font-bold text-[#8A1538]">{duration}</p>
             </div>
           </div>
 
@@ -249,7 +249,7 @@ function BroadcasterPageInner() {
             <button
               onClick={startBroadcast}
               disabled={!janusLoaded || status === "connecting"}
-              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+              className="w-full py-4 bg-[#8A1538] text-white rounded-xl font-semibold hover:bg-[#6d1029] transition-all disabled:opacity-50 shadow-lg"
             >
               {status === "connecting" ? "Connecting..." : "Start Broadcasting"}
             </button>
