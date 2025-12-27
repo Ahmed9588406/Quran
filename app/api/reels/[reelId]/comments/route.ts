@@ -1,175 +1,92 @@
 /**
  * Reels Comments API Route
  * 
- * Proxies comment requests to the external reels API.
- * Note: Backend uses /reels/{reel_id}/comment (singular) for both GET and POST
+ * Fetches comments for a reel from GET /reels/{reel_id}
+ * The backend returns comments embedded in the reel response.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
-/**
- * Transforms backend comment response to match frontend expectations
- */
-function transformCommentsResponse(backendData: any, page: number, limit: number) {
-  const comments = backendData.comments || backendData.data || [];
-  
-  // Map backend fields to frontend ReelComment interface
-  const transformedComments = comments.map((comment: any) => ({
-    id: comment.id,
-    reel_id: comment.reel_id,
-    user_id: comment.user_id || comment.author_id,
-    username: comment.username,
-    user_avatar: comment.user_avatar || comment.avatar_url,
-    content: comment.content,
-    created_at: comment.created_at,
-    likes_count: comment.likes_count || 0,
-    is_liked: comment.is_liked || false,
-  }));
-
-  return {
-    comments: transformedComments,
-    total_count: backendData.total_count || comments.length,
-    page,
-    limit,
-    has_more: comments.length === limit,
-  };
+// Helper function to transform comment data
+function transformComment(comment: any, reelId: string) {
+    return {
+        id: comment.id,
+        reel_id: reelId,
+        user_id: comment.user_id || comment.author_id || '',
+        username: comment.display_name || comment.username || 'User',
+        user_avatar: comment.avatar_url || '',
+        content: comment.content,
+        created_at: comment.created_at,
+        likes_count: comment.likes_count || 0,
+        is_liked: comment.is_liked || false,
+    };
 }
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { reelId: string } }
+    request: NextRequest,
+    props: { params: Promise<{ reelId: string }> }
 ) {
-  try {
-    const { reelId } = params;
-    const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const token = request.headers.get('authorization');
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
+    try {
+        const params = await props.params;
+        const { reelId } = params;
+        const token = request.headers.get('authorization');
 
-    if (token) {
-      headers['Authorization'] = token;
-    }
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+        };
 
-    console.log('[Comments API] Fetching comments for reel:', reelId);
+        if (token) {
+            headers['Authorization'] = token;
+        }
 
-    // Try the singular endpoint first (backend uses /reels/{reel_id}/comment)
-    const response = await fetch(
-      `${BACKEND_URL}/reels/${reelId}/comment?page=${page}&limit=${limit}`,
-      {
-        method: 'GET',
-        headers,
-      }
-    );
+        console.log('[Reels Comments API] Fetching reel with comments:', reelId);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Comments API] Backend error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-      });
-      
-      // Return empty comments list instead of error for 404
-      if (response.status === 404) {
-        return NextResponse.json({
-          comments: [],
-          total_count: 0,
-          page,
-          limit,
-          has_more: false,
+        // Fetch the reel which includes comments
+        const response = await fetch(`${BACKEND_URL}/reels/${reelId}`, {
+            method: 'GET',
+            headers,
         });
-      }
-      
-      return NextResponse.json(
-        { error: 'Failed to fetch comments' },
-        { status: response.status }
-      );
+
+        console.log('[Reels Comments API] Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            console.error('[Reels Comments API] Backend error:', errorText);
+            
+            // Return empty comments for errors
+            return NextResponse.json({
+                comments: [],
+                has_more: false,
+                total: 0,
+            });
+        }
+
+        const data = await response.json();
+        console.log('[Reels Comments API] Response success:', data.success);
+
+        // Extract and transform comments from the reel response
+        let comments: any[] = [];
+        
+        if (data.success && data.reel && Array.isArray(data.reel.comments)) {
+            comments = data.reel.comments.map((c: any) => transformComment(c, reelId));
+        }
+
+        console.log('[Reels Comments API] Returning', comments.length, 'comments');
+
+        return NextResponse.json({
+            comments,
+            has_more: false,
+            total: data.reel?.comments_count || comments.length,
+        });
+    } catch (error) {
+        console.error('[Reels Comments API] Error:', error);
+        return NextResponse.json({
+            comments: [],
+            has_more: false,
+            total: 0,
+            error: 'Internal server error',
+        });
     }
-
-    const data = await response.json();
-    const transformed = transformCommentsResponse(data, page, limit);
-    return NextResponse.json(transformed);
-  } catch (error) {
-    console.error('[Reels Comments API Proxy] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { reelId: string } }
-) {
-  try {
-    const { reelId } = params;
-    const searchParams = request.nextUrl.searchParams;
-    const commentId = searchParams.get('commentId');
-    
-    if (!commentId) {
-      return NextResponse.json(
-        { error: 'Comment ID is required' },
-        { status: 400 }
-      );
-    }
-
-    const token = request.headers.get('authorization');
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = token;
-    }
-
-    const response = await fetch(
-      `${BACKEND_URL}/reels/${reelId}/comments/${commentId}`,
-      {
-        method: 'DELETE',
-        headers,
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Delete Comment API] Backend error:', {
-        status: response.status,
-        body: errorText,
-      });
-      return NextResponse.json(
-        { error: 'Failed to delete comment' },
-        { status: response.status }
-      );
-    }
-
-    const text = await response.text();
-    let data = {};
-    
-    // Handle empty responses
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { success: true };
-      }
-    } else {
-      data = { success: true };
-    }
-    
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('[Reels Delete Comment API Proxy] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
 }

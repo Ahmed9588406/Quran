@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, ChevronLeft, ChevronRight, RefreshCw, GripHorizontal } from "lucide-react";
@@ -216,10 +217,12 @@ export default function PDFViewerModal({
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
 
+      // Pass the canvas element along with the canvasContext and viewport
       await page.render({
+        canvas,
         canvasContext: context,
-        viewport: viewport,
-      } as any).promise;
+        viewport,
+      }).promise;
     } catch (err) {
       console.error('Error rendering page:', err);
     }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * User Reels API Route
  * 
@@ -52,10 +53,11 @@ function transformUserReelsResponse(backendData: any, userId: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  props: { params: Promise<{ userId: string }> } // <-- changed to match validator
 ) {
+  const { userId } = await props.params; // <-- await to extract userId
+
   try {
-    const { userId } = params;
     const searchParams = request.nextUrl.searchParams;
     const page = searchParams.get('page') || '1';
     const limit = searchParams.get('limit') || '10';

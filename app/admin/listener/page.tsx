@@ -1,5 +1,8 @@
+/* eslint-disable react-hooks/purity */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
+import React, { Suspense } from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Script from "next/script";
@@ -9,7 +12,7 @@ const BACKEND_BASE = "/api/admin/stream";
 
 declare const Janus: any;
 
-export default function ListenerPage() {
+function ListenerPageInner() {
   const searchParams = useSearchParams();
   const roomId = parseInt(searchParams.get("roomId") || "0");
   const liveStreamId = parseInt(searchParams.get("liveStreamId") || "0") || roomId;
@@ -494,5 +497,13 @@ export default function ListenerPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function ListenerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <ListenerPageInner />
+    </Suspense>
   );
 }

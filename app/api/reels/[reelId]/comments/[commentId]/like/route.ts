@@ -10,9 +10,10 @@ const BACKEND_URL = 'http://apisoapp.twingroups.com';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { reelId: string; commentId: string } }
+  props: { params: Promise<{ reelId: string; commentId: string }> } // <-- changed to Promise wrapper
 ) {
   try {
+    const params = await props.params; // <-- await to extract params
     const { reelId, commentId } = params;
     const token = request.headers.get('authorization');
     
@@ -70,9 +71,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { reelId: string; commentId: string } }
+  props: { params: Promise<{ reelId: string; commentId: string }> } // <-- changed to Promise wrapper
 ) {
   try {
+    const params = await props.params; // <-- await to extract params
     const { reelId, commentId } = params;
     const token = request.headers.get('authorization');
     

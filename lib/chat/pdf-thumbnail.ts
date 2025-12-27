@@ -107,11 +107,13 @@ export async function generatePDFThumbnail(
     canvas.height = scaledViewport.height;
 
     // Render the page to the canvas
+    // include the canvas element to satisfy RenderParameters
     await page.render({
+      canvas,
       canvasContext: context,
       viewport: scaledViewport,
     }).promise;
-
+    
     // Convert canvas to data URL
     const dataUrl = canvas.toDataURL('image/png');
 

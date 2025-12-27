@@ -82,6 +82,52 @@ function ReelItem({
     setCommentCount(reel.comments_count);
   }, [reel.id]);
 
+  // Local state for like to override the hook if needed or strictly use local logic
+  const [localIsLiked, setLocalIsLiked] = useState(reel.is_liked ?? false);
+  const [localLikeCount, setLocalLikeCount] = useState(reel.likes_count ?? 0);
+
+  // Sync with prop if it changes (though usually initial is enough)
+  useEffect(() => {
+    // Only if we haven't touched it? Or just trust the prop on mount.
+    // Let's stick to initial state for now to avoid overwriting optimistic updates
+  }, [reel.id]);
+
+  const handleLike = useCallback(async () => {
+    // Optimistic update
+    const prevIsLiked = localIsLiked;
+    const prevCount = localLikeCount;
+
+    setLocalIsLiked(!prevIsLiked);
+    setLocalLikeCount(prev => prevIsLiked ? prev - 1 : prev + 1);
+
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      // Call local proxy API
+      // If currently liked (prevIsLiked=true), we want to UNLIKE (DELETE)
+      // If currently not liked (prevIsLiked=false), we want to LIKE (POST)
+      
+      const method = prevIsLiked ? 'DELETE' : 'POST';
+      
+      const response = await fetch(`/khateb_Studio/reels/api?reel_id=${reel.id}&action=like`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle like');
+      }
+      
+    } catch (error) {
+      console.error('Like toggle failed:', error);
+      // Revert
+      setLocalIsLiked(prevIsLiked);
+      setLocalLikeCount(prevCount);
+    }
+  }, [reel.id, localIsLiked, localLikeCount]);
+
   const handleFollow = useCallback(async () => {
     try {
       // Use the correct API format: POST /api/follow with body {"target_user_id":"..."}
@@ -156,20 +202,20 @@ function ReelItem({
 
         {/* Like Button */}
         <button
-          onClick={toggleLike}
+          onClick={handleLike}
           className="flex flex-col items-center gap-1"
-          aria-label={isLiked ? "Unlike" : "Like"}
+          aria-label={localIsLiked ? "Unlike" : "Like"}
         >
           <svg
-            className={`w-7 h-7 ${isLiked ? "fill-[#8A1538] text-[#8A1538]" : "text-white"}`}
+            className={`w-7 h-7 ${localIsLiked ? "fill-[#8A1538] text-[#8A1538]" : "text-white"}`}
             viewBox="0 0 24 24"
-            fill={isLiked ? "currentColor" : "none"}
+            fill={localIsLiked ? "currentColor" : "none"}
             stroke="currentColor"
             strokeWidth="1.5"
           >
             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
           </svg>
-          <span className="text-white text-xs font-medium">{formatCount(likeCount)}</span>
+          <span className="text-white text-xs font-medium">{formatCount(localLikeCount)}</span>
         </button>
 
         {/* Comment Button */}
@@ -240,8 +286,8 @@ export function KhatebReelsFeed({ initialReels, currentUserId }: KhatebReelsFeed
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
         
-        // Use proxy API route to avoid CORS issues
-        const response = await fetch(`/api/users/${currentUserId}/reels`, {
+        // Use proxy API route to avoid CORS issues and get transformed data
+        const response = await fetch(`/khateb_Studio/reels/api?page=1`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -297,8 +343,8 @@ export function KhatebReelsFeed({ initialReels, currentUserId }: KhatebReelsFeed
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
       
-      // Use proxy API route to avoid CORS issues
-      const response = await fetch(`/api/users/${currentUserId}/reels`, {
+      // Use proxy API route to avoid CORS issues and get transformed data
+      const response = await fetch(`/khateb_Studio/reels/api?page=1`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

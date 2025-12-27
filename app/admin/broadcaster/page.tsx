@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
+import React, { Suspense } from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Script from "next/script";
@@ -11,7 +13,7 @@ const BACKEND_BASE = "/api/admin/stream";
 
 declare const Janus: any;
 
-export default function BroadcasterPage() {
+function BroadcasterPageInner() {
   const searchParams = useSearchParams();
   const roomId = parseInt(searchParams.get("roomId") || "0");
   const liveStreamId = parseInt(searchParams.get("liveStreamId") || "0");
@@ -262,5 +264,13 @@ export default function BroadcasterPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function BroadcasterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <BroadcasterPageInner />
+    </Suspense>
   );
 }

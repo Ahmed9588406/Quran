@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 /**
@@ -219,7 +220,7 @@ export function ShareModal({ isOpen, reel, onClose, onShareToChat }: ShareModalP
               </button>
 
               {/* Native Share Option (if available) */}
-              {typeof navigator !== 'undefined' && navigator.share && (
+              {typeof navigator !== 'undefined' && 'share' in navigator && typeof (navigator as any).share === 'function' && (
                 <button
                   onClick={handleNativeShare}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors"
